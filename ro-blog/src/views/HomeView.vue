@@ -111,7 +111,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="page-container">
     <section class="hero">
-      <div class="carousel" :class="carouselState" @mouseenter="stopAutoplay" @mouseleave="startAutoplay">
+      <div
+        class="carousel"
+        :class="carouselState"
+        @mouseenter="stopAutoplay"
+        @mouseleave="startAutoplay"
+      >
         <div class="list">
           <div v-for="(item, index) in heroSlides" :key="item.id" class="item">
             <img
@@ -185,7 +190,7 @@ onBeforeUnmount(() => {
   position: relative;
   width: 100vw;
   height: 100vh;
-  margin-top:0px;
+  margin-top: 0px;
   overflow: hidden;
 }
 
@@ -209,7 +214,12 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.06) 100%);
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.82) 0%,
+    rgba(0, 0, 0, 0.38) 48%,
+    rgba(0, 0, 0, 0.06) 100%
+  );
 }
 
 .list .item:nth-child(1) {

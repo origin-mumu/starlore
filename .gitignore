@@ -34,3 +34,19 @@ coverage
 
 # Vitest
 __screenshots__/
+
+# 环境变量文件
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Blog-back相关
+blog-back/.env
+blog-back/.env.*
+
+# Ro-blog相关
+ro-blog/.env*
+ro-blog/*.env

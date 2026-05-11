@@ -52,6 +52,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/vr',
+      name: 'vr',
+      component: () => import('../views/VRView.vue'),
+      meta: {
+        title: 'VR 展厅 - RO-BLOG'
+      }
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'notFound',
       component: () => import('../views/NotFound.vue'),

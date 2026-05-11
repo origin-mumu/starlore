@@ -155,21 +155,21 @@ watch(
 </script>
 
 <template>
-  <div class="app-container" :class="{ 'app-container--echobot': route.path === '/echobot' }">
+  <div class="app-container" :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' }">
     <div v-if="!isAppReady" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>
         <p>加载中</p>
       </div>
     </div>
-    <navbar v-show="route.path !== '/echobot'" />
+    <navbar v-show="route.path !== '/echobot' && route.path !== '/vr'" />
     <div
       class="router-outlet"
-      :class="{ 'router-outlet--echobot': route.path === '/echobot' }"
+      :class="{ 'router-outlet--echobot': route.path === '/echobot' || route.path === '/vr' }"
     >
       <RouterView />
     </div>
-    <footer class="site-footer" :class="{ 'site-footer--echobot': route.path === '/echobot' }">
+    <footer v-show="route.path !== '/vr'" class="site-footer" :class="{ 'site-footer--echobot': route.path === '/echobot' }">
       <div class="footer-beian">
         <a :href="MIIT_URL" target="_blank" rel="noopener noreferrer">
           {{ ICP_RECORD_NUMBER }}

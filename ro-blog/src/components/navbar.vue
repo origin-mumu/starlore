@@ -50,7 +50,7 @@ const handleMouseMove = (e: MouseEvent) => {
           </RouterLink>
         </li>
       </ul>
-      <div class="more">
+      <div class="more" :class="{ 'nav-active': isActive('/vr') }" @click="router.push('/vr')">
         <span>MORE</span>
       </div>
     </div>
@@ -190,7 +190,7 @@ const handleMouseMove = (e: MouseEvent) => {
   box-shadow: 0 10px 24px -18px rgba(33, 49, 74, 0.42);
   padding: 0px 15px;
   border-radius: 60px;
-
+  cursor: pointer;
   backdrop-filter: blur(5px);
   height: 40px;
   transition: all 0.3s ease;
