@@ -1,0 +1,19 @@
+-- 用户资料扩展字段
+ALTER TABLE users
+    ADD COLUMN location VARCHAR(100) DEFAULT NULL COMMENT '所在地',
+    ADD COLUMN website  VARCHAR(255) DEFAULT NULL COMMENT '个人网站',
+    ADD COLUMN github   VARCHAR(255) DEFAULT NULL COMMENT 'GitHub';
+
+-- 我的项目表
+CREATE TABLE IF NOT EXISTS projects (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT          NOT NULL COMMENT '所属用户',
+    name        VARCHAR(100) NOT NULL COMMENT '项目名称',
+    description TEXT         DEFAULT NULL COMMENT '项目描述',
+    url         VARCHAR(255) DEFAULT NULL COMMENT '项目链接',
+    image       VARCHAR(255) DEFAULT NULL COMMENT '项目图片',
+    sort_order  INT          DEFAULT 0 COMMENT '排序',
+    created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户项目';

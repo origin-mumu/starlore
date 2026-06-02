@@ -1,0 +1,467 @@
+<script lang="ts" setup>
+import { ref, onMounted, nextTick } from 'vue'
+import { getArticleByIdService } from '@/api/article'
+import { useRoute } from 'vue-router'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
+import SideBar from '@/components/sideBar.vue'
+
+interface Article {
+  id: number
+  title: string
+  description: string
+  content: string
+  category: string
+  tags: string[]
+  cover_image: string
+  view_count: number
+  status: 'published' | 'draft'
+  createdAt: string
+  updatedAt: string
+}
+
+const route = useRoute()
+const article = ref<Article>()
+const isLoading = ref(true)
+const error = ref<string | null>(null)
+const highlightCode = () => {
+  nextTick(() => {
+    document.querySelectorAll('pre code').forEach(block => {
+      hljs.highlightElement(block as HTMLElement)
+
+      const pre = block.parentElement
+      if (!pre || pre.querySelector('.line-numbers-wrapper')) return
+
+      const codeText = (block as HTMLElement).innerText.replace(/\n$/, '')
+
+      const lines = codeText.split('\n').length
+
+      const lineNumbersWrapper = document.createElement('div')
+      lineNumbersWrapper.className = 'line-numbers-wrapper'
+      let numbering = ''
+      for (let i = 1; i <= lines; i++) {
+        numbering += `<span class="line-number">${i}</span>`
+      }
+      lineNumbersWrapper.innerHTML = numbering
+
+      pre.insertBefore(lineNumbersWrapper, block)
+
+      const copyBtn = document.createElement('button')
+      copyBtn.className = 'copy-code-btn'
+      copyBtn.textContent = '复制'
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(codeText).then(() => {
+          copyBtn.textContent = '已复制'
+          copyBtn.classList.add('copied')
+          setTimeout(() => {
+            copyBtn.textContent = '复制'
+            copyBtn.classList.remove('copied')
+          }, 2000)
+        })
+      }
+      pre.appendChild(copyBtn)
+    })
+  })
+}
+onMounted(async () => {
+  const id = Number(route.params.id)
+
+  if (isNaN(id)) {
+    error.value = '星迹ID格式错误'
+    isLoading.value = false
+    return
+  }
+
+  try {
+    isLoading.value = true
+    error.value = null
+
+    const res = (await getArticleByIdService(id)) as any
+
+    if (res.data) {
+      article.value = res.data
+      document.title = `${res.data.title} - Starlore`
+    } else {
+      error.value = '星迹不存在'
+    }
+  } catch (err) {
+    console.error('获取文章失败:', err)
+    error.value = '获取星迹失败，请稍后重试'
+  } finally {
+    isLoading.value = false
+    highlightCode()
+  }
+})
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-CN')
+}
+</script>
+
+<template>
+  <div class="page-container">
+    <div v-if="isLoading" class="loading-container">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>星迹加载中...</p>
+      </div>
+    </div>
+
+    <div v-else-if="error" class="error-container ink-glass-card">
+      <div class="error-content">
+        <h2>加载失败</h2>
+        <p>{{ error }}</p>
+        <button @click="$router.back()" class="btn-primary back-btn">返回上一页</button>
+      </div>
+    </div>
+
+    <div v-else>
+      <section class="article-hero page-header">
+        <div class="container">
+          <div class="article-header">
+            <span class="meta-badge">{{ article?.category || '未分类' }}</span>
+            <h1 class="article-title">{{ article?.title || '无标题' }}</h1>
+            <div class="article-meta">
+              <span>{{ formatDate(article?.createdAt || '未知日期') }}</span>
+              <span class="meta-dot"></span>
+              <span>{{ article?.view_count || 0 }} 阅读</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-parchment">
+        <div class="container">
+          <div class="detail-layout">
+            <main class="main-content">
+              <div class="detail-card-enter">
+                <div class="typography">
+                  <div v-html="article?.content || '星迹内容为空'"></div>
+                </div>
+                <div class="back-action">
+                  <button @click="$router.back()" class="btn-primary">返回星迹列表</button>
+                </div>
+              </div>
+            </main>
+
+            <aside class="sidebar-area">
+              <SideBar />
+            </aside>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 32px;
+}
+
+.loading-spinner {
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top: 4px solid var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner p {
+  margin: 0;
+  font-size: 17px;
+}
+
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 32px;
+  max-width: 440px;
+  margin: 120px auto 0;
+}
+
+.error-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-content h2 {
+  color: var(--ink);
+  margin-bottom: 16px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.error-content p {
+  color: var(--ink-muted);
+  margin-bottom: 32px;
+  line-height: 1.7;
+}
+
+.back-btn {
+  border-radius: var(--radius-full);
+}
+
+.article-hero {
+  padding-top: 120px;
+  padding-bottom: 48px;
+  text-align: center;
+}
+
+.article-header {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.meta-badge {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+  padding: 5px 14px;
+  background: var(--badge-bg);
+  border: 1px solid var(--badge-border);
+  border-radius: var(--radius-full);
+}
+
+.article-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 20px;
+  color: var(--ink);
+}
+
+.article-meta {
+  color: var(--ink-muted);
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+.meta-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border-interactive);
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 32px;
+  align-items: flex-start;
+  padding: 0 0 80px;
+}
+
+.main-content {
+  min-width: 0;
+}
+
+.sidebar-area {
+  position: sticky;
+  top: 100px;
+}
+
+.detail-card-enter {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: detailCardIn 560ms ease forwards;
+  animation-delay: 80ms;
+}
+
+@keyframes detailCardIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.typography {
+  color: var(--ink);
+  line-height: 1.7;
+  font-size: 16px;
+}
+
+.typography :deep(h1) {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 2rem 0 1rem;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
+.typography :deep(h2) {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 1.8rem 0 0.8rem;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.typography :deep(h3) {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1.4rem 0 0.6rem;
+  color: var(--ink);
+}
+
+.typography :deep(p) {
+  margin-bottom: 0.75rem;
+}
+
+.typography :deep(blockquote) {
+  background: var(--tag-bg);
+  border-left: 3px solid var(--accent);
+  padding: 16px 24px;
+  margin: 24px 0;
+  color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+}
+
+.typography :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 0.9rem;
+}
+.typography :deep(th) {
+  background: var(--tag-bg);
+  color: var(--ink);
+  font-weight: 600;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.typography :deep(td) {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+}
+.typography :deep(tr:nth-child(even)) {
+  background: var(--surface);
+}
+.typography :deep(tr:hover) {
+  background: var(--surface-hover);
+}
+
+.typography :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 32px 0;
+}
+
+.typography :deep(pre) {
+  position: relative;
+  background: #292d35;
+  margin: 24px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+}
+
+.typography :deep(code),
+.typography :deep(.line-numbers-wrapper) {
+  font-family: 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 22px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.typography :deep(code) {
+  flex: 1;
+  overflow-x: auto;
+  color: #abb2bf;
+}
+
+.typography :deep(.line-numbers-wrapper) {
+  width: 40px;
+  text-align: center;
+  color: #5c6370;
+  background: rgba(0, 0, 0, 0.2);
+  border-right: 1px solid #3e4451;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.typography :deep(.line-number) {
+  height: 22px;
+}
+
+.typography :deep(.copy-code-btn) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #abb2bf;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.typography :deep(pre:hover .copy-code-btn) {
+  opacity: 1;
+}
+
+.typography :deep(.copy-code-btn:hover) {
+  background: var(--accent);
+  color: white;
+}
+
+.typography :deep(.copy-code-btn.copied) {
+  background: #2e7d32;
+  color: white;
+}
+
+.back-action {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-area {
+    position: static;
+  }
+
+  .article-title {
+    font-size: 1.75rem;
+  }
+}
+</style>

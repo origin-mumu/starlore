@@ -1,5 +1,10 @@
 {
   "dependencies": {
-    "docx": "^9.6.1"
+    "@wangeditor/editor": "^5.1.23",
+    "@wangeditor/editor-for-vue": "^5.1.12",
+    "docx": "^9.6.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "marked": "^15.0.0"
   }
 }
