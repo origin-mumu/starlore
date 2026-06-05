@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS `ai_configs` (
 INSERT INTO `ai_configs` (`modelKey`, `modelName`, `apiUrl`, `modelId`, `apiKey`, `enabled`) VALUES
 ('qwen-plus', '通义千问 Plus', 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', 'qwen-plus', NULL, 1),
 ('mimo', '小米 MiMo', 'https://api.xiaomimimo.com/v1/chat/completions', 'mimo-v2-flash', NULL, 1),
-('zhipu-embedding', '智谱 Embedding', 'https://open.bigmodel.cn/api/paas/v4', 'embedding-2', '48e26f9891024142ad41b432ab183fd0.7VEK6aZ2zfP5QQDt', 1);
+('zhipu-embedding', '智谱 Embedding', 'https://open.bigmodel.cn/api/paas/v4', 'embedding-2', NULL, 1);

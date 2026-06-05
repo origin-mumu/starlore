@@ -315,6 +315,11 @@ const expandNode = async (nodeId: string) => {
     return
   }
 
+  if (!userStore.isLoggedIn) {
+    quotaError.value = '请先登录后使用 AI 创意发散功能'
+    return
+  }
+
   loading.value = true
   loadingNodeId.value = nodeId
   selectedNodeId.value = null
@@ -365,7 +370,11 @@ const expandNode = async (nodeId: string) => {
     updateLatestHistory()
   } catch (err: any) {
     console.error('Diverge error:', err)
-    quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+    if (err?.message?.includes('401') || err?.response?.status === 401) {
+      quotaError.value = '登录已过期，请重新登录'
+    } else {
+      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+    }
     refreshDivergeQuota()
   } finally {
     loading.value = false
@@ -464,7 +473,11 @@ const handleSearch = async () => {
     fitView()
   } catch (err: any) {
     console.error('Search error:', err)
-    quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+    if (err?.message?.includes('401') || err?.response?.status === 401) {
+      quotaError.value = '登录已过期，请重新登录'
+    } else {
+      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+    }
     refreshDivergeQuota()
   } finally {
     loading.value = false
@@ -796,7 +809,10 @@ onBeforeUnmount(() => {
           <span v-else>&#10140;</span>
         </button>
       </form>
-      <div v-if="quotaError" class="quota-error">{{ quotaError }}</div>
+      <div v-if="quotaError" class="quota-error">
+        {{ quotaError }}
+        <router-link v-if="quotaError.includes('登录')" to="/login" class="quota-login-link">去登录</router-link>
+      </div>
       <div v-else class="quota-tip">
         {{ aiQuotaExceeded ? '今日 AI 次数已用尽' : `今日剩余 ${aiQuotaRemaining} 次` }}
       </div>
@@ -1114,6 +1130,12 @@ onBeforeUnmount(() => {
   font-size: 0.8rem;
   color: #e74c3c;
   margin-top: 6px;
+}
+.quota-login-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 4px;
 }
 
 /* ─── Canvas Controls ──────────────────────────────── */

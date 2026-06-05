@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{title}}</title>
+<style>
+  /* ===== Reset ===== */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @page {
+    size: 794px 1123px;
+    margin: 0;
+  }
+
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #fff;
+  }
+
+  /* ===== Resume Page ===== */
+  .resume-page {
+    width: 794px;
+    min-height: 1123px;
+    padding: 28px 45px 28px 30px;
+    color: #333;
+    font-weight: 500;
+    position: relative;
+    background: #fff;
+    --module-gap: {{moduleGap}}px;
+    --line-gap: {{lineHeight}}px;
+    --font-size: {{fontSize}}px;
+  }
+
+  /* ===== Avatar ===== */
+  .avatar-box {
+    position: absolute;
+    top: 28px;
+    right: 45px;
+    width: 80px;
+    height: 110px;
+    overflow: hidden;
+    border-radius: 4px;
+  }
+  .avatar-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* ===== Header ===== */
+  .rp-header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .rp-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111;
+    letter-spacing: 2px;
+    margin: 0 0 8px;
+  }
+  .rp-job-intent {
+    font-size: 11.5px;
+    line-height: 1.5;
+    margin-bottom: 0;
+    color: #555;
+    font-weight: 500;
+  }
+  .rp-contact {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #555;
+    font-weight: 500;
+  }
+
+  /* ===== Section ===== */
+  .rp-section {
+    margin-bottom: var(--module-gap, 12px);
+  }
+  .rp-section-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #222;
+    border-bottom: 2px solid #222;
+    padding-bottom: 2px;
+    margin-bottom: 6px;
+  }
+
+  /* ===== Text Styles ===== */
+  .text-secondary {
+    color: #555;
+    font-weight: 500;
+  }
+
+  /* ===== Education ===== */
+  .rp-edu-item { margin-bottom: 0; }
+  .rp-edu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  .rp-edu-header .item-name { font-size: 12.5px; }
+  .rp-edu-header .item-date { font-size: 11.5px; }
+  .rp-edu-content {
+    font-size: var(--font-size, 11.5px);
+    line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
+    color: #777;
+    font-weight: 500;
+  }
+  .rp-edu-content strong, .rp-edu-content b { color: #333; font-weight: 600; }
+  .rp-edu-content p { margin-bottom: 2px; }
+
+  /* ===== Experience ===== */
+  .rp-exp-item { margin-bottom: 0; }
+  .rp-exp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  .rp-exp-header .item-name { font-size: 12.5px; }
+  .rp-exp-header .item-date { font-size: 11.5px; }
+  .rp-exp-content {
+    font-size: var(--font-size, 11.5px);
+    line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
+    color: #777;
+    font-weight: 500;
+    text-align: left;
+  }
+  .rp-exp-content strong, .rp-exp-content b { color: #333; font-weight: 600; }
+  .rp-exp-content p { margin-bottom: 2px; }
+  .rp-exp-content ul { margin-top: 2px; padding-left: 16px; list-style-type: disc; }
+  .rp-exp-content li { margin-bottom: 2px; }
+
+  /* ===== Project ===== */
+  .rp-project-item { margin-bottom: 0; }
+  .rp-project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  .rp-project-header .item-name { font-size: 12.5px; }
+  .rp-project-header .item-date { font-size: 11.5px; }
+  .rp-project-content {
+    font-size: var(--font-size, 11.5px);
+    line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
+    color: #777;
+    font-weight: 500;
+    text-align: left;
+  }
+  .rp-project-content strong, .rp-project-content b { color: #333; font-weight: 600; }
+  .rp-project-content p { margin-bottom: 2px; }
+  .rp-project-content ul { margin-top: 2px; padding-left: 16px; list-style-type: disc; }
+  .rp-project-content li { margin-bottom: 2px; }
+
+  /* ===== Skills ===== */
+  .rp-skills-content {
+    font-size: var(--font-size, 11.5px);
+    line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
+    color: #777;
+    font-weight: 500;
+    text-align: left;
+  }
+  .rp-skills-content strong, .rp-skills-content b { color: #333; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="resume-page">
+  {{#photoUrl}}
+  <div class="avatar-box">
+    <img src="{{photoUrl}}" alt="photo" crossorigin="anonymous" />
+  </div>
+  {{/photoUrl}}
+
+  <div class="rp-header">
+    <h1 class="rp-name">{{name}}</h1>
+    <div class="rp-job-intent">求职意向：{{jobTitle}}</div>
+    <div class="rp-contact">{{phone}} | {{email}}</div>
+  </div>
+
+  {{#education.length}}
+  <section class="rp-section">
+    <div class="rp-section-title">教育背景</div>
+    {{#education}}
+    <div class="rp-edu-item">
+      <div class="rp-edu-header">
+        <span class="item-name"><strong>{{school}} -- {{major}}</strong> <span class="text-secondary">({{degree}})</span></span>
+        <span class="item-date text-secondary">{{period}}</span>
+      </div>
+      <div class="rp-edu-content">{{{detail}}}</div>
+    </div>
+    {{/education}}
+  </section>
+  {{/education.length}}
+
+  {{#experience.length}}
+  <section class="rp-section">
+    <div class="rp-section-title">实习经历</div>
+    {{#experience}}
+    <div class="rp-exp-item">
+      <div class="rp-exp-header">
+        <span class="item-name"><strong>{{company}} -- {{position}}</strong></span>
+        <span class="item-date text-secondary">{{period}}</span>
+      </div>
+      <div class="rp-exp-content">{{{detail}}}</div>
+    </div>
+    {{/experience}}
+  </section>
+  {{/experience.length}}
+
+  {{#projects.length}}
+  <section class="rp-section">
+    <div class="rp-section-title">项目经历</div>
+    {{#projects}}
+    <div class="rp-project-item">
+      <div class="rp-project-header">
+        <span class="item-name"><strong>{{name}} -- {{role}}</strong></span>
+        <span class="item-date text-secondary">{{period}}</span>
+      </div>
+      <div class="rp-project-content">{{{detail}}}</div>
+    </div>
+    {{/projects}}
+  </section>
+  {{/projects.length}}
+
+  {{#skills}}
+  <section class="rp-section">
+    <div class="rp-section-title">专业技能</div>
+    <div class="rp-skills-content">{{{skills}}}</div>
+  </section>
+  {{/skills}}
+</div>
+</body>
+</html>

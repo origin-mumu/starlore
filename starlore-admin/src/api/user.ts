@@ -33,3 +33,8 @@ export function updateUserService(id: number, data: Partial<UserItem>) {
 export function deleteUserService(id: number) {
   return request.delete(`/admin/users/${id}`)
 }
+
+// 重建语义搜索索引
+export function reindexService(userId: number) {
+  return request.post(`/ai/reindex?targetUserId=${userId}`)
+}

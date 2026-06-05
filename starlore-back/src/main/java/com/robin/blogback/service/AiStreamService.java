@@ -6,5 +6,5 @@ import java.util.List;
 import java.util.Map;
 
 public interface AiStreamService {
-    SseEmitter streamChat(String model, List<Map<String, String>> messages);
+    SseEmitter streamChat(String model, List<Map<String, Object>> messages);
 }

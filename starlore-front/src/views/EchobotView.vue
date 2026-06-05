@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import GeoNexusGlobe from '@/components/GeoNexusGlobe.vue'
+import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2 } from '@lucide/vue'
 
 const userStore = useUserStore()
 import {
@@ -29,7 +30,12 @@ function goHome() {
   router.push({ path: '/' })
 }
 
-type ChatMsg = { role: 'user' | 'assistant'; content: string; reasoningContent?: string }
+type ChatMsg = {
+  role: 'user' | 'assistant'
+  content: string
+  reasoningContent?: string
+  imageUrl?: string
+}
 
 const characterCards = ref<CharacterCard[]>([])
 const sessions = ref<AiSessionRow[]>([])
@@ -41,12 +47,25 @@ const isSending = ref(false)
 const connectionError = ref('')
 const activeTab = ref<'chat' | 'sessions'>('chat')
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatScrollRef = ref<HTMLElement | null>(null)
 const charPickerOpen = ref(false)
 const agentMode = ref(true)
 const toolStatus = ref<string | null>(null)
 const reasoningCollapsed = ref<Record<number, boolean>>({})
 const hasReceivedContent = ref(false)
+
+/* ─── 图片上传 ─── */
+const pendingImage = ref<string | null>(null) // base64
+const pendingImagePreview = ref<string | null>(null) // preview URL
+const lastImageDescription = ref('') // MiMo 识别结果
+const imageRecognitionContent = ref('') // 流式识别内容
+const imageRecognitionCollapsed = ref(false) // 识别结果是否折叠
+
+/* ─── 语音输入 ─── */
+const isListening = ref(false)
+const speechSupported = ref(false)
+let speechRecognition: any = null
 
 /* ─── 每日对话上限（走后端鉴权） ─── */
 const dailyRemaining = ref(10)
@@ -187,7 +206,14 @@ function buildApiMessages(): { role: string; content: string }[] {
   if (sys) out.push({ role: 'system', content: sys })
   for (const m of messages.value) {
     if (m.role === 'assistant' && !m.content.trim()) continue
-    out.push({ role: m.role, content: m.content })
+    // 带图片的用户消息：把图片描述拼入文字
+    if (m.role === 'user' && m.imageUrl && lastImageDescription.value) {
+      const text = `[用户上传了一张图片，图片内容：${lastImageDescription.value}]\n\n用户问题：${m.content}`
+      out.push({ role: 'user', content: text })
+      lastImageDescription.value = '' // 用完清空
+    } else {
+      out.push({ role: m.role, content: m.content })
+    }
   }
   return out
 }
@@ -261,7 +287,8 @@ async function confirmDeleteSession() {
 
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || isSending.value) return
+  const hasImage = !!pendingImage.value
+  if ((!text && !hasImage) || isSending.value) return
 
   // 每日上限检查
   if (dailyExceeded.value) {
@@ -278,14 +305,81 @@ async function sendMessage() {
     return
   }
 
-  messages.value.push({ role: 'user', content: text })
+  const imageBase64 = pendingImage.value
+  const userText = text || '请分析这张图片'
+
+  // 先显示用户消息，不要等图片识别
+  messages.value.push({ role: 'user', content: userText, imageUrl: imageBase64 || undefined })
   inputText.value = ''
+  clearPendingImage()
   scrollChatToBottom('smooth')
   isSending.value = true
   hasReceivedContent.value = false
+  imageRecognitionContent.value = ''
+  imageRecognitionCollapsed.value = false
   messages.value.push({ role: 'assistant', content: '', reasoningContent: '' })
   const assistantIndex = messages.value.length - 1
   document.documentElement.classList.add('echobot-streaming')
+
+  // 如果有图片，用 MiMo 流式识别（此时用户已看到自己的消息）
+  let imageDescription = ''
+  if (hasImage && imageBase64) {
+    try {
+      toolStatus.value = '正在识别图片...'
+      imageRecognitionContent.value = ''
+      imageRecognitionCollapsed.value = false
+      const token = localStorage.getItem('ro_blog_token')
+      const analyzeRes = await fetch('/api/ai/analyze-image/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ image: imageBase64, question: userText }),
+      })
+
+      if (!analyzeRes.ok) {
+        throw new Error(`HTTP ${analyzeRes.status}`)
+      }
+
+      const reader = analyzeRes.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || !trimmed.startsWith('data:')) continue
+          try {
+            const data = JSON.parse(trimmed.slice(5).trim())
+            if (data.error) {
+              console.warn('图片识别失败：' + data.error)
+              break
+            }
+            if (data.content) {
+              imageRecognitionContent.value += data.content
+              imageDescription += data.content
+            }
+            if (data.done) {
+              lastImageDescription.value = imageDescription
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('图片识别请求失败', e)
+    }
+    toolStatus.value = null
+  }
 
   const history = buildApiMessages()
 
@@ -301,6 +395,7 @@ async function sendMessage() {
     }
 
     let response: Response
+    // 图片已转为文字描述，始终用 DeepSeek，支持 Agent 模式
     if (agentMode.value) {
       response = await fetch(buildAgentSseUrl('deepseek-v4-flash'), {
         method: 'POST',
@@ -415,6 +510,77 @@ async function onTxtFile(e: Event) {
   }
 }
 
+/* ─── 图片上传 ─── */
+function triggerImageUpload() {
+  imageInputRef.value?.click()
+}
+
+function onImageUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    connectionError.value = '请选择图片文件'
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    connectionError.value = '图片过大（最大 10MB）'
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const base64 = reader.result as string
+    pendingImage.value = base64
+    pendingImagePreview.value = base64
+  }
+  reader.readAsDataURL(file)
+}
+
+function clearPendingImage() {
+  pendingImage.value = null
+  pendingImagePreview.value = null
+  imageRecognitionContent.value = ''
+}
+
+/* ─── 语音输入 ─── */
+function initSpeechRecognition() {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    speechSupported.value = false
+    return
+  }
+  speechSupported.value = true
+  speechRecognition = new SpeechRecognition()
+  speechRecognition.lang = 'zh-CN'
+  speechRecognition.continuous = false
+  speechRecognition.interimResults = true
+  speechRecognition.onresult = (event: any) => {
+    let transcript = ''
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript
+    }
+    inputText.value = transcript
+  }
+  speechRecognition.onend = () => {
+    isListening.value = false
+  }
+  speechRecognition.onerror = () => {
+    isListening.value = false
+  }
+}
+
+function toggleVoiceInput() {
+  if (isListening.value) {
+    speechRecognition?.stop()
+    isListening.value = false
+  } else {
+    speechRecognition?.start()
+    isListening.value = true
+  }
+}
+
 watch(
   messages,
   () => {
@@ -422,6 +588,10 @@ watch(
   },
   { deep: true }
 )
+
+watch(imageRecognitionContent, () => {
+  scrollChatToBottom('auto')
+})
 
 watch(activeTab, t => {
   if (t === 'chat') scrollChatToBottom('smooth')
@@ -461,6 +631,7 @@ onMounted(async () => {
 
   await refreshQuota()
   await refreshSessions()
+  initSpeechRecognition()
   if (sessions.value.length > 0) {
     await loadSession(sessions.value[0].id)
   } else {
@@ -579,25 +750,28 @@ onBeforeUnmount(() => {
                 :disabled="isSending"
                 @click="toggleAgentMode()"
               >
-                {{ agentMode ? '🤖 Agent ON' : '💬 普通模式' }}
+                <Bot v-if="agentMode" :size="16" />
+                <MessageSquare v-else :size="16" />
+                {{ agentMode ? 'Agent ON' : '普通模式' }}
               </button>
             </div>
           </div>
 
           <div ref="chatScrollRef" class="chat-scroll">
             <p v-if="!messages.length && !toolStatus" class="chat-empty">
-              输入消息开始对话，支持上传 TXT。开启 Agent 模式可查询博客数据。
+              输入消息开始对话，支持上传 TXT。开启 Agent 模式可查询starlore数据。
             </p>
-            <div v-if="toolStatus" class="tool-status">
-              <span class="tool-spinner"></span>
-              <span>{{ toolStatus }}</span>
-            </div>
             <div
               v-for="(msg, i) in messages"
               :key="i"
               class="row"
               :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
-              v-show="msg.role === 'user' || msg.content || msg.reasoningContent"
+              v-show="
+                msg.role === 'user' ||
+                msg.content ||
+                msg.reasoningContent ||
+                (i === messages.length - 1 && imageRecognitionContent)
+              "
             >
               <div class="bubble">
                 <div v-if="msg.role === 'assistant' && msg.reasoningContent" class="think-block">
@@ -612,11 +786,40 @@ onBeforeUnmount(() => {
                     v-html="formatMessage(msg.reasoningContent)"
                   ></div>
                 </div>
+                <!-- 图片识别结果：在最后一条 AI 消息且正在识别时显示 -->
+                <div
+                  v-if="
+                    msg.role === 'assistant' && i === messages.length - 1 && imageRecognitionContent
+                  "
+                  class="recognition-block"
+                >
+                  <div
+                    class="recognition-header"
+                    @click="imageRecognitionCollapsed = !imageRecognitionCollapsed"
+                  >
+                    <Image :size="14" />
+                    <span class="recognition-label">图片识别结果</span>
+                    <span class="recognition-toggle">{{
+                      imageRecognitionCollapsed ? '展开' : '收起'
+                    }}</span>
+                  </div>
+                  <div v-show="!imageRecognitionCollapsed" class="recognition-body">
+                    {{ imageRecognitionContent }}
+                  </div>
+                </div>
+                <img v-if="msg.imageUrl" :src="msg.imageUrl" class="chat-image" />
                 <div
                   v-if="msg.content"
                   class="answer-text"
                   v-html="formatMessage(msg.content)"
                 ></div>
+              </div>
+            </div>
+            <!-- 工具调用状态：显示在最后一条消息下方 -->
+            <div v-if="toolStatus" class="row is-ai">
+              <div class="bubble tool-status-bubble">
+                <span class="tool-spinner"></span>
+                <span>{{ toolStatus }}</span>
               </div>
             </div>
             <!-- 加载动画：AI 正在思考（等待响应且无工具执行时显示） -->
@@ -630,11 +833,22 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="input-block">
+            <!-- 图片预览 -->
+            <div v-if="pendingImagePreview" class="image-preview">
+              <img :src="pendingImagePreview" alt="预览" />
+              <button class="image-preview-close" @click="clearPendingImage">
+                <X :size="14" />
+              </button>
+            </div>
             <textarea
               v-model="inputText"
               class="area"
               rows="4"
-              placeholder="例如：今天帮我安排一下工作重点。"
+              :placeholder="
+                pendingImagePreview
+                  ? '描述一下你想让 AI 分析什么...'
+                  : '例如：今天帮我安排一下工作重点。'
+              "
               :disabled="isSending"
               @keydown="onKeydown"
             />
@@ -651,13 +865,34 @@ onBeforeUnmount(() => {
                   class="hidden-file"
                   @change="onTxtFile"
                 />
+                <input
+                  ref="imageInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="hidden-file"
+                  @change="onImageUpload"
+                />
+                <button type="button" class="icon-btn" title="上传图片" @click="triggerImageUpload">
+                  <Image :size="16" />
+                </button>
                 <button type="button" class="icon-btn" title="上传 TXT" @click="triggerTxtUpload">
-                  📄
+                  <FileText :size="16" />
+                </button>
+                <button
+                  v-if="speechSupported"
+                  type="button"
+                  class="icon-btn"
+                  :class="{ 'voice-active': isListening }"
+                  :title="isListening ? '停止录音' : '语音输入'"
+                  @click="toggleVoiceInput"
+                >
+                  <Mic v-if="!isListening" :size="16" />
+                  <MicOff v-else :size="16" />
                 </button>
                 <button
                   type="button"
                   class="send"
-                  :disabled="isSending || !inputText.trim() || dailyExceeded"
+                  :disabled="isSending || (!inputText.trim() && !pendingImage) || dailyExceeded"
                   @click="sendMessage"
                 >
                   {{ isSending ? '生成中…' : dailyExceeded ? '已达上限' : '发送' }}
@@ -679,7 +914,9 @@ onBeforeUnmount(() => {
             >
               <div class="sess-title">{{ s.title }}</div>
               <div class="sess-meta">{{ s.modelId }} · {{ s.characterKey }}</div>
-              <button type="button" class="del" @click="removeSession(s.id, $event)">删</button>
+              <button type="button" class="del" @click="removeSession(s.id, $event)">
+                <Trash2 :size="14" />
+              </button>
             </li>
           </ul>
           <p v-if="!sessions.length" class="empty">暂无会话，点「新会话」开始</p>
@@ -907,7 +1144,7 @@ onBeforeUnmount(() => {
   background: var(--accent);
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 4px 16px oklch(0.55 0.15 35 / 0.22);
+  box-shadow: var(--shadow-button);
 }
 
 .right-tabs button:hover:not(.active) {
@@ -940,7 +1177,7 @@ onBeforeUnmount(() => {
   gap: 0.55rem 0.75rem;
   padding: 0.65rem 0.75rem;
   border-radius: var(--radius-md);
-  background: oklch(0.55 0.15 35 / 0.04);
+  background: var(--accent-soft);
   border: 1px solid var(--border);
 }
 
@@ -1146,7 +1383,7 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 .chat-table th {
-  background: oklch(0.55 0.15 35 / 0.06);
+  background: var(--accent-soft);
   font-weight: 700;
 }
 .chat-table tr:nth-child(even) {
@@ -1164,7 +1401,7 @@ onBeforeUnmount(() => {
 
 .ui-select.open .ui-select-trigger {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px oklch(0.55 0.15 35 / 0.1);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .ui-select-chev {
@@ -1293,7 +1530,7 @@ onBeforeUnmount(() => {
   background: var(--accent);
   color: #ffffff;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 16px oklch(0.55 0.15 35 / 0.18);
+  box-shadow: var(--shadow-button);
 }
 
 /* AI bubble: glass background */
@@ -1434,7 +1671,7 @@ onBeforeUnmount(() => {
 .area:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px oklch(0.55 0.15 35 / 0.12);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--surface-hover);
 }
 
@@ -1459,6 +1696,60 @@ onBeforeUnmount(() => {
 
 .hidden-file {
   display: none;
+}
+
+.image-preview {
+  position: relative;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+.image-preview img {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+.image-preview-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.voice-active {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.chat-image {
+  max-width: 280px;
+  max-height: 200px;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  object-fit: cover;
+  cursor: pointer;
 }
 
 .icon-btn {
@@ -1513,11 +1804,15 @@ onBeforeUnmount(() => {
 
 /* ── Agent Toggle ── */
 .agent-toggle {
+  padding-top: 0.5rem;
   display: flex;
   align-items: center;
 }
 
 .agent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.32rem 0.75rem;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-interactive);
@@ -1538,7 +1833,7 @@ onBeforeUnmount(() => {
   background: var(--accent);
   color: #ffffff;
   border-color: transparent;
-  box-shadow: 0 4px 16px oklch(0.55 0.15 35 / 0.22);
+  box-shadow: var(--shadow-button);
 }
 
 .agent-btn:disabled {
@@ -1547,23 +1842,69 @@ onBeforeUnmount(() => {
 }
 
 /* ── Tool Status ── */
-.tool-status {
+.tool-status-bubble {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-md);
-  background: oklch(0.55 0.15 35 / 0.06);
-  border: 1px solid oklch(0.55 0.15 35 / 0.15);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
   font-size: 0.82rem;
   color: var(--accent);
   font-weight: 500;
 }
 
+/* ── Image Recognition ── */
+.recognition-block {
+  margin-bottom: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(180, 180, 200, 0.35);
+  overflow: hidden;
+}
+
+.recognition-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  border-bottom: 1px solid rgba(180, 180, 200, 0.18);
+  transition: background 0.15s;
+}
+
+.recognition-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.recognition-label {
+  font-weight: 600;
+  flex: 1;
+}
+
+.recognition-toggle {
+  font-size: 0.72rem;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.recognition-body {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .tool-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid oklch(0.55 0.15 35 / 0.2);
+  border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -1603,13 +1944,13 @@ onBeforeUnmount(() => {
 .sess-item:hover {
   background: var(--surface-hover);
   border-color: var(--border-interactive);
-  box-shadow: 0 4px 16px oklch(0.55 0.15 35 / 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 .sess-item.current {
   border-color: var(--accent);
-  background: oklch(0.55 0.15 35 / 0.06);
-  box-shadow: 0 4px 20px oklch(0.55 0.15 35 / 0.1);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .sess-title {
@@ -1630,7 +1971,7 @@ onBeforeUnmount(() => {
   top: 50%;
   transform: translateY(-50%);
   border: none;
-  background: oklch(0.55 0.15 35 / 0.06);
+  /* background: var(--accent-soft); */
   color: var(--ink-muted);
   border-radius: 8px;
   padding: 0.2rem 0.4rem;
@@ -1680,7 +2021,7 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 .bubble .chat-table th {
-  background: oklch(0.55 0.15 35 / 0.06);
+  background: var(--accent-soft);
   font-weight: 700;
 }
 .bubble .chat-table tr:nth-child(even) {

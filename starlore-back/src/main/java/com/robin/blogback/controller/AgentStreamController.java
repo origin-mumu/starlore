@@ -7,12 +7,15 @@ import com.robin.blogback.service.AiQuotaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.robin.blogback.service.BlogTools;
+import com.robin.blogback.service.ArticleEmbeddingService;
+import com.robin.blogback.config.SseContextHolder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.model.Media;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -36,7 +39,8 @@ public class AgentStreamController {
             "你是 Starlore 博客助手，也是用户的专属 AI 伙伴。" +
             "优先查询博客数据来回答问题。如果博客中找不到相关内容，" +
             "可以用你自己的知识来回答，不要拒绝用户。" +
-            "引用文章时请注明标题。回答简洁友好，可少量用「喵」。";
+            "引用文章时请注明标题。回答简洁友好，可少量用「喵」。" +
+            "不要说'出了点小状况'、'接口有问题'之类的话，直接展示结果。";
 
     @Autowired
     private ChatClient chatClient;
@@ -46,6 +50,9 @@ public class AgentStreamController {
 
     @Autowired
     private AiQuotaService aiQuotaService;
+
+    @Autowired(required = false)
+    private ArticleEmbeddingService articleEmbeddingService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -80,25 +87,62 @@ public class AgentStreamController {
         agentExecutor.execute(() -> {
             UserContext.setUserId(userId);
             UserContext.setCrossThreadUser("agent-stream", userId);
+            SseContextHolder.setEmitter("agent-stream", emitter);
             // 消耗一次配额
             aiQuotaService.tryConsume(userId);
             try {
-                List<Map<String, String>> rawMessages = objectMapper.readValue(
+                List<Map<String, Object>> rawMessages = objectMapper.readValue(
                         messages, new TypeReference<>() {});
 
                 // 构建 Spring AI 消息列表
                 List<Message> springMessages = new ArrayList<>();
                 springMessages.add(new SystemMessage(AGENT_SYSTEM_PROMPT));
 
-                for (Map<String, String> msg : rawMessages) {
-                    String role = msg.get("role");
-                    String content = msg.get("content");
-                    if (content == null || content.isEmpty()) continue;
+                for (Map<String, Object> msg : rawMessages) {
+                    String role = (String) msg.get("role");
+                    Object content = msg.get("content");
+                    if (content == null) continue;
 
                     switch (role) {
-                        case "system" -> springMessages.add(new SystemMessage(content));
-                        case "user" -> springMessages.add(new UserMessage(content));
-                        case "assistant" -> springMessages.add(new AssistantMessage(content));
+                        case "system" -> springMessages.add(new SystemMessage(content.toString()));
+                        case "user" -> {
+                            // 多模态消息：content 是数组
+                            if (content instanceof List<?> contentList) {
+                                String text = "";
+                                List<Media> mediaList = new ArrayList<>();
+                                for (Object part : contentList) {
+                                    if (part instanceof Map<?, ?> partMap) {
+                                        String type = (String) partMap.get("type");
+                                        if ("text".equals(type)) {
+                                            text = (String) partMap.get("text");
+                                        } else if ("image_url".equals(type)) {
+                                            Map<?, ?> imageUrlMap = (Map<?, ?>) partMap.get("image_url");
+                                            String url = (String) imageUrlMap.get("url");
+                                            Media media;
+                                            if (url.startsWith("data:")) {
+                                                // base64 数据 URL：解码成字节数组
+                                                String base64 = url.substring(url.indexOf(",") + 1);
+                                                byte[] imageBytes = java.util.Base64.getDecoder().decode(base64);
+                                                String mimeType = url.substring(5, url.indexOf(";"));
+                                                media = new Media(
+                                                        org.springframework.util.MimeTypeUtils.parseMimeType(mimeType),
+                                                        new org.springframework.core.io.ByteArrayResource(imageBytes));
+                                            } else {
+                                                // 普通 URL
+                                                media = new Media(
+                                                        org.springframework.util.MimeTypeUtils.parseMimeType("image/png"),
+                                                        new java.net.URL(url));
+                                            }
+                                            mediaList.add(media);
+                                        }
+                                    }
+                                }
+                                springMessages.add(new UserMessage(text, mediaList));
+                            } else {
+                                springMessages.add(new UserMessage(content.toString()));
+                            }
+                        }
+                        case "assistant" -> springMessages.add(new AssistantMessage(content.toString()));
                     }
                 }
 
@@ -152,6 +196,7 @@ public class AgentStreamController {
                             }
                             UserContext.clear();
                             UserContext.clearCrossThread("agent-stream");
+                            SseContextHolder.clear("agent-stream");
                         })
                         .subscribe();
 
@@ -165,10 +210,26 @@ public class AgentStreamController {
                 emitter.completeWithError(e);
                 UserContext.clear();
                 UserContext.clearCrossThread("agent-stream");
+                SseContextHolder.clear("agent-stream");
             }
         });
 
         emitter.onTimeout(emitter::complete);
         return emitter;
+    }
+
+    /**
+     * 重新索引文章用于语义搜索
+     * @param targetUserId 可选，指定要索引的用户ID；不传则索引当前登录用户
+     */
+    @PostMapping("/reindex")
+    public Map<String, Object> reindex(HttpServletRequest request,
+            @RequestParam(required = false) Integer targetUserId) {
+        Integer userId = targetUserId != null ? targetUserId : (Integer) request.getAttribute("userId");
+        if (articleEmbeddingService == null) {
+            return Map.of("success", false, "message", "Embedding 服务未配置，请先在 AI 配置中添加 zhipu-embedding");
+        }
+        int count = articleEmbeddingService.reindexAll(userId);
+        return Map.of("success", true, "message", "已索引 " + count + " 篇文章", "count", count);
     }
 }

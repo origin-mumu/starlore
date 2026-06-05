@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { listResumes, deleteResume, type ResumeData } from '@/api/resume'
+import { listResumes, deleteResume, getResume, createResume, type ResumeData } from '@/api/resume'
 import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 
@@ -44,37 +44,40 @@ const TEMPLATE_CONTENT: Record<
 > = {
   classic: {
     title: '我的简历',
-    name: '李明',
-    jobTitle: '前端开发实习生',
-    phone: '138-0000-0000',
-    email: 'liming@example.com',
+    name: '张三',
+    jobTitle: '前端开发实习',
+    phone: '138-8888-8888',
+    email: 'zhangsan@example.com',
     content: {
       education: [
         {
-          school: '示例大学',
-          major: '计算机科学与技术',
+          school: '星星大学',
+          major: '软件工程',
           degree: '本科',
-          period: '2023.09 — 2027.06',
-          detail: 'GPA 3.6/4.0 · 主修课程：数据结构、操作系统、计算机网络、数据库原理',
+          period: '2023-09 ~ 2027-06',
+          detail: '专业课程：数据结构与算法、操作系统、计算机网络、数据库、软件工程。',
         },
       ],
       experience: [
         {
-          company: '示例科技有限公司',
-          position: '前端开发实习生',
-          period: '2025.07 — 2025.10',
-          detail: '参与公司后台管理系统前端开发，基于 Vue 3 + Element Plus 完成多个业务模块。',
+          company: '星光科技有限公司',
+          position: '前端开发实习',
+          period: '2026-03 ~ 2026-05',
+          detail:
+            '<p><strong>项目职责：</strong></p><p>参与公司核心业务页面开发，使用 Vue 3 + TypeScript + Vite 构建高质量交互界面；完成接口对接、表单验证、组件复用与性能优化。</p>',
         },
       ],
       projects: [
         {
-          name: '个人博客系统',
-          role: '独立开发',
-          period: '2025.03 — 至今',
-          detail: '基于 Vue 3 + Spring Boot 的全栈博客项目，支持文章管理、AI 对话等功能。',
+          name: '智能知识库系统',
+          role: '全栈开发',
+          period: '2025-12 ~ 至今',
+          detail:
+            '<p><strong>项目简介：</strong></p><p>构建 AI 驱动的知识库系统，支持知识创建、搜索、智能问答与可视化展示。</p><p><strong>技术栈：</strong>Vue 3、TypeScript、Vite、Pinia、Spring Boot、MyBatis、MySQL。</p>',
         },
       ],
-      skills: ['Vue 3 / TypeScript', 'Spring Boot / MyBatis', 'MySQL', 'Git / Vite'],
+      skills:
+        '<ul><li>熟练使用 Vue 3、TypeScript、Vite 进行前端开发</li><li>掌握 HTML/CSS、响应式布局和组件化开发</li><li>了解后端 Spring Boot、MyBatis 和 RESTful API 设计</li></ul>',
       spacing: { moduleGap: 25, lineHeight: 1.6, fontSize: 14 },
     },
   },
@@ -122,7 +125,32 @@ const confirmDelete = async () => {
   try {
     await deleteResume(id)
     await loadResumes()
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
+}
+
+const copying = ref(false)
+const handleCopy = async (item: ResumeData) => {
+  copying.value = true
+  try {
+    const res: any = await getResume(item.id!)
+    const source = res.data
+    await createResume({
+      title: (source.title || '未命名简历') + ' - 副本',
+      template: source.template,
+      name: source.name,
+      jobTitle: source.jobTitle,
+      phone: source.phone,
+      email: source.email,
+      content: source.content,
+    })
+    await loadResumes()
+  } catch {
+    /* ignore */
+  } finally {
+    copying.value = false
+  }
 }
 </script>
 
@@ -182,6 +210,9 @@ const confirmDelete = async () => {
               <div class="card-actions">
                 <button class="btn-outline btn-sm" @click="router.push(`/resume/edit/${item.id}`)">
                   编辑
+                </button>
+                <button class="btn-outline btn-sm" @click="handleCopy(item)" :disabled="copying">
+                  复制
                 </button>
                 <button class="btn-outline btn-sm btn-danger" @click="handleDelete(item.id!)">
                   删除

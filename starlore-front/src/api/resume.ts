@@ -43,4 +43,11 @@ export function uploadImage(file: File) {
     })
 }
 
+export function exportResumePdf(id: number) {
+    return request.get<never, Blob>(`/resume/${id}/export-pdf`, {
+        responseType: 'blob',
+        timeout: 60000,
+    })
+}
+
 

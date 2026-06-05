@@ -6,17 +6,15 @@ import com.robin.blogback.service.AiQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,22 +26,13 @@ public class DivergeController {
 
     private static final Logger log = LoggerFactory.getLogger(DivergeController.class);
 
-    @Value("${spring.ai.openai.api-key}")
-    private String apiKey;
+    @Autowired
+    private ChatClient chatClient;
 
-    @Value("${spring.ai.openai.base-url:https://api.deepseek.com}")
-    private String baseUrl;
-
-    @Value("${spring.ai.openai.chat.options.model:deepseek-chat}")
-    private String modelName;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
     @Autowired
     private AiQuotaService aiQuotaService;
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(java.time.Duration.ofSeconds(15))
-            .build();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String SYSTEM_PROMPT =
             "你是一个创意联想助手，擅长从一个词出发，沿着具体的方向（工具、场景、人物、风格、趋势等）找到生动且强相关的联想词。" +
@@ -85,49 +74,22 @@ public class DivergeController {
                 "4. 每个词包含 zh 和 en，严格按JSON数组返回，不要其他文字",
                 word, word, word, word, word, word, word, word, word, word, word);
 
-            List<Map<String, String>> messages = new ArrayList<>();
-            messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
-            messages.add(Map.of("role", "user", "content", userPrompt));
+            log.info("Diverge request: word={}", word);
 
-            Map<String, Object> requestBody = new LinkedHashMap<>();
-            requestBody.put("model", modelName);
-            requestBody.put("messages", messages);
-            requestBody.put("stream", false);
-            requestBody.put("max_tokens", 2048);
-            requestBody.put("temperature", 0.7);
+            // 使用 Spring AI ChatClient（与 echobot 共享相同配置）
+            List<Message> messages = new ArrayList<>();
+            messages.add(new SystemMessage(SYSTEM_PROMPT));
+            messages.add(new UserMessage(userPrompt));
 
-            String apiUrl = baseUrl.replaceAll("/+$", "") + "/chat/completions";
-            String bodyJson = objectMapper.writeValueAsString(requestBody);
-            log.info("Diverge request: url={} word={} model={}", apiUrl, word, modelName);
+            ChatResponse chatResponse = chatClient.prompt()
+                    .messages(messages)
+                    .call()
+                    .chatResponse();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUrl))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("User-Agent", "Starlore/1.0")
-                    .timeout(java.time.Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-                    .build();
+            String content = chatResponse.getResult().getOutput().getText();
+            log.info("Diverge response: {}", content);
 
-            // Retry once on connection reset
-            HttpResponse<String> response = null;
-            try {
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                log.warn("Diverge first attempt failed: {}, retrying...", e.getMessage());
-                try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            }
-
-            if (response.statusCode() != 200) {
-                log.error("Diverge API error: status={} body={}", response.statusCode(), response.body());
-                return ResponseEntity.status(502).body(Map.of("error", "API request failed: " + response.statusCode()));
-            }
-
-            JsonNode root = objectMapper.readTree(response.body());
-            String content = root.at("/choices/0/message/content").asText("");
-
-            // Extract JSON array from response (handle markdown code block wrapping)
+            // 提取 JSON 数组（处理 markdown 代码块包裹）
             String json = extractJsonArray(content);
             if (json == null) {
                 log.error("Failed to extract JSON from response: {}", content);

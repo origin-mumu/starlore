@@ -12,6 +12,7 @@ import com.robin.blogback.mapper.ArticleMapper;
 import com.robin.blogback.mapper.CategoryMapper;
 import com.robin.blogback.mapper.UserMapper;
 import com.robin.blogback.service.ArticleService;
+import com.robin.blogback.service.ArticleEmbeddingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,8 @@ public class ArticleServiceImpl implements ArticleService {
     private CategoryMapper categoryMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired(required = false)
+    private ArticleEmbeddingService articleEmbeddingService;
 
 
     @Override
@@ -221,6 +224,9 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.insert(article);
 
         // 自动索引用于语义搜索
+        if (articleEmbeddingService != null && "published".equals(article.getStatus())) {
+            try { articleEmbeddingService.indexArticle(article); } catch (Exception e) { log.warn("[RAG] 索引文章失败: {}", e.getMessage()); }
+        }
         updateCategoryCount(article.getCategory(), userId);
         return toArticleDetail(article);
     }
@@ -246,6 +252,9 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.updateById(article);
 
         // 重新索引用于语义搜索
+        if (articleEmbeddingService != null) {
+            try { articleEmbeddingService.indexArticle(article); } catch (Exception e) { log.warn("[RAG] 重新索引文章失败: {}", e.getMessage()); }
+        }
         if (!oldCategory.equals(article.getCategory())) {
             updateCategoryCount(oldCategory, null);
             updateCategoryCount(article.getCategory(), null);
@@ -265,6 +274,9 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.deleteById(id);
 
         // 删除向量嵌入
+        if (articleEmbeddingService != null) {
+            try { articleEmbeddingService.removeArticle(id); } catch (Exception e) { log.warn("[RAG] 删除文章向量失败: {}", e.getMessage()); }
+        }
         updateCategoryCount(category, null);
         return Map.of("message", "文章删除成功");
     }

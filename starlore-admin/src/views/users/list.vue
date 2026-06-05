@@ -5,6 +5,7 @@ import {
   getUserListService,
   updateUserService,
   deleteUserService,
+  reindexService,
   type UserItem,
 } from '@/api/user'
 
@@ -77,6 +78,20 @@ const formatDate = (d: string) => {
 }
 
 onMounted(fetchUsers)
+
+const reindexingId = ref<number | null>(null)
+const handleReindex = async (userId: number) => {
+  if (reindexingId.value !== null) return
+  reindexingId.value = userId
+  try {
+    const res: any = await reindexService(userId)
+    alert(res.message || '索引重建成功')
+  } catch (err: any) {
+    alert('重建失败: ' + (err?.message || '未知错误'))
+  } finally {
+    reindexingId.value = null
+  }
+}
 </script>
 
 <template>
@@ -121,6 +136,9 @@ onMounted(fetchUsers)
               <div class="table-cell">
                 <div class="action-buttons">
                   <button class="action-btn edit-btn" @click="openEditDialog(user)">编辑</button>
+                  <button class="action-btn reindex-btn" :disabled="reindexingId !== null" @click="handleReindex(user.id)">
+                    {{ reindexingId === user.id ? '索引中...' : '索引' }}
+                  </button>
                   <button class="action-btn delete-btn" @click="confirmDelete(user.id, user.username)">删除</button>
                 </div>
               </div>
@@ -183,6 +201,20 @@ onMounted(fetchUsers)
   letter-spacing: -0.02em;
 }
 
+.reindex-btn {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+.reindex-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #FDFBF5;
+}
+.reindex-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .loading,
 .empty-state {
   text-align: center;
@@ -199,7 +231,7 @@ onMounted(fetchUsers)
 
 .table-header {
   display: grid;
-  grid-template-columns: 0.5fr 1fr 1fr 0.8fr 0.8fr 1.2fr 1fr 1.5fr;
+  grid-template-columns: 0.5fr 1fr 1fr 0.8fr 0.8fr 1.2fr 1fr 2fr;
   background: var(--canvas-deep);
   border-bottom: 1px solid var(--border);
   font-weight: 600;
@@ -218,7 +250,7 @@ onMounted(fetchUsers)
 
 .table-row {
   display: grid;
-  grid-template-columns: 0.5fr 1fr 1fr 0.8fr 0.8fr 1.2fr 1fr 1.5fr;
+  grid-template-columns: 0.5fr 1fr 1fr 0.8fr 0.8fr 1.2fr 1fr 2fr;
   border-bottom: 1px solid var(--border);
   transition: background-color var(--transition);
 }

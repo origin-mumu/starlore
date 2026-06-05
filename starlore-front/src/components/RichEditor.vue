@@ -79,7 +79,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="rich-editor-wrapper" :style="{ '--editor-height': minHeight + 'px' }">
-    <Toolbar v-if="editorReady" :editor="editorRef" :defaultConfig="toolbarConfig" class="we-toolbar" />
+    <Toolbar
+      v-if="editorReady"
+      :editor="editorRef"
+      :defaultConfig="toolbarConfig"
+      class="we-toolbar"
+    />
     <Editor
       :defaultConfig="editorConfig"
       mode="simple"
@@ -96,17 +101,18 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   overflow: hidden;
   background: var(--surface);
+  min-height: 400px;
 }
 .we-toolbar {
   border-bottom: 1px solid var(--border) !important;
   background: var(--canvas) !important;
 }
 .we-editor {
-  min-height: var(--editor-height, 200px);
+  min-height: var(--editor-height, 400px);
 }
 .we-editor :deep(.w-e-text-container) {
-  height: var(--editor-height, 200px) !important;
-  min-height: var(--editor-height, 200px) !important;
+  height: var(--editor-height, 400px) !important;
+  min-height: var(--editor-height, 400px) !important;
   overflow-y: auto !important;
 }
 </style>

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.robin.blogback.config.UserContext;
+import com.robin.blogback.config.SseContextHolder;
 import com.robin.blogback.entity.Article;
 import com.robin.blogback.entity.Category;
 import com.robin.blogback.mapper.ArticleMapper;
@@ -34,6 +35,9 @@ public class BlogTools {
 
     @Autowired
     private CategoryMapper categoryMapper;
+
+    @Autowired(required = false)
+    private ArticleEmbeddingService articleEmbeddingService;
 
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -66,29 +70,58 @@ public class BlogTools {
                 .trim();
     }
 
-    @Tool(description = "搜索博客文章。根据关键词搜索文章标题和描述，可按分类和标签筛选。")
+    @Tool(description = "搜索博客文章。优先使用语义搜索理解用户意图，找到相关文章；如果语义搜索无结果则回退到关键词搜索。可按分类和标签筛选。")
     public String searchArticles(
-            @ToolParam(description = "搜索关键词") String keyword,
+            @ToolParam(description = "搜索关键词或语义描述") String keyword,
             @ToolParam(description = "分类名称", required = false) String category,
             @ToolParam(description = "标签名称", required = false) String tag) {
         log.info("[Agent Tool] searchArticles - keyword: {}, category: {}, tag: {}", keyword, category, tag);
+        SseContextHolder.sendToolStart("searchArticles");
         try {
             Integer userId = UserContext.getUserId();
-            LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<Article>()
-                    .eq(Article::getUserId, userId)
-                    .eq(Article::getStatus, "published")
-                    .and(w -> w.like(Article::getTitle, keyword).or().like(Article::getDescription, keyword))
-                    .orderByDesc(Article::getCreatedAt)
-                    .last("LIMIT 20");
+            List<Article> articles = new ArrayList<>();
 
-            if (category != null && !category.isEmpty()) {
-                wrapper.eq(Article::getCategory, category);
-            }
-            if (tag != null && !tag.isEmpty()) {
-                wrapper.apply("JSON_CONTAINS(tags, JSON_ARRAY({0}))", tag);
+            // 1. 优先语义搜索
+            if (articleEmbeddingService != null) {
+                articles = articleEmbeddingService.searchSimilar(keyword, userId, 10);
+                if (!articles.isEmpty()) {
+                    log.info("[RAG] 语义搜索命中 {} 篇文章", articles.size());
+                }
             }
 
-            List<Article> articles = articleMapper.selectList(wrapper);
+            // 2. 语义搜索无结果，回退到关键词搜索
+            if (articles.isEmpty()) {
+                log.info("[RAG] 语义搜索无结果，回退到关键词搜索");
+                LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<Article>()
+                        .eq(Article::getUserId, userId)
+                        .eq(Article::getStatus, "published")
+                        .and(w -> w.like(Article::getTitle, keyword).or().like(Article::getDescription, keyword))
+                        .orderByDesc(Article::getCreatedAt)
+                        .last("LIMIT 20");
+
+                if (category != null && !category.isEmpty()) {
+                    wrapper.eq(Article::getCategory, category);
+                }
+                if (tag != null && !tag.isEmpty()) {
+                    wrapper.apply("JSON_CONTAINS(tags, JSON_ARRAY({0}))", tag);
+                }
+                articles = articleMapper.selectList(wrapper);
+            }
+
+            // 3. 对语义搜索结果应用分类/标签过滤
+            if (articleEmbeddingService != null && !articles.isEmpty()) {
+                if (category != null && !category.isEmpty()) {
+                    articles = articles.stream()
+                            .filter(a -> category.equals(a.getCategory()))
+                            .collect(Collectors.toList());
+                }
+                if (tag != null && !tag.isEmpty()) {
+                    articles = articles.stream()
+                            .filter(a -> a.getTags() != null && a.getTags().contains(tag))
+                            .collect(Collectors.toList());
+                }
+            }
+
             List<Map<String, Object>> results = articles.stream().map(a -> {
                 Map<String, Object> map = new LinkedHashMap<>();
                 map.put("id", a.getId());
@@ -97,7 +130,13 @@ public class BlogTools {
                 map.put("category", a.getCategory());
                 map.put("tags", a.getTags());
                 map.put("viewCount", a.getViewCount());
-                map.put("createdAt", a.getCreatedAt());
+                map.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
+                // 附带内容摘要，让 AI 有足够的信息回答
+                String content = a.getContent();
+                if (content != null && !content.isEmpty()) {
+                    String plain = extractPlain(content);
+                    map.put("contentPreview", plain.length() > 800 ? plain.substring(0, 800) + "..." : plain);
+                }
                 return map;
             }).collect(Collectors.toList());
 
@@ -113,6 +152,7 @@ public class BlogTools {
     @Tool(description = "获取文章详情。根据文章ID获取完整文章，不会增加阅读量。")
     public String getArticleDetail(@ToolParam(description = "文章ID") Integer articleId) {
         log.info("[Agent Tool] getArticleDetail - articleId: {}", articleId);
+        SseContextHolder.sendToolStart("getArticleDetail");
         try {
             Integer userId = UserContext.getUserId();
             Article article = articleMapper.selectOne(
@@ -129,8 +169,8 @@ public class BlogTools {
             map.put("category", article.getCategory());
             map.put("tags", article.getTags());
             map.put("viewCount", article.getViewCount());
-            map.put("createdAt", article.getCreatedAt());
-            map.put("updatedAt", article.getUpdatedAt());
+            map.put("createdAt", article.getCreatedAt() != null ? article.getCreatedAt().toString() : null);
+            map.put("updatedAt", article.getUpdatedAt() != null ? article.getUpdatedAt().toString() : null);
             String content = article.getContent();
             if (content != null && content.length() > 3000) {
                 content = content.substring(0, 3000) + "...(内容已截断)";
@@ -145,6 +185,7 @@ public class BlogTools {
     @Tool(description = "获取所有博客分类及其文章数量。")
     public String getCategories() {
         log.info("[Agent Tool] getCategories - 查询所有分类");
+        SseContextHolder.sendToolStart("getCategories");
         try {
             Integer userId = UserContext.getUserId();
             log.info("[Agent Tool] getCategories - userId: {}", userId);
@@ -170,8 +211,10 @@ public class BlogTools {
     @Tool(description = "获取博客统计数据：文章总数、分类总数、总浏览量等。")
     public String getBlogStats() {
         log.info("[Agent Tool] getBlogStats - 查询博客统计");
+        SseContextHolder.sendToolStart("getBlogStats");
         try {
             Integer userId = UserContext.getUserId();
+            log.info("[Agent Tool] getBlogStats - userId: {}", userId);
             List<Article> articles = articleMapper.selectList(
                     new LambdaQueryWrapper<Article>()
                             .eq(Article::getUserId, userId)
@@ -199,7 +242,7 @@ public class BlogTools {
                         Map<String, Object> m = new LinkedHashMap<>();
                         m.put("id", a.getId());
                         m.put("title", a.getTitle());
-                        m.put("createdAt", a.getCreatedAt());
+                        m.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
                         return m;
                     }).collect(Collectors.toList());
 
@@ -209,15 +252,19 @@ public class BlogTools {
             stats.put("totalViews", totalViews);
             stats.put("topCategories", topCategories);
             stats.put("recentArticles", recentArticles);
-            return objectMapper.writeValueAsString(stats);
-        } catch (JsonProcessingException e) {
-            return "{\"error\":\"序列化失败: " + e.getMessage() + "\"}";
+            String result = objectMapper.writeValueAsString(stats);
+            log.info("[Agent Tool] getBlogStats - 返回数据: {}", result);
+            return result;
+        } catch (Exception e) {
+            log.error("[Agent Tool] getBlogStats - 异常: {}", e.getMessage(), e);
+            return "{\"error\":\"获取统计失败: " + e.getMessage() + "\"}";
         }
     }
 
     @Tool(description = "获取最新的N篇博客文章摘要。")
     public String getRecentArticles(@ToolParam(description = "返回数量，默认5", required = false) Integer limit) {
         log.info("[Agent Tool] getRecentArticles - limit: {}", limit);
+        SseContextHolder.sendToolStart("getRecentArticles");
         try {
             Integer userId = UserContext.getUserId();
             if (limit == null || limit <= 0) limit = 5;
@@ -236,7 +283,7 @@ public class BlogTools {
                 map.put("title", a.getTitle());
                 map.put("description", a.getDescription());
                 map.put("category", a.getCategory());
-                map.put("createdAt", a.getCreatedAt());
+                map.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
                 return map;
             }).collect(Collectors.toList());
 
@@ -255,6 +302,7 @@ public class BlogTools {
             @ToolParam(description = "文章描述/摘要，不传则自动截取内容前150字", required = false) String description,
             @ToolParam(description = "文章状态：draft(草稿) 或 published(已发布)，默认draft", required = false) String status) {
         log.info("[Agent Tool] writeArticle - title: {}, category: {}, tags: {}, status: {}", title, category, tags, status);
+        SseContextHolder.sendToolStart("writeArticle");
         try {
             Integer userId = UserContext.getUserId();
             Article article = new Article();
@@ -282,6 +330,10 @@ public class BlogTools {
             articleMapper.insert(article);
 
             // 自动索引用于语义搜索
+            if (articleEmbeddingService != null && "published".equals(article.getStatus())) {
+                try { articleEmbeddingService.indexArticle(article); } catch (Exception e) { log.warn("[RAG] 索引文章失败: {}", e.getMessage()); }
+            }
+
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("id", article.getId());
             result.put("title", article.getTitle());
@@ -304,6 +356,7 @@ public class BlogTools {
             @ToolParam(description = "新的文章描述", required = false) String description,
             @ToolParam(description = "新的文章状态：draft(草稿) 或 published(已发布)", required = false) String status) {
         log.info("[Agent Tool] updateArticle - articleId: {}, title: {}, category: {}, status: {}", articleId, title, category, status);
+        SseContextHolder.sendToolStart("updateArticle");
         try {
             Integer userId = UserContext.getUserId();
             Article existing = articleMapper.selectOne(
@@ -331,6 +384,10 @@ public class BlogTools {
             articleMapper.updateById(existing);
 
             // 重新索引用于语义搜索
+            if (articleEmbeddingService != null) {
+                try { articleEmbeddingService.indexArticle(existing); } catch (Exception e) { log.warn("[RAG] 重新索引文章失败: {}", e.getMessage()); }
+            }
+
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("id", existing.getId());
             result.put("title", existing.getTitle());
@@ -345,6 +402,7 @@ public class BlogTools {
     @Tool(description = "删除指定ID的文章。")
     public String deleteArticle(@ToolParam(description = "要删除的文章ID") Integer articleId) {
         log.info("[Agent Tool] deleteArticle - articleId: {}", articleId);
+        SseContextHolder.sendToolStart("deleteArticle");
         try {
             Integer userId = UserContext.getUserId();
             Article existing = articleMapper.selectOne(
@@ -357,6 +415,10 @@ public class BlogTools {
             articleMapper.deleteById(articleId);
 
             // 删除向量嵌入
+            if (articleEmbeddingService != null) {
+                try { articleEmbeddingService.removeArticle(articleId); } catch (Exception e) { log.warn("[RAG] 删除文章向量失败: {}", e.getMessage()); }
+            }
+
             return "{\"success\":true,\"message\":\"文章已删除\",\"id\":" + articleId + "}";
         } catch (Exception e) {
             return "{\"error\":\"删除文章失败: " + e.getMessage() + "\"}";
@@ -366,6 +428,7 @@ public class BlogTools {
     @Tool(description = "获取所有文章中使用的标签列表（去重）。")
     public String getAllTags() {
         log.info("[Agent Tool] getAllTags - 查询所有标签");
+        SseContextHolder.sendToolStart("getAllTags");
         try {
             Integer userId = UserContext.getUserId();
             List<Article> articles = articleMapper.selectList(
@@ -394,6 +457,7 @@ public class BlogTools {
     @Tool(description = "获取指定分类下的所有已发布文章列表。")
     public String getArticlesByCategory(@ToolParam(description = "分类名称") String category) {
         log.info("[Agent Tool] getArticlesByCategory - category: {}", category);
+        SseContextHolder.sendToolStart("getArticlesByCategory");
         try {
             Integer userId = UserContext.getUserId();
             List<Article> articles = articleMapper.selectList(
@@ -410,7 +474,7 @@ public class BlogTools {
                 map.put("description", a.getDescription());
                 map.put("tags", a.getTags());
                 map.put("viewCount", a.getViewCount());
-                map.put("createdAt", a.getCreatedAt());
+                map.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
                 return map;
             }).collect(Collectors.toList());
             if (results.isEmpty()) {
@@ -428,6 +492,7 @@ public class BlogTools {
             @ToolParam(description = "分类描述", required = false) String description,
             @ToolParam(description = "分类颜色（十六进制，如 #FF6B6B）", required = false) String color) {
         log.info("[Agent Tool] createCategory - name: {}, description: {}, color: {}", name, description, color);
+        SseContextHolder.sendToolStart("createCategory");
         try {
             Integer userId = UserContext.getUserId();
             Category existing = categoryMapper.selectOne(

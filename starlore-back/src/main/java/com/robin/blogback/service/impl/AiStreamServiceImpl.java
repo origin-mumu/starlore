@@ -46,7 +46,9 @@ public class AiStreamServiceImpl implements AiStreamService {
         // 优先从数据库读取配置
         AiConfig dbConfig = aiConfigService.getConfigByKey(model);
         if (dbConfig != null && dbConfig.getEnabled() && StringUtils.hasText(dbConfig.getApiKey())) {
-            return new ModelConfig(dbConfig.getApiUrl(), dbConfig.getModelId(), dbConfig.getApiKey());
+            String apiUrl = dbConfig.getApiUrl().endsWith("/chat/completions") ? dbConfig.getApiUrl()
+                    : dbConfig.getApiUrl().replaceAll("/+$", "") + "/chat/completions";
+            return new ModelConfig(apiUrl, dbConfig.getModelId(), dbConfig.getApiKey());
         }
 
         // 回退到 application.yaml 本地配置
@@ -60,12 +62,13 @@ public class AiStreamServiceImpl implements AiStreamService {
     }
 
     @Override
-    public SseEmitter streamChat(String model, List<Map<String, String>> messages) {
+    public SseEmitter streamChat(String model, List<Map<String, Object>> messages) {
         SseEmitter emitter = new SseEmitter(120_000L);
 
         CompletableFuture.runAsync(() -> {
             try {
                 ModelConfig config = resolveModelConfig(model);
+                System.out.println("[AI] model=" + model + ", apiUrl=" + config.apiUrl() + ", modelName=" + config.modelName());
                 if (config.apiKey() == null) {
                     emitter.send(SseEmitter.event()
                             .data(objectMapper.writeValueAsString(Map.of("error", "未配置 " + model + " 对应的 API 密钥"))));
@@ -80,12 +83,17 @@ public class AiStreamServiceImpl implements AiStreamService {
                 );
 
                 HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                         .uri(URI.create(config.apiUrl()))
                         .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer " + config.apiKey())
-                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
-                        .build();
+                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
+                // MiMo API 用 api-key 头，其他用 Authorization: Bearer
+                if (config.apiUrl().contains("xiaomimimo.com")) {
+                    requestBuilder.header("api-key", config.apiKey());
+                } else {
+                    requestBuilder.header("Authorization", "Bearer " + config.apiKey());
+                }
+                HttpRequest request = requestBuilder.build();
 
                 HttpResponse<InputStream> response = client.send(request,
                         HttpResponse.BodyHandlers.ofInputStream());
