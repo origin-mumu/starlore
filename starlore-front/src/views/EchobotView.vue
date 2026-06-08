@@ -6,10 +6,13 @@ import 'highlight.js/styles/atom-one-dark.css'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import GeoNexusGlobe from '@/components/GeoNexusGlobe.vue'
-import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2 } from '@lucide/vue'
+import AICore from '@/components/AICore.vue'
+import ImmersiveMode from '@/components/ImmersiveMode.vue'
+import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2, Volume2, VolumeX } from '@lucide/vue'
+import { useTTS } from '@/composables/useTTS'
 
 const userStore = useUserStore()
+const { ttsEnabled, isSpeaking, toggleTTS, feedStreamChunk, flushStreamBuffer, reset: resetTTS } = useTTS()
 import {
   appendChatPair,
   buildAgentSseUrl,
@@ -54,6 +57,18 @@ const agentMode = ref(true)
 const toolStatus = ref<string | null>(null)
 const reasoningCollapsed = ref<Record<number, boolean>>({})
 const hasReceivedContent = ref(false)
+
+/* ─── 沉浸模式 ─── */
+const immersiveActive = ref(false)
+
+function enterImmersive() {
+  immersiveActive.value = true
+}
+
+function exitImmersive() {
+  immersiveActive.value = false
+}
+
 
 /* ─── 图片上传 ─── */
 const pendingImage = ref<string | null>(null) // base64
@@ -320,6 +335,7 @@ async function sendMessage() {
   messages.value.push({ role: 'assistant', content: '', reasoningContent: '' })
   const assistantIndex = messages.value.length - 1
   document.documentElement.classList.add('echobot-streaming')
+  resetTTS() // 开始新对话前重置 TTS
 
   // 如果有图片，用 MiMo 流式识别（此时用户已看到自己的消息）
   let imageDescription = ''
@@ -446,6 +462,7 @@ async function sendMessage() {
             messages.value[assistantIndex].content += data.content
             hasReceivedContent.value = true
             toolStatus.value = null
+            feedStreamChunk(data.content) // 流式文字喂给 TTS
           }
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
@@ -457,6 +474,7 @@ async function sendMessage() {
     }
 
     await refreshQuota()
+    flushStreamBuffer() // 流式结束，播放剩余缓冲
 
     const userContent = messages.value[messages.value.length - 2]?.content ?? text
     const assistantContent = messages.value[assistantIndex].content
@@ -465,6 +483,7 @@ async function sendMessage() {
       await refreshSessions()
     }
   } catch (e: any) {
+    resetTTS()
     if (e.name === 'AbortError') {
       // User cancelled
     } else {
@@ -667,14 +686,14 @@ onBeforeUnmount(() => {
             }}</span>
           </div>
           <span class="sess-label">会话：{{ sessionTitle }}</span>
-          <!-- <div class="left-actions">
-            <button type="button" class="ghost-btn" @click="stopGeneration" :disabled="!isSending">
-              停止生成
+          <div class="left-actions">
+            <button type="button" class="ghost-btn immersive-btn" title="沉浸模式" @click="enterImmersive">
+              沉浸
             </button>
-          </div> -->
+          </div>
         </header>
         <div class="left-canvas" aria-hidden="true">
-          <GeoNexusGlobe :state="particleState" />
+          <AICore :state="particleState" />
         </div>
       </section>
 
@@ -891,6 +910,16 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                   type="button"
+                  class="icon-btn"
+                  :class="{ 'tts-active': ttsEnabled }"
+                  :title="ttsEnabled ? '关闭 AI 朗读' : '开启 AI 朗读'"
+                  @click="toggleTTS()"
+                >
+                  <Volume2 v-if="ttsEnabled" :size="16" />
+                  <VolumeX v-else :size="16" />
+                </button>
+                <button
+                  type="button"
                   class="send"
                   :disabled="isSending || (!inputText.trim() && !pendingImage) || dailyExceeded"
                   @click="sendMessage"
@@ -932,6 +961,15 @@ onBeforeUnmount(() => {
     confirm-text="删除"
     @confirm="confirmDeleteSession"
     @cancel="showDeleteSession = false"
+  />
+
+  <!-- 沉浸模式 -->
+  <ImmersiveMode
+    v-if="immersiveActive"
+    :messages="messages"
+    :system-prompt="systemPrompt"
+    :agent-mode="agentMode"
+    @close="exitImmersive"
   />
 </template>
 
@@ -1081,6 +1119,21 @@ onBeforeUnmount(() => {
 
 .left-actions {
   margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.immersive-btn {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.12));
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #8b5cf6;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.immersive-btn:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
 }
 
 .ghost-btn {
@@ -1732,6 +1785,11 @@ onBeforeUnmount(() => {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
   animation: pulse 1s ease-in-out infinite;
+}
+.tts-active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15)) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  color: #8b5cf6 !important;
 }
 @keyframes pulse {
   0%,

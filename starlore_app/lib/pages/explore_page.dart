@@ -1,161 +1,152 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../data/mock_data.dart';
-import '../widgets/category_item.dart';
+import '../services/api_service.dart';
+import '../models/article_model.dart';
+import 'article_detail_page.dart';
 
-/// 探索页：分组风格
-class ExplorePage extends StatelessWidget {
+class ExplorePage extends StatefulWidget {
   const ExplorePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // 头部
-        _buildHeader(context),
+  State<ExplorePage> createState() => _ExplorePageState();
+}
 
-        // 滚动内容
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 分类网格
-                _buildCategoryGrid(),
+class _ExplorePageState extends State<ExplorePage> {
+  List<Category> _cats = [];
+  List<Article> _hot = [];
+  bool _loading = true;
 
-                // 自定义按钮
-                const SizedBox(height: 24),
-                _buildCustomizeButton(),
+  @override
+  void initState() { super.initState(); _load(); }
 
-                // 底部占位
-                const SizedBox(height: 120),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+  Future<void> _load() async {
+    final c = await ApiService.getCategories();
+    final a = await ApiService.getArticles(limit: 30);
+    if (mounted) setState(() { _cats = c; _hot = a..sort((x, y) => y.viewCount.compareTo(x.viewCount)); _loading = false; });
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(
-        top: 8,
-        left: 20,
-        right: 20,
-        bottom: 20,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 标题
-          Text(
-            '分组',
-            style: AppTheme.headingLarge,
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final p = paletteOf(context);
+    return _loading
+        ? Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 1, color: p.accent)))
+        : RefreshIndicator(
+            color: p.accent, backgroundColor: p.surface1,
+            onRefresh: _load,
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(child: _header(p)),
+                SliverToBoxAdapter(child: _grid(p)),
+                SliverToBoxAdapter(child: _hotHeader(p)),
+                _hotList(p),
+                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+              ],
+            ),
+          );
+  }
 
-          // 右侧图标
-          Row(
-            children: [
-              // 搜索按钮
-              _buildIconButton(
-                icon: Icons.search_rounded,
-                onTap: () {},
-              ),
-              const SizedBox(width: 8),
-              // 更多按钮
-              _buildIconButton(
-                icon: Icons.more_horiz_rounded,
-                onTap: () {},
-              ),
-            ],
-          ),
+  Widget _header(StarlorePalette p) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(T.xxl, T.md, T.xxl, T.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('EXPLORE', style: F.h1(p.text0)),
+          const SizedBox(height: 2),
+          Text('// 数据索引', style: F.mono(p.text2)),
         ],
       ),
     );
   }
 
-  Widget _buildIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppTheme.bgBase,
-        ),
-        child: Icon(
-          icon,
-          color: AppTheme.textDark,
-          size: 22,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.1,
-      ),
-      itemCount: MockData.categories.length + 1, // +1 for add button
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          // 第一个位置是添加按钮
-          return AddCategoryItem(
-            onTap: () {
-              // TODO: 添加新分类
-            },
-          );
-        }
-        return CategoryGridItem(
-          category: MockData.categories[index - 1],
-          onTap: () {
-            // TODO: 进入分类详情
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildCustomizeButton() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-          boxShadow: AppTheme.shadowSoft,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.format_list_bulleted,
-              size: 18,
-              color: AppTheme.textDark,
+  Widget _grid(StarlorePalette p) {
+    final icons = ['♈', '🔮', '💕', '🌙', '⭐', '🃏'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: T.xxl),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: T.sm, crossAxisSpacing: T.sm, childAspectRatio: 1.0),
+        itemCount: _cats.length,
+        itemBuilder: (_, i) {
+          final c = _cats[i];
+          final icon = i < icons.length ? icons[i] : '◈';
+          return Container(
+            decoration: BoxDecoration(
+              color: p.surface1.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(T.r12),
+              border: Border.all(color: p.line, width: 0.5),
             ),
-            const SizedBox(width: 8),
-            Text(
-              '自定义',
-              style: AppTheme.bodyMedium.copyWith(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(icon, style: TextStyle(fontSize: 20, color: p.accent)),
+                const SizedBox(height: T.sm),
+                Text(c.name, style: F.label(p.text0).copyWith(fontSize: 10)),
+                const SizedBox(height: 2),
+                Text('${c.articleCount}', style: F.mono(p.text2).copyWith(fontSize: 9)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _hotHeader(StarlorePalette p) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(T.xxl, T.xxl, T.xxl, T.md),
+      child: Row(
+        children: [
+          Container(width: 3, height: 12, color: p.accent),
+          const SizedBox(width: T.sm),
+          Text('TRENDING', style: F.label(p.text1)),
+          const Spacer()],
+      ),
+    );
+  }
+
+  Widget _hotList(StarlorePalette p) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: T.xxl),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((_, i) {
+          final a = _hot[i];
+          final top = i < 3;
+          return GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ArticleDetailPage(article: a))),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: T.sm),
+              padding: const EdgeInsets.all(T.md),
+              decoration: BoxDecoration(
+                color: p.surface1.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(T.r12),
+                border: Border.all(color: top ? p.accent.withValues(alpha: 0.15) : p.line, width: 0.5),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 28,
+                    child: Text('${i + 1}'.padLeft(2, '0'), style: F.mono(top ? p.accent : p.text2)),
+                  ),
+                  const SizedBox(width: T.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(a.title, style: F.body(p.text0), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 2),
+                        Text('${a.category}  ·  ${a.viewCount} views', style: F.mono(p.text3).copyWith(fontSize: 9)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, size: 16, color: p.text3),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        }, childCount: _hot.length),
       ),
     );
   }

@@ -11,11 +11,13 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AICore: typeof import('./src/components/AICore.vue')['default']
     ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     FloatingParticles: typeof import('./src/components/FloatingParticles.vue')['default']
     GeoNexusGlobe: typeof import('./src/components/GeoNexusGlobe.vue')['default']
+    ImmersiveMode: typeof import('./src/components/ImmersiveMode.vue')['default']
     Navbar: typeof import('./src/components/navbar.vue')['default']
     ParticleGlobe: typeof import('./src/components/ParticleGlobe.vue')['default']
     RichEditor: typeof import('./src/components/RichEditor.vue')['default']

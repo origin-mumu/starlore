@@ -257,12 +257,12 @@ const handleRegister = async () => {
   background: var(--accent);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 16px oklch(0.55 0.15 35 / 0.22);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .auth-tab:hover:not(.active) {
   color: var(--ink);
-  background: oklch(0.55 0.15 35 / 0.04);
+  background: var(--accent-soft);
 }
 
 .auth-subtitle {

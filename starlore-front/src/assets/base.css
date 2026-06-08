@@ -92,7 +92,7 @@ ul, ol {
   --badge-border: #E6DCCB;
 
   /* Navbar */
-  --nav-bg: oklch(0.97 0.01 80 / 0.52);
+  --nav-bg: oklch(0.97 0.01 80 / 0.72);
 
   /* Shadows — warm, subtle */
   --shadow-sm: 0 1px 3px oklch(0.25 0.02 50 / 0.06);
@@ -164,7 +164,7 @@ ul, ol {
   --badge-bg: #EEEEEE;
   --badge-border: #D4D4D4;
 
-  --nav-bg: oklch(0.97 0 0 / 0.52);
+  --nav-bg: oklch(0.97 0 0 / 0.72);
 }
 
 /* ── 黑色/深色（Dark Mode） ── */
@@ -201,7 +201,7 @@ ul, ol {
   --badge-bg: #3A2E14;
   --badge-border: #2D2E36;
 
-  --nav-bg: oklch(0.15 0.01 280 / 0.52);
+  --nav-bg: oklch(0.15 0.01 280 / 0.72);
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
@@ -244,7 +244,7 @@ ul, ol {
   --badge-bg: #F0E6C8;
   --badge-border: #DCE8D8;
 
-  --nav-bg: oklch(0.96 0.02 150 / 0.52);
+  --nav-bg: oklch(0.96 0.02 150 / 0.72);
 }
 
 /* ── 蓝色（Ocean Blue） ── */
@@ -281,7 +281,7 @@ ul, ol {
   --badge-bg: #E6F0FA;
   --badge-border: #CDDFF0;
 
-  --nav-bg: oklch(0.96 0.03 250 / 0.52);
+  --nav-bg: oklch(0.96 0.03 250 / 0.72);
 }
 
 /* ── 粉色（Rose Pink） ── */
@@ -318,7 +318,7 @@ ul, ol {
   --badge-bg: #F5EDE0;
   --badge-border: #EDE0E6;
 
-  --nav-bg: oklch(0.96 0.04 350 / 0.52);
+  --nav-bg: oklch(0.96 0.04 350 / 0.72);
 }
 
 /* Reduced motion */
