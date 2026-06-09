@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.deepseek.com"
     ai_model: str = "deepseek-chat"
 
+    # ---------- LangChain / LangSmith ----------
+    langchain_tracing_v2: bool = False
+    langchain_api_key: str = ""
+    langchain_project: str = "starlore"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     @property

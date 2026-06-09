@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { listResumes, deleteResume, getResume, createResume, type ResumeData } from '@/api/resume'
 import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { FileText } from '@lucide/vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -185,7 +186,9 @@ const handleCopy = async (item: ResumeData) => {
 
           <!-- Empty -->
           <div v-else-if="resumes.length === 0" class="empty-box">
-            <div class="empty-icon">&#128196;</div>
+            <div class="empty-icon">
+              <FileText :size="48" />
+            </div>
             <p>还没有简历，点击上方按钮创建</p>
           </div>
 
@@ -281,8 +284,12 @@ const handleCopy = async (item: ResumeData) => {
   color: var(--ink-muted);
 }
 .empty-icon {
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 12px;
+  color: var(--ink-muted);
+  opacity: 0.5;
 }
 .resume-grid {
   display: grid;

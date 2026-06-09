@@ -95,6 +95,25 @@ export function buildAgentSseUrl(model: string): string {
   return `/api/ai/agent-sse?model=${model}`
 }
 
+export function buildMultiAgentSseUrl(model: string): string {
+  return `/api/ai/multi-agent-sse?model=${model}`
+}
+
+export async function getAgentMetrics() {
+  return (await request.get('/ai/agent-metrics')) as {
+    success: boolean
+    metrics: Record<string, any>
+  }
+}
+
+export async function getAgentBadCases(page = 1, size = 20) {
+  return (await request.get(`/ai/agent-bad-cases?page=${page}&size=${size}`)) as {
+    success: boolean
+    data: any[]
+    total: number
+  }
+}
+
 export interface AiQuota {
   dailyLimit: number
   used: number

@@ -8,7 +8,7 @@ import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import AICore from '@/components/AICore.vue'
 import ImmersiveMode from '@/components/ImmersiveMode.vue'
-import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2, Volume2, VolumeX } from '@lucide/vue'
+import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2, Volume2, VolumeX, ClipboardList, Zap, CheckCircle, XCircle, RefreshCw, BarChart3 } from '@lucide/vue'
 import { useTTS } from '@/composables/useTTS'
 
 const userStore = useUserStore()
@@ -16,6 +16,7 @@ const { ttsEnabled, isSpeaking, toggleTTS, feedStreamChunk, flushStreamBuffer, r
 import {
   appendChatPair,
   buildAgentSseUrl,
+  buildMultiAgentSseUrl,
   createAiSession,
   deleteAiSession,
   getAiQuota,
@@ -38,6 +39,16 @@ type ChatMsg = {
   content: string
   reasoningContent?: string
   imageUrl?: string
+  agentTrace?: AgentTrace
+}
+
+type AgentTrace = {
+  planSummary: string
+  subtasks: { id: number; desc: string; status: 'pending' | 'running' | 'done' }[]
+  reviewDecision: string
+  reviewFeedback: string
+  retryCount: number
+  metrics: { tokensIn: number; tokensOut: number; latencyMs: number } | null
 }
 
 const characterCards = ref<CharacterCard[]>([])
@@ -54,7 +65,11 @@ const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatScrollRef = ref<HTMLElement | null>(null)
 const charPickerOpen = ref(false)
 const agentMode = ref(true)
+const multiAgentMode = ref(false)
 const toolStatus = ref<string | null>(null)
+
+/* ─── 多 Agent 追踪折叠状态 ─── */
+const traceCollapsed = ref<Record<number, boolean>>({})
 const reasoningCollapsed = ref<Record<number, boolean>>({})
 const hasReceivedContent = ref(false)
 
@@ -109,6 +124,14 @@ async function refreshQuota() {
 
 function toggleReasoning(i: number) {
   reasoningCollapsed.value[i] = !reasoningCollapsed.value[i]
+}
+
+/* ── 多 Agent 节点中文映射 ── */
+const agentNodeLabelMap: Record<string, string> = {
+  planner: 'Planner 规划中：分析用户意图，拆解子任务...',
+  executor: 'Executor 执行中：调用工具完成子任务...',
+  reviewer: 'Reviewer 审查中：检查执行结果的完整性和准确性...',
+  synthesizer: 'Synthesizer 合成中：整合结果生成最终回答...',
 }
 
 const toolLabelMap: Record<string, string> = {
@@ -178,6 +201,17 @@ function formatMessage(content: string): string {
 function toggleAgentMode() {
   if (isSending.value) return
   agentMode.value = !agentMode.value
+  if (!agentMode.value) multiAgentMode.value = false
+}
+
+function toggleMultiAgentMode() {
+  if (isSending.value) return
+  multiAgentMode.value = !multiAgentMode.value
+  if (multiAgentMode.value) agentMode.value = true
+}
+
+function toggleTrace(i: number) {
+  traceCollapsed.value[i] = !traceCollapsed.value[i]
 }
 
 function toggleCharPicker() {
@@ -412,7 +446,18 @@ async function sendMessage() {
 
     let response: Response
     // 图片已转为文字描述，始终用 DeepSeek，支持 Agent 模式
-    if (agentMode.value) {
+    if (multiAgentMode.value) {
+      messages.value[assistantIndex].agentTrace = {
+        planSummary: '', subtasks: [], reviewDecision: '', reviewFeedback: '', retryCount: 0, metrics: null,
+      }
+      toolStatus.value = '正在分析任务...'
+      response = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(history),
+        signal: abortController.signal,
+      })
+    } else if (agentMode.value) {
       response = await fetch(buildAgentSseUrl('deepseek-v4-flash'), {
         method: 'POST',
         headers: authHeaders,
@@ -466,6 +511,74 @@ async function sendMessage() {
           }
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
+          }
+          // ── 多 Agent 事件处理（写入消息的 agentTrace）──
+          if (data.type === 'plan_start') {
+            toolStatus.value = '🧠 Planner 正在分析您的请求，拆解为可执行的子任务...'
+          }
+          if (data.type === 'plan') {
+            const trace = messages.value[assistantIndex].agentTrace
+            const count = data.subtasks || 0
+            if (trace) {
+              trace.planSummary = data.summary || ''
+              trace.subtasks = Array.from({ length: count }, (_, i) => ({ id: i + 1, desc: '', status: 'pending' as const }))
+            }
+            toolStatus.value = `📋 规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
+          }
+          if (data.type === 'subtask_start') {
+            const trace = messages.value[assistantIndex].agentTrace
+            const node = data.node || ''
+            if (trace) {
+              const running = trace.subtasks.find(s => s.status === 'pending')
+              if (running) { running.status = 'running'; running.desc = node }
+              const runningIdx = trace.subtasks.filter(s => s.status === 'done').length + 1
+              toolStatus.value = `⚡ Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
+            } else {
+              toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+            }
+          }
+          if (data.type === 'subtask_result') {
+            const trace = messages.value[assistantIndex].agentTrace
+            if (trace) {
+              const doneTask = trace.subtasks.find(s => s.status === 'running')
+              if (doneTask) doneTask.status = 'done'
+              const doneCount = trace.subtasks.filter(s => s.status === 'done').length
+              const total = trace.subtasks.length
+              if (doneCount < total) {
+                toolStatus.value = `⚡ 子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
+              } else {
+                toolStatus.value = `⚡ 全部 ${total} 个子任务执行完毕，进入审查阶段...`
+              }
+            }
+          }
+          if (data.type === 'review') {
+            const trace = messages.value[assistantIndex].agentTrace
+            if (trace) {
+              trace.reviewDecision = data.decision || ''
+              trace.reviewFeedback = data.feedback || ''
+              trace.retryCount = data.retry_count || 0
+            }
+            if (data.decision === 'PASS') {
+              toolStatus.value = '✅ Reviewer 审查通过，正在生成最终回答...'
+            } else if (data.decision === 'REVISE') {
+              toolStatus.value = `🔄 Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
+            } else {
+              toolStatus.value = '❌ Reviewer 审查未通过，生成最终回答...'
+            }
+          }
+          if (data.type === 'metrics') {
+            const trace = messages.value[assistantIndex].agentTrace
+            if (trace) {
+              trace.metrics = {
+                tokensIn: data.total_tokens_in || 0,
+                tokensOut: data.total_tokens_out || 0,
+                latencyMs: data.total_latency_ms || 0,
+              }
+            }
+          }
+          if (data.type === 'done') {
+            // 自动折叠追踪（新消息展开，旧消息折叠）
+            traceCollapsed.value[assistantIndex] = false
           }
         } catch {
           /* ignore parse errors */
@@ -765,20 +878,31 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="agent-btn"
+                :class="{ active: multiAgentMode }"
+                :disabled="isSending"
+                @click="toggleMultiAgentMode()"
+                :title="multiAgentMode ? '多Agent协作：Planner→Executor→Reviewer' : '点击开启多Agent协作'"
+              >
+                <Bot :size="16" />
+                {{ multiAgentMode ? 'Multi-Agent' : '单Agent' }}
+              </button>
+              <button
+                v-if="!multiAgentMode"
+                type="button"
+                class="agent-btn agent-btn-sm"
                 :class="{ active: agentMode }"
                 :disabled="isSending"
                 @click="toggleAgentMode()"
               >
-                <Bot v-if="agentMode" :size="16" />
-                <MessageSquare v-else :size="16" />
-                {{ agentMode ? 'Agent ON' : '普通模式' }}
+                <MessageSquare :size="14" />
+                {{ agentMode ? 'Agent' : '普通' }}
               </button>
             </div>
           </div>
 
           <div ref="chatScrollRef" class="chat-scroll">
             <p v-if="!messages.length && !toolStatus" class="chat-empty">
-              输入消息开始对话，支持上传 TXT。开启 Agent 模式可查询starlore数据。
+              输入消息开始对话，支持上传 TXT。{{ multiAgentMode ? 'Multi-Agent 模式：自动拆解任务、并行执行、自我纠错。' : '开启 Agent 模式可查询 starlore 数据。' }}
             </p>
             <div
               v-for="(msg, i) in messages"
@@ -827,6 +951,52 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <img v-if="msg.imageUrl" :src="msg.imageUrl" class="chat-image" />
+                <!-- Multi-Agent 执行追踪（嵌入气泡，可折叠，保存在聊天记录中） -->
+                <div v-if="msg.agentTrace" class="agent-trace-block">
+                  <div class="trace-header" @click="toggleTrace(i)">
+                    <Bot :size="14" class="trace-icon-svg" />
+                    <span class="trace-label">Multi-Agent 执行追踪</span>
+                    <span v-if="msg.agentTrace.retryCount > 0" class="trace-retry">重试 #{{ msg.agentTrace.retryCount }}</span>
+                    <span class="trace-toggle">{{ traceCollapsed[i] ? '展开' : '收起' }}</span>
+                  </div>
+                  <div v-show="!traceCollapsed[i]" class="trace-body">
+                    <!-- 规划 -->
+                    <div v-if="msg.agentTrace.planSummary" class="trace-section">
+                      <ClipboardList :size="14" class="trace-step-icon-svg" />
+                      <span class="trace-step-label">规划</span>
+                      <span class="trace-step-text">{{ msg.agentTrace.planSummary }}</span>
+                    </div>
+                    <!-- 子任务列表 -->
+                    <div v-if="msg.agentTrace.subtasks.length" class="trace-section">
+                      <Zap :size="14" class="trace-step-icon-svg accent" />
+                      <span class="trace-step-label">执行</span>
+                      <div class="trace-subtasks">
+                        <div v-for="st in msg.agentTrace.subtasks" :key="st.id" class="trace-subtask" :class="'st-' + st.status">
+                          <span class="st-dot"></span>
+                          <span class="st-desc">{{ st.desc || `子任务 ${st.id}` }}</span>
+                          <CheckCircle v-if="st.status === 'done'" :size="12" class="st-icon-done" />
+                          <RefreshCw v-else-if="st.status === 'running'" :size="12" class="st-icon-running" />
+                        </div>
+                      </div>
+                    </div>
+                    <!-- 审查结果 -->
+                    <div v-if="msg.agentTrace.reviewDecision" class="trace-section">
+                      <CheckCircle v-if="msg.agentTrace.reviewDecision === 'PASS'" :size="14" class="trace-step-icon-svg pass" />
+                      <RefreshCw v-else-if="msg.agentTrace.reviewDecision === 'REVISE'" :size="14" class="trace-step-icon-svg revise" />
+                      <XCircle v-else :size="14" class="trace-step-icon-svg fail" />
+                      <span class="trace-step-label">审查</span>
+                      <span class="trace-step-text" :class="'review-' + msg.agentTrace.reviewDecision.toLowerCase()">
+                        {{ msg.agentTrace.reviewDecision === 'PASS' ? '通过' : msg.agentTrace.reviewDecision === 'REVISE' ? '修正' : '未通过' }}
+                        <span v-if="msg.agentTrace.reviewFeedback" class="trace-feedback">— {{ msg.agentTrace.reviewFeedback }}</span>
+                      </span>
+                    </div>
+                    <!-- 指标 -->
+                    <div v-if="msg.agentTrace.metrics" class="trace-section trace-metrics">
+                      <BarChart3 :size="14" class="trace-step-icon-svg" />
+                      <span class="trace-step-text">Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{ msg.agentTrace.metrics.tokensOut }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms</span>
+                    </div>
+                  </div>
+                </div>
                 <div
                   v-if="msg.content"
                   class="answer-text"
@@ -1897,6 +2067,262 @@ onBeforeUnmount(() => {
 .agent-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.agent-btn-sm {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+/* ── Multi-Agent Progress Panel ── */
+.multi-agent-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  margin: 0.5rem 0.75rem 0;
+  font-size: 0.78rem;
+  animation: ma-slide-in 0.3s ease;
+}
+
+@keyframes ma-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ma-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+
+.ma-retry {
+  margin-left: auto;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--warn-soft, #fef3cd);
+  color: var(--warn, #856404);
+}
+
+.ma-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 0.5rem;
+}
+
+.ma-step {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ma-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-interactive);
+  transition: all 0.3s;
+}
+
+.ma-step.active .ma-step-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: ma-pulse 1s infinite;
+}
+
+.ma-step.done .ma-step-dot {
+  background: var(--success, #28a745);
+}
+
+@keyframes ma-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--accent); }
+  50% { box-shadow: 0 0 10px var(--accent); }
+}
+
+.ma-step-label {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+.ma-step.active .ma-step-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ma-step.done .ma-step-label {
+  color: var(--success, #28a745);
+}
+
+.ma-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border-interactive);
+  margin: 0 0.3rem;
+  transition: background 0.3s;
+}
+
+.ma-line.active {
+  background: var(--accent);
+}
+
+.ma-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ma-detail p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.ma-plan { font-style: italic; }
+.ma-subtasks { font-weight: 500; }
+.ma-current { color: var(--accent) !important; }
+
+.ma-review.review-pass { color: var(--success, #28a745) !important; }
+.ma-review.review-revise { color: var(--warn, #856404) !important; }
+.ma-review.review-fail { color: var(--danger, #dc3545) !important; }
+
+.ma-review-feedback {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.ma-metrics {
+  font-size: 0.72rem;
+  opacity: 0.7;
+  font-family: var(--font-mono, monospace);
+}
+
+/* ── Agent Trace Block (inside message bubble) ── */
+.agent-trace-block {
+  background: var(--surface-raised, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-sm, 6px);
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.trace-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.trace-header:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.trace-icon-svg { color: var(--accent); flex-shrink: 0; }
+.trace-label { font-weight: 600; color: var(--ink); font-size: 0.76rem; }
+
+.trace-retry {
+  margin-left: 0.3rem;
+  font-size: 0.65rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 99px;
+  background: var(--warn-soft, #fef3cd);
+  color: var(--warn, #856404);
+}
+
+.trace-toggle {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+}
+
+.trace-body {
+  padding: 0 0.65rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.trace-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  line-height: 1.5;
+}
+
+.trace-step-icon { font-size: 0.8rem; flex-shrink: 0; margin-top: 0.05rem; }
+.trace-step-icon-svg { flex-shrink: 0; margin-top: 0.1rem; color: var(--ink-muted); }
+.trace-step-icon-svg.accent { color: var(--accent); }
+.trace-step-icon-svg.pass { color: var(--success, #28a745); }
+.trace-step-icon-svg.revise { color: var(--warn, #856404); }
+.trace-step-icon-svg.fail { color: var(--danger, #dc3545); }
+.trace-step-label {
+  font-weight: 600;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+  min-width: 2rem;
+}
+.trace-step-text { color: var(--ink-muted); font-size: 0.76rem; }
+
+.trace-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.trace-subtask {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+}
+
+.st-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.st-pending .st-dot { background: var(--border-interactive); }
+.st-running .st-dot { background: var(--accent); animation: trace-pulse 1s infinite; }
+.st-done .st-dot { background: var(--success, #28a745); }
+
+@keyframes trace-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.st-desc { flex: 1; }
+.st-status { flex-shrink: 0; font-size: 0.7rem; }
+.st-icon-done { color: var(--success, #28a745); flex-shrink: 0; }
+.st-icon-running { color: var(--accent); flex-shrink: 0; animation: spin 1s linear infinite; }
+
+.trace-feedback { font-size: 0.7rem; opacity: 0.7; }
+
+.review-pass { color: var(--success, #28a745); }
+.review-revise { color: var(--warn, #856404); }
+.review-fail { color: var(--danger, #dc3545); }
+
+.trace-metrics {
+  padding-top: 0.2rem;
+  border-top: 1px dashed var(--border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.trace-metrics .trace-step-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  opacity: 0.65;
 }
 
 /* ── Tool Status ── */

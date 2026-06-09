@@ -10,6 +10,7 @@ from app.exceptions import register_exception_handlers
 from app.middleware import setup_middleware
 from app.routers import (
     admin,
+    agent,
     ai,
     ai_config,
     articles,
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 初始化 LangSmith 追踪
+    from app.services.langsmith_tracer import init_langsmith
+    init_langsmith()
+
     logger.info("Starlore 后端服务启动，端口 %d", settings.app_port)
     yield
 
@@ -52,6 +57,7 @@ app.include_router(articles.router)
 app.include_router(categories.router)
 app.include_router(bookmarks.router)
 app.include_router(ai.router)
+app.include_router(agent.router)
 app.include_router(ai_config.router)
 app.include_router(resume.router)
 app.include_router(projects.router)

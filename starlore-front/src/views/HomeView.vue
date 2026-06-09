@@ -7,7 +7,8 @@ import DummyCard from '@/components/dummyCard.vue'
 import { useUserStore } from '@/stores/user'
 import {
   ArrowRight, Zap, BrainCircuit, Eye, Workflow, Database,
-  GraduationCap, Code, Microscope, PenTool, Sparkles, Globe, Link, Mail
+  GraduationCap, Code, Microscope, PenTool, Sparkles, Globe, Link, Mail,
+  GitBranch, Activity, Bot, Shield, BarChart3
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -20,10 +21,17 @@ const demoArticles: Article[] = [
 
 const features = [
   {
-    icon: BrainCircuit,
-    title: 'AI 智能助手',
-    desc: '基于 DeepSeek & MiMo 大模型，支持多模态对话、图片识别、Agent 模式自动调用工具。',
-    tech: 'SSE Stream · Vision API · Tool Calling',
+    icon: GitBranch,
+    title: 'Multi-Agent 协作',
+    desc: 'Planner-Executor-Reviewer 三角色协作架构，自动拆解复杂任务、并行调用工具、结果自我纠错。',
+    tech: 'LangGraph · State Machine · Auto-Retry',
+    link: '/echobot',
+  },
+  {
+    icon: Activity,
+    title: '全链路可观测性',
+    desc: '集成 LangSmith 监控体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
+    tech: 'LangSmith · Tracing · Bad Case Mining',
     link: '/echobot',
   },
   {
@@ -32,6 +40,13 @@ const features = [
     desc: '向量化知识库，语义检索你的所有星迹，AI 基于你的知识回答问题。',
     tech: 'Embedding · Vector Store · Semantic Search',
     link: '/articles',
+  },
+  {
+    icon: BrainCircuit,
+    title: '多模态 AI 对话',
+    desc: '支持文本、图片、语音多模态输入，DeepSeek & MiMo 大模型驱动，SSE 流式响应。',
+    tech: 'SSE Stream · Vision API · Tool Calling',
+    link: '/echobot',
   },
   {
     icon: Eye,
@@ -50,10 +65,10 @@ const features = [
 ]
 
 const stats = [
-  { value: '6+', label: 'AI 模型集成' },
-  { value: '10+', label: 'Agent 工具' },
+  { value: '3-Agent', label: '多智能体协作' },
+  { value: '10+', label: 'Function 工具' },
+  { value: 'LangSmith', label: '全链路追踪' },
   { value: '3D', label: '知识可视化' },
-  { value: 'SSE', label: '流式响应' },
 ]
 
 const data = ref()
@@ -95,7 +110,10 @@ onMounted(async () => {
                 <span class="terminal-cmd">starlore init --universe</span>
               </div>
               <div class="terminal-line terminal-output">
-                <span class="terminal-success">✓</span> AI Agent initialized
+                <span class="terminal-success">✓</span> Multi-Agent Graph compiled
+              </div>
+              <div class="terminal-line terminal-output">
+                <span class="terminal-success">✓</span> LangSmith tracing enabled
               </div>
               <div class="terminal-line terminal-output">
                 <span class="terminal-success">✓</span> Vector store connected
@@ -117,8 +135,8 @@ onMounted(async () => {
             AI-Powered Personal Knowledge Universe
           </p>
           <p class="hero-desc fade-in-up" style="animation-delay: 0.4s">
-            融合 RAG 知识检索、多模态 AI 对话、3D 可视化的个人知识管理系统。<br />
-            让每一份知识都成为星空中可探索的节点。
+            融合 Multi-Agent 协作、LangSmith 可观测性、RAG 知识检索、3D 可视化的智能知识系统。<br />
+            Planner 规划 → Executor 执行 → Reviewer 审查，让 AI 真正理解你的知识。
           </p>
           <div class="hero-actions fade-in-up" style="animation-delay: 0.5s">
             <router-link to="/login" class="btn-primary btn-lg">
@@ -147,9 +165,9 @@ onMounted(async () => {
           <div class="section-header fade-in-up">
             <span class="section-tag">CORE FEATURES</span>
             <h2 class="section-heading">核心能力</h2>
-            <p class="section-subtitle">四大技术模块，构建智能知识系统</p>
+            <p class="section-subtitle">六大技术模块，构建智能知识系统</p>
           </div>
-          <div class="features-grid">
+          <div class="features-grid features-grid-3">
             <div
               v-for="(feature, i) in features"
               :key="feature.title"
@@ -511,6 +529,10 @@ onMounted(async () => {
   gap: 24px;
 }
 
+.features-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .feature-card {
   display: flex;
   flex-direction: column;
@@ -688,9 +710,18 @@ onMounted(async () => {
 
 /* ── Vision Section ── */
 .vision-section {
-  padding: 100px 0;
+  padding: 80px 0;
   text-align: center;
-  background: linear-gradient(135deg, var(--canvas-deep), var(--accent-soft));
+}
+
+.vision-content {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 56px 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: 0 8px 40px oklch(0.5 0.01 200 / 0.06);
 }
 
 .vision-title {
@@ -780,7 +811,16 @@ onMounted(async () => {
 .cta-section {
   padding: 80px 0;
   text-align: center;
-  background: linear-gradient(135deg, var(--canvas-deep), var(--accent-soft));
+}
+
+.cta-content {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 48px 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: 0 8px 40px oklch(0.5 0.01 200 / 0.06);
 }
 
 .cta-code {
@@ -906,12 +946,14 @@ onMounted(async () => {
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .features-grid { grid-template-columns: 1fr; }
+  .features-grid-3 { grid-template-columns: repeat(2, 1fr); }
   .use-cases-grid { grid-template-columns: repeat(2, 1fr); }
   .content-layout { grid-template-columns: 1fr; }
   .articles-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {
+  .features-grid-3 { grid-template-columns: 1fr; }
   .landing-hero { padding: 100px 0 60px; }
   .hero-title { font-size: 3rem; }
   .hero-stats { gap: 24px; flex-wrap: wrap; }
