@@ -71,46 +71,46 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 
 ### 前端 (`starlore-front/`)
 
-| 技术 | 用途 |
-|------|------|
-| Vue 3 + TypeScript | 框架 |
-| Vite | 构建工具 |
-| Pinia | 状态管理 |
-| Vue Router | 路由 |
-| Lucide | 图标库 |
-| Three.js | 3D 可视化 |
+| 技术                  | 用途          |
+| --------------------- | ------------- |
+| Vue 3 + TypeScript    | 框架          |
+| Vite                  | 构建工具      |
+| Pinia                 | 状态管理      |
+| Vue Router            | 路由          |
+| Lucide                | 图标库        |
+| Three.js              | 3D 可视化     |
 | Marked + highlight.js | Markdown 渲染 |
 
 ### Java 后端 (`starlore-back/`)
 
-| 技术 | 用途 |
-|------|------|
-| Spring Boot 3.4.5 | 框架 |
-| Spring AI 1.0.0-M6 | AI/LLM 集成 |
-| MyBatis-Plus | ORM |
-| MySQL | 数据库 |
-| JWT | 认证鉴权 |
-| MinIO | 文件存储 |
-| LangChain4j | Agent Graph 引擎 |
-| LangSmith | 可观测性 Tracing |
+| 技术               | 用途             |
+| ------------------ | ---------------- |
+| Spring Boot 3.4.5  | 框架             |
+| Spring AI 1.0.0-M6 | AI/LLM 集成      |
+| MyBatis-Plus       | ORM              |
+| MySQL              | 数据库           |
+| JWT                | 认证鉴权         |
+| MinIO              | 文件存储         |
+| LangChain4j        | Agent Graph 引擎 |
+| LangSmith          | 可观测性 Tracing |
 
 ### Python 后端 (`starlore-py/`)
 
-| 技术 | 用途 |
-|------|------|
-| FastAPI | 异步 Web 框架 |
-| LangChain + LangGraph | Agent 编排 |
-| LangSmith | Tracing |
-| FAISS | 向量存储 |
-| RAGAS | RAG 质量评估 |
-| MCP | Model Context Protocol |
+| 技术                  | 用途                   |
+| --------------------- | ---------------------- |
+| FastAPI               | 异步 Web 框架          |
+| LangChain + LangGraph | Agent 编排             |
+| LangSmith             | Tracing                |
+| FAISS                 | 向量存储               |
+| RAGAS                 | RAG 质量评估           |
+| MCP                   | Model Context Protocol |
 
 ### 移动端 (`starlore_app/`)
 
-| 技术 | 用途 |
-|------|------|
+| 技术    | 用途       |
+| ------- | ---------- |
 | Flutter | 跨平台框架 |
-| Dart | 编程语言 |
+| Dart    | 编程语言   |
 
 ## 📁 项目结构
 
@@ -152,13 +152,13 @@ starlore/
 
 ### 环境要求
 
-| 组件 | 版本要求 |
-|------|---------|
-| JDK | >= 17 |
-| Node.js | >= 16.0.0 |
-| MySQL | >= 5.7 |
-| Python | >= 3.10（可选） |
-| Flutter | >= 3.0（可选） |
+| 组件    | 版本要求        |
+| ------- | --------------- |
+| JDK     | >= 17           |
+| Node.js | >= 16.0.0       |
+| MySQL   | >= 5.7          |
+| Python  | >= 3.10（可选） |
+| Flutter | >= 3.0（可选）  |
 
 ### 后端启动 (starlore-back)
 
@@ -202,39 +202,39 @@ flutter run
 
 ### 文章管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/articles` | 获取文章列表（分页/搜索/筛选） |
-| GET | `/api/articles/:id` | 获取文章详情 |
-| POST | `/api/articles` | 创建文章 |
-| PUT | `/api/articles/:id` | 更新文章 |
-| DELETE | `/api/articles/:id` | 删除文章 |
+| 方法   | 路径                | 说明                           |
+| ------ | ------------------- | ------------------------------ |
+| GET    | `/api/articles`     | 获取文章列表（分页/搜索/筛选） |
+| GET    | `/api/articles/:id` | 获取文章详情                   |
+| POST   | `/api/articles`     | 创建文章                       |
+| PUT    | `/api/articles/:id` | 更新文章                       |
+| DELETE | `/api/articles/:id` | 删除文章                       |
 
 ### 分类管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/categories` | 获取分类列表 |
-| POST | `/api/categories` | 创建分类 |
+| 方法 | 路径              | 说明         |
+| ---- | ----------------- | ------------ |
+| GET  | `/api/categories` | 获取分类列表 |
+| POST | `/api/categories` | 创建分类     |
 
 ### AI 对话
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/ai/sse` | 基础 SSE 对话 |
-| POST | `/api/ai/agent-sse` | 单 Agent SSE 对话（Tool Calling） |
+| 方法 | 路径                      | 说明                                                  |
+| ---- | ------------------------- | ----------------------------------------------------- |
+| POST | `/api/ai/sse`             | 基础 SSE 对话                                         |
+| POST | `/api/ai/agent-sse`       | 单 Agent SSE 对话（Tool Calling）                     |
 | POST | `/api/ai/multi-agent-sse` | **Multi-Agent SSE 对话**（Planner-Executor-Reviewer） |
-| POST | `/api/ai/thinking-sse` | 推理模型 SSE 对话 |
-| POST | `/api/ai/analyze-image` | 图片分析 |
-| POST | `/api/ai/tts` | 文本转语音 |
+| POST | `/api/ai/thinking-sse`    | 推理模型 SSE 对话                                     |
+| POST | `/api/ai/analyze-image`   | 图片分析                                              |
+| POST | `/api/ai/tts`             | 文本转语音                                            |
 
 ### Multi-Agent 可观测性
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/ai/agent-metrics` | Agent 执行指标统计 |
-| GET | `/api/ai/agent-traces` | 执行追踪记录 |
-| GET | `/api/ai/agent-bad-cases` | Bad Case 列表 |
+| 方法 | 路径                      | 说明               |
+| ---- | ------------------------- | ------------------ |
+| GET  | `/api/ai/agent-metrics`   | Agent 执行指标统计 |
+| GET  | `/api/ai/agent-traces`    | 执行追踪记录       |
+| GET  | `/api/ai/agent-bad-cases` | Bad Case 列表      |
 
 ## 🧩 Multi-Agent 工作流
 
@@ -259,16 +259,16 @@ AgentGraph.builder()
 
 ### SSE 事件类型
 
-| 事件 | 说明 |
-|------|------|
-| `plan_start` | Planner 开始分析 |
-| `plan` | 规划完成，返回子任务列表 |
-| `subtask_start` | 子任务开始执行 |
-| `subtask_result` | 子任务执行完成 |
-| `review` | Reviewer 审查结果 |
-| `metrics` | Token/耗时/LangSmith 指标 |
-| `content` | 最终回答内容 |
-| `done` | 流程结束 |
+| 事件             | 说明                      |
+| ---------------- | ------------------------- |
+| `plan_start`     | Planner 开始分析          |
+| `plan`           | 规划完成，返回子任务列表  |
+| `subtask_start`  | 子任务开始执行            |
+| `subtask_result` | 子任务执行完成            |
+| `review`         | Reviewer 审查结果         |
+| `metrics`        | Token/耗时/LangSmith 指标 |
+| `content`        | 最终回答内容              |
+| `done`           | 流程结束                  |
 
 ## 📊 可观测性架构
 
@@ -320,7 +320,6 @@ AgentGraph.builder()
 
 ## 📞 联系方式
 
-- 项目作者: 贾新科
 - 项目地址: https://github.com/origin-mumu/starlore
 
 ---
