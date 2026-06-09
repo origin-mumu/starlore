@@ -1,0 +1,391 @@
+<script setup lang="ts">
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { useThemeStore } from '@/stores/theme'
+
+const router = useRouter()
+const userStore = useUserStore()
+const route = useRoute()
+
+const navItems = computed(() => {
+  const items = [
+    { name: '首页', path: '/' },
+    { name: '星域', path: '/categories' },
+    { name: '探索', path: '/vr' },
+    { name: '灵感', path: '/diverge' },
+    { name: 'AI', path: '/echobot' },
+  ]
+  if (userStore.isLoggedIn) {
+    items.push(
+      { name: '星迹', path: '/articles' }
+      // { name: '添加星迹', path: '/articles/edit' },
+    )
+  }
+  return items
+})
+
+const isActive = (path: string) => route.path === path
+
+const mobileMenuOpen = ref(false)
+
+const themeStore = useThemeStore()
+
+const themes: {
+  name: 'default' | 'white' | 'dark' | 'green' | 'blue' | 'pink'
+  label: string
+  color: string
+}[] = [
+  { name: 'default', label: '暖色', color: '#B85C38' },
+  { name: 'white', label: '黑白', color: '#FFFFFF' },
+  { name: 'dark', label: '深色', color: '#000000' },
+  { name: 'green', label: '绿色', color: '#4A8C5C' },
+  { name: 'blue', label: '蓝色', color: '#3B7DD8' },
+  { name: 'pink', label: '粉色', color: '#D4638F' },
+]
+
+const guestAllowedPaths = ['/', '/categories', '/vr', '/diverge', '/echobot']
+
+const handleLogout = () => {
+  userStore.logout()
+  mobileMenuOpen.value = false
+  const path = route.path
+  const isGuestAllowed = guestAllowedPaths.some(p => path === p || path.startsWith(p + '/'))
+  if (isGuestAllowed) {
+    // 访客允许的页面：刷新当前页面以更新状态
+    router.go(0)
+  } else {
+    router.push('/login')
+  }
+}
+</script>
+
+<template>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <div class="nav-brand" @click="router.push('/')">
+        <span class="brand-mark"></span>
+        <span class="brand-text">Starlore</span>
+      </div>
+
+      <button class="mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="菜单">
+        <span :class="{ open: mobileMenuOpen }"></span>
+      </button>
+
+      <div class="nav-links" :class="{ open: mobileMenuOpen }">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.path"
+          :to="item.path"
+          class="nav-link"
+          :class="{ active: isActive(item.path) }"
+          @click="mobileMenuOpen = false"
+        >
+          {{ item.name }}
+        </RouterLink>
+
+        <span class="nav-divider"></span>
+
+        <RouterLink
+          v-if="userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')"
+          to="/resume"
+          class="nav-link"
+          :class="{ active: isActive('/resume') }"
+          @click="mobileMenuOpen = false"
+        >
+          简历
+        </RouterLink>
+
+        <span class="nav-divider"></span>
+
+        <div class="theme-switcher" title="切换主题">
+          <button
+            v-for="t in themes"
+            :key="t.name"
+            class="theme-dot"
+            :class="{ active: themeStore.current === t.name }"
+            :style="{ '--dot-color': t.color }"
+            @click="themeStore.setTheme(t.name)"
+            :aria-label="t.label"
+          ></button>
+        </div>
+
+        <span class="nav-divider"></span>
+
+        <div v-if="userStore.isLoggedIn" class="user-area">
+          <span class="user-name" @click="router.push('/profile')">{{ userStore.nickname }}</span>
+          <button class="user-logout" @click="handleLogout">退出</button>
+        </div>
+        <RouterLink v-else to="/login" class="nav-link" @click="mobileMenuOpen = false"
+          >登录</RouterLink
+        >
+      </div>
+    </div>
+  </nav>
+</template>
+
+<style scoped>
+.navbar {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--nav-bg);
+  backdrop-filter: blur(30px);
+
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-card);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 46px;
+  padding: 0 6px;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 0 10px 0 6px;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  color: #fdfbf5;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-radius: var(--radius-full);
+  letter-spacing: -0.02em;
+}
+
+.brand-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  transition: all var(--transition);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+  background: var(--canvas-deep);
+}
+
+.nav-link.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+
+.nav-link--explore {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+/* ── Theme Switcher ── */
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--dot-color);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+  opacity: 0.5;
+}
+
+.theme-dot:hover {
+  opacity: 0.85;
+  transform: scale(1.2);
+}
+
+.theme-dot.active {
+  opacity: 1;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--canvas);
+  transform: scale(1.15);
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 8px;
+}
+
+.user-name {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color var(--transition);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-name:hover {
+  color: var(--accent);
+}
+
+.user-logout {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+
+.user-logout:hover {
+  color: #9b3a2a;
+  background: oklch(0.55 0.15 25 / 0.08);
+}
+
+.mobile-toggle {
+  display: none;
+  width: 32px;
+  height: 32px;
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.mobile-toggle span,
+.mobile-toggle span::before,
+.mobile-toggle span::after {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--ink);
+  border-radius: 1px;
+  transition: all 0.3s ease;
+  position: absolute;
+  left: 6px;
+}
+
+.mobile-toggle span {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.mobile-toggle span::before {
+  content: '';
+  top: -6px;
+}
+
+.mobile-toggle span::after {
+  content: '';
+  top: 6px;
+}
+
+.mobile-toggle span.open {
+  background: transparent;
+}
+
+.mobile-toggle span.open::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.mobile-toggle span.open::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
+@media (max-width: 768px) {
+  .mobile-toggle {
+    display: block;
+  }
+
+  .nav-links {
+    display: none;
+    position: fixed;
+    top: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 360px;
+    background: oklch(0.97 0.01 80 / 0.98);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 2px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px oklch(0.25 0.02 50 / 0.12);
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  .nav-link {
+    padding: 10px 14px;
+    border-radius: 999px;
+    justify-content: center;
+  }
+
+  .nav-divider {
+    width: 100%;
+    height: 1px;
+    margin: 6px 0;
+  }
+
+  .theme-switcher {
+    justify-content: center;
+    padding: 4px 0;
+  }
+
+  .user-area {
+    margin-left: 0;
+    padding: 4px 14px;
+    justify-content: center;
+  }
+}
+</style>

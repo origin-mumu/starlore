@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(ls -la /d/project/back/blog-back/)",
+      "Read(//d/project/back/blog-back//**)",
+      "Bash(mvn compile *)",
+      "Read(//d/config/Java//**)",
+      "Read(//d/Program Files/**)",
+      "Read(//c/Users/stone/.jdks//**)",
+      "Read(//d/develop//**)",
+      "Skill(impeccable)",
+      "Skill(impeccable:*)"
+    ],
+    "additionalDirectories": [
+      "d:\\project\\back\\blog-back"
     ]
   }
 }

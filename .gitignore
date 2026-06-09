@@ -43,6 +43,9 @@ __screenshots__/
 .env.test.local
 .env.production.local
 
+# Spring Boot 配置文件（含数据库密码、API Key 等敏感信息）
+application*.yaml
+
 # Blog-back相关
 blog-back/.env
 blog-back/.env.*
