@@ -149,4 +149,38 @@ async def export_pdf(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "PDF 导出功能需要配置 starlore-pdf 服务"}
+    """导出简历为 PDF（调用外部 starlore-pdf 服务）。"""
+    import os
+    import httpx
+    from fastapi.responses import Response
+
+    r = await resume_service.get_by_id(db, resume_id, user.id)
+
+    pdf_service_url = os.getenv("PDF_SERVICE_URL", "http://localhost:3001")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{pdf_service_url}/generate",
+                json={
+                    "template": r.template or "classic",
+                    "data": {
+                        "name": r.name or "",
+                        "job_title": r.job_title or "",
+                        "phone": r.phone or "",
+                        "email": r.email or "",
+                        "photo_url": r.photo_url or "",
+                        "content": r.content or "",
+                    },
+                },
+            )
+            resp.raise_for_status()
+            return Response(
+                content=resp.content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="resume_{resume_id}.pdf"'},
+            )
+    except httpx.ConnectError:
+        return {"error": f"PDF 服务不可用 ({pdf_service_url})，请确保 starlore-pdf 已启动"}
+    except Exception as e:
+        return {"error": f"PDF 生成失败: {e}"}

@@ -1,10 +1,10 @@
 <script lang="ts" setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { getArticleByIdService } from '@/api/article'
 import { useRoute } from 'vue-router'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import SideBar from '@/components/sideBar.vue'
+import { List, Hash } from '@lucide/vue'
 
 interface Article {
   id: number
@@ -20,10 +20,67 @@ interface Article {
   updatedAt: string
 }
 
+/** 目录项 */
+interface TocItem {
+  id: string
+  text: string
+  level: number  // 1=h1, 2=h2, 3=h3
+}
+
 const route = useRoute()
 const article = ref<Article>()
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+const tocItems = ref<TocItem[]>([])
+const activeTocId = ref<string | null>(null)
+const tocOpen = ref(true)
+let tocObserver: IntersectionObserver | null = null
+
+/** 从渲染后的 HTML 中提取标题并注入 ID，生成目录 */
+function buildToc() {
+  nextTick(() => {
+    const container = document.querySelector('.typography')
+    if (!container) return
+    const headings = container.querySelectorAll('h1, h2, h3')
+    const items: TocItem[] = []
+
+    headings.forEach((h, i) => {
+      const id = 'heading-' + i + '-' + (h.textContent || '').trim().replace(/\s+/g, '-').slice(0, 30)
+      h.id = id
+      items.push({
+        id,
+        text: (h.textContent || '').trim(),
+        level: parseInt(h.tagName[1]), // 1, 2, 3
+      })
+    })
+
+    tocItems.value = items
+
+    // IntersectionObserver 跟踪当前阅读位置
+    tocObserver?.disconnect()
+    tocObserver = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            activeTocId.value = e.target.id
+          }
+        }
+      },
+      { rootMargin: '-80px 0px -60% 0px' }
+    )
+    headings.forEach(h => tocObserver!.observe(h))
+  })
+}
+
+/** 点击目录项，平滑滚动到对应标题 */
+function scrollToHeading(id: string) {
+  activeTocId.value = id
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
 const highlightCode = () => {
   nextTick(() => {
     document.querySelectorAll('pre code').forEach(block => {
@@ -90,8 +147,14 @@ onMounted(async () => {
   } finally {
     isLoading.value = false
     highlightCode()
+    buildToc()
   }
 })
+
+onBeforeUnmount(() => {
+  tocObserver?.disconnect()
+})
+
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
   return date.toLocaleDateString('zh-CN')
@@ -145,7 +208,30 @@ const formatDate = (dateString: string) => {
             </main>
 
             <aside class="sidebar-area">
-              <SideBar />
+              <nav v-if="tocItems.length > 0" class="toc-card">
+                <div class="toc-header" @click="tocOpen = !tocOpen">
+                  <List :size="16" />
+                  <span>目录</span>
+                  <span class="toc-toggle">{{ tocOpen ? '收起' : '展开' }}</span>
+                </div>
+                <ul v-show="tocOpen" class="toc-list">
+                  <li
+                    v-for="item in tocItems"
+                    :key="item.id"
+                    class="toc-item"
+                    :class="{
+                      'toc-active': activeTocId === item.id,
+                      'toc-h2': item.level === 2,
+                      'toc-h3': item.level === 3,
+                    }"
+                    @click="scrollToHeading(item.id)"
+                  >
+                    <Hash v-if="item.level === 1" :size="12" class="toc-dot" />
+                    <span class="toc-dot" v-else></span>
+                    <span class="toc-text">{{ item.text }}</span>
+                  </li>
+                </ul>
+              </nav>
             </aside>
           </div>
         </div>
@@ -276,7 +362,6 @@ const formatDate = (dateString: string) => {
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 32px;
-  align-items: flex-start;
   padding: 0 0 80px;
 }
 
@@ -287,6 +372,113 @@ const formatDate = (dateString: string) => {
 .sidebar-area {
   position: sticky;
   top: 100px;
+  height: fit-content;
+}
+
+/* ── 目录导航 ── */
+.toc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 2px 16px oklch(0.3 0.02 50 / 0.04);
+}
+
+.toc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s ease;
+  letter-spacing: 0.02em;
+}
+.toc-header:hover {
+  background: var(--surface-hover);
+}
+.toc-toggle {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  transition: all 0.2s ease;
+}
+.toc-header:hover .toc-toggle {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  margin-bottom: 2px;
+}
+.toc-item:last-child {
+  margin-bottom: 0;
+}
+.toc-item:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.toc-item.toc-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.toc-item.toc-h2 {
+  padding-left: 24px;
+  font-size: 12.5px;
+}
+.toc-item.toc-h3 {
+  padding-left: 36px;
+  font-size: 12px;
+}
+
+.toc-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.toc-item:hover .toc-dot {
+  background: var(--ink-soft);
+}
+.toc-active .toc-dot {
+  background: var(--accent);
+  transform: scale(1.3);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.toc-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-card-enter {

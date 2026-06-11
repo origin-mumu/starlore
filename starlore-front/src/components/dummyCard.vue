@@ -14,6 +14,15 @@ const formatDate = (dateString: string) => {
     class="article-card"
     @click="router.push({ name: 'articleDetail', params: { id: props.id } })"
   >
+    <!-- 封面图 -->
+    <div v-if="props.cover_image" class="card-cover">
+      <img
+        :src="props.cover_image"
+        :alt="props.title"
+        class="cover-img"
+        loading="lazy"
+      />
+    </div>
     <div class="card-body">
       <div class="tags-row">
         <span v-for="tag in props.tags?.slice(0, 3)" :key="tag" class="card-tag">{{ tag }}</span>
@@ -45,11 +54,30 @@ const formatDate = (dateString: string) => {
   border-color: var(--border-interactive);
 }
 
+/* ── 封面图 ── */
+.card-cover {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: var(--canvas-deep);
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s var(--ease-out-quart);
+}
+
+.article-card:hover .cover-img {
+  transform: scale(1.05);
+}
+
 .card-body {
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 160px;
 }
 
 .tags-row {

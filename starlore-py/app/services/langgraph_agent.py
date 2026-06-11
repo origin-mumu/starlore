@@ -23,6 +23,8 @@ from app.services.blog_tools import (
     get_blog_stats_impl,
     get_recent_articles_impl,
     write_article_impl,
+    update_article_impl,
+    delete_article_impl,
     get_all_tags_impl,
     get_articles_by_category_impl,
     create_category_impl,
@@ -94,6 +96,24 @@ def _create_tools(db, user_id):
         return await get_articles_by_category_impl(db, user_id, category)
 
     @tool
+    async def update_article(
+        article_id: int,
+        title: str | None = None,
+        content: str | None = None,
+        category: str | None = None,
+        tags: str | None = None,
+        description: str | None = None,
+        status: str | None = None,
+    ) -> str:
+        """更新已有文章。只需提供要修改的字段，其余传 None 保持不变。"""
+        return await update_article_impl(db, user_id, article_id, title, content, category, tags, description, status)
+
+    @tool
+    async def delete_article(article_id: int) -> str:
+        """删除指定文章，需要提供文章 ID。"""
+        return await delete_article_impl(db, user_id, article_id)
+
+    @tool
     async def create_category(name: str, description: str = "", color: str = "") -> str:
         """创建新分类。"""
         return await create_category_impl(db, user_id, name, description, color)
@@ -105,6 +125,8 @@ def _create_tools(db, user_id):
         get_blog_stats,
         get_recent_articles,
         write_article,
+        update_article,
+        delete_article,
         get_all_tags,
         get_articles_by_category,
         create_category,

@@ -6,17 +6,57 @@ import { Article } from '@/type/Article'
 import DummyCard from '@/components/dummyCard.vue'
 import { useUserStore } from '@/stores/user'
 import {
-  ArrowRight, Zap, BrainCircuit, Eye, Workflow, Database,
-  GraduationCap, Code, Microscope, PenTool, Sparkles, Globe, Link, Mail,
-  GitBranch, Activity, Bot, Shield, BarChart3
+  ArrowRight,
+  Zap,
+  BrainCircuit,
+  Eye,
+  Workflow,
+  Database,
+  GraduationCap,
+  Code,
+  Microscope,
+  PenTool,
+  Sparkles,
+  Globe,
+  Link,
+  Mail,
+  GitBranch,
+  Activity,
+  Bot,
+  Shield,
+  BarChart3,
+  Terminal,
+  Code2,
+  FileArchive,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
 
 const demoArticles: Article[] = [
-  { id: -1, title: '欢迎来到 Starlore', summary: '这是一个演示星迹，登录后可以查看真实内容', category: '演示', createdAt: new Date().toISOString(), coverImage: '' } as any,
-  { id: -2, title: '探索知识星域', summary: '在 VR 星图中浏览你的知识版图', category: '演示', createdAt: new Date().toISOString(), coverImage: '' } as any,
-  { id: -3, title: 'AI 创意发散', summary: '用 AI 帮你拓展思维边界', category: '演示', createdAt: new Date().toISOString(), coverImage: '' } as any,
+  {
+    id: -1,
+    title: '欢迎来到 Starlore',
+    summary: '这是一个演示星迹，登录后可以查看真实内容',
+    category: '演示',
+    createdAt: new Date().toISOString(),
+    coverImage: '',
+  } as any,
+  {
+    id: -2,
+    title: '探索知识星域',
+    summary: '在 VR 星图中浏览你的知识版图',
+    category: '演示',
+    createdAt: new Date().toISOString(),
+    coverImage: '',
+  } as any,
+  {
+    id: -3,
+    title: 'AI 创意发散',
+    summary: '用 AI 帮你拓展思维边界',
+    category: '演示',
+    createdAt: new Date().toISOString(),
+    coverImage: '',
+  } as any,
 ]
 
 const features = [
@@ -202,17 +242,23 @@ onMounted(async () => {
             <div class="use-case-card fade-in-up" style="animation-delay: 0.1s">
               <div class="use-case-icon"><GraduationCap :size="36" /></div>
               <h3 class="use-case-title">学生学习</h3>
-              <p class="use-case-desc">整理课程笔记、论文资料，用 AI 快速检索知识点，构建个人知识体系。</p>
+              <p class="use-case-desc">
+                整理课程笔记、论文资料，用 AI 快速检索知识点，构建个人知识体系。
+              </p>
             </div>
             <div class="use-case-card fade-in-up" style="animation-delay: 0.2s">
               <div class="use-case-icon"><Code :size="36" /></div>
               <h3 class="use-case-title">开发者</h3>
-              <p class="use-case-desc">记录技术笔记、调试经验，用 RAG 检索历史问题，提升开发效率。</p>
+              <p class="use-case-desc">
+                记录技术笔记、调试经验，用 RAG 检索历史问题，提升开发效率。
+              </p>
             </div>
             <div class="use-case-card fade-in-up" style="animation-delay: 0.3s">
               <div class="use-case-icon"><Microscope :size="36" /></div>
               <h3 class="use-case-title">研究者</h3>
-              <p class="use-case-desc">管理文献综述、实验数据，用 AI 辅助分析，发现知识间的关联。</p>
+              <p class="use-case-desc">
+                管理文献综述、实验数据，用 AI 辅助分析，发现知识间的关联。
+              </p>
             </div>
             <div class="use-case-card fade-in-up" style="animation-delay: 0.4s">
               <div class="use-case-icon"><PenTool :size="36" /></div>
@@ -293,13 +339,70 @@ onMounted(async () => {
     <template v-else>
       <!-- Hero Section -->
       <section class="hero-section">
-        <div class="container">
+        <div class="hero-container">
           <div class="hero-content fade-in-up">
             <span class="hero-kicker">PERSONAL STARLORE</span>
             <h1 class="hero-title-user">记录创造的<br />每一刻</h1>
             <p class="hero-desc-user">代码、设计、思考。在这里分享我的学习旅程和项目实践。</p>
             <div class="hero-actions">
               <router-link to="/articles" class="btn-primary">阅读星迹</router-link>
+            </div>
+          </div>
+
+          <!-- 右侧装饰区域 -->
+          <div class="hero-visual fade-in-up" style="animation-delay: 0.3s">
+            <!-- 浮动装饰点 -->
+            <div class="visual-dot visual-dot--1"></div>
+            <div class="visual-dot visual-dot--2"></div>
+            <div class="visual-dot visual-dot--3"></div>
+
+            <!-- 代码卡片 -->
+            <div class="visual-card visual-card--code">
+              <div class="code-line">
+                <span class="code-num">1</span>
+                <span><span class="code-keyword">const</span> starlore = {</span>
+              </div>
+              <div class="code-line">
+                <span class="code-num">2</span>
+                <span>&nbsp;&nbsp;name: <span class="code-string">"Starlore"</span>,</span>
+              </div>
+              <div class="code-line">
+                <span class="code-num">3</span>
+                <span>&nbsp;&nbsp;type: <span class="code-string">"knowledge"</span>,</span>
+              </div>
+              <div class="code-line">
+                <span class="code-num">4</span>
+                <span>&nbsp;&nbsp;<span class="code-comment">// 记录每一刻</span></span>
+              </div>
+              <div class="code-line">
+                <span class="code-num">5</span>
+                <span>&nbsp;&nbsp;create: () => <span class="code-string">"✨"</span></span>
+              </div>
+              <div class="code-line">
+                <span class="code-num">6</span>
+                <span>}</span>
+              </div>
+            </div>
+
+            <!-- 笔记卡片 -->
+            <div class="visual-card visual-card--note">
+              <div class="note-header">
+                <div class="note-icon"><FileArchive /></div>
+                <div class="note-title">今日笔记</div>
+              </div>
+              <div class="note-lines">
+                <div class="note-line"></div>
+                <div class="note-line"></div>
+                <div class="note-line"></div>
+                <div class="note-line"></div>
+              </div>
+            </div>
+
+            <!-- 品牌卡片 -->
+            <div class="visual-card visual-card--tag">
+              <div class="tag-icon">✦</div>
+              <div class="tag-text">Starlore</div>
+              <div class="tag-sub">AI-Powered Knowledge</div>
             </div>
           </div>
         </div>
@@ -368,9 +471,15 @@ onMounted(async () => {
   border-radius: 50%;
 }
 
-.terminal-dot--red { background: #ff5f57; }
-.terminal-dot--yellow { background: #febc2e; }
-.terminal-dot--green { background: #28c840; }
+.terminal-dot--red {
+  background: #ff5f57;
+}
+.terminal-dot--yellow {
+  background: #febc2e;
+}
+.terminal-dot--green {
+  background: #28c840;
+}
 
 .terminal-title {
   flex: 1;
@@ -417,8 +526,13 @@ onMounted(async () => {
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* Hero Text */
@@ -892,6 +1006,216 @@ onMounted(async () => {
   max-width: 480px;
 }
 
+.hero-container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 32px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+/* ── Hero Visual Decorations ── */
+.hero-visual {
+  position: relative;
+  height: 400px;
+}
+
+.visual-card {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  animation: floatCard 6s ease-in-out infinite;
+}
+
+.visual-card--code {
+  top: 20px;
+  right: 20px;
+  width: 280px;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.78rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.visual-card--code .code-line {
+  display: flex;
+  gap: 8px;
+}
+
+.visual-card--code .code-num {
+  color: var(--ink-muted);
+  user-select: none;
+  min-width: 20px;
+  text-align: right;
+}
+
+.visual-card--code .code-keyword {
+  color: var(--accent);
+}
+
+.visual-card--code .code-string {
+  color: #4a8c5c;
+}
+
+.visual-card--code .code-comment {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.visual-card--note {
+  bottom: 40px;
+  left: 0;
+  width: 220px;
+  animation-delay: -2s;
+}
+
+.visual-card--note .note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.visual-card--note .note-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+
+.visual-card--note .note-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.visual-card--note .note-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-line {
+  height: 6px;
+  background: var(--canvas-deep);
+  border-radius: 3px;
+}
+
+.note-line:nth-child(1) {
+  width: 100%;
+}
+.note-line:nth-child(2) {
+  width: 85%;
+}
+.note-line:nth-child(3) {
+  width: 92%;
+}
+.note-line:nth-child(4) {
+  width: 60%;
+}
+
+.visual-card--tag {
+  top: 50%;
+  right: -20px;
+  transform: translateY(-50%);
+  padding: 12px 18px;
+  animation: floatCardTag 6s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+.visual-card--tag .tag-icon {
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+
+.visual-card--tag .tag-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.visual-card--tag .tag-sub {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.visual-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+
+.visual-dot--1 {
+  width: 80px;
+  height: 80px;
+  top: -20px;
+  right: 120px;
+  opacity: 0.5;
+  animation: floatDot 8s ease-in-out infinite;
+}
+
+.visual-dot--2 {
+  width: 40px;
+  height: 40px;
+  bottom: 80px;
+  right: 60px;
+  opacity: 0.3;
+  animation: floatDot 6s ease-in-out infinite -3s;
+}
+
+.visual-dot--3 {
+  width: 24px;
+  height: 24px;
+  top: 60px;
+  left: 80px;
+  background: var(--tag-bg);
+  opacity: 0.6;
+  animation: floatDot 7s ease-in-out infinite -1s;
+}
+
+@keyframes floatCard {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes floatCardTag {
+  0%,
+  100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  50% {
+    transform: translateY(-50%) translateX(-8px);
+  }
+}
+
+@keyframes floatDot {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(10px, -15px);
+  }
+  66% {
+    transform: translate(-8px, 10px);
+  }
+}
+
 .section-header-logged {
   display: flex;
   align-items: center;
@@ -909,9 +1233,15 @@ onMounted(async () => {
   transition: all var(--transition);
 }
 
-.see-all:hover { gap: 8px; }
-.see-all span { transition: transform var(--transition); }
-.see-all:hover span { transform: translateX(3px); }
+.see-all:hover {
+  gap: 8px;
+}
+.see-all span {
+  transition: transform var(--transition);
+}
+.see-all:hover span {
+  transform: translateX(3px);
+}
 
 .content-layout {
   display: grid;
@@ -921,13 +1251,17 @@ onMounted(async () => {
 }
 
 .articles-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  columns: 2;
+  column-gap: 20px;
+}
+
+.articles-grid > :deep(*) {
+  break-inside: avoid;
+  margin-bottom: 20px;
 }
 
 .empty-state {
-  grid-column: 1 / -1;
+  column-span: all;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -940,27 +1274,71 @@ onMounted(async () => {
   box-shadow: var(--shadow-card);
 }
 
-.empty-title { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); }
-.empty-desc { margin: 8px 0 16px; color: var(--ink-muted); font-size: 15px; }
+.empty-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.empty-desc {
+  margin: 8px 0 16px;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
 
 /* ── Responsive ── */
 @media (max-width: 1024px) {
-  .features-grid { grid-template-columns: 1fr; }
-  .features-grid-3 { grid-template-columns: repeat(2, 1fr); }
-  .use-cases-grid { grid-template-columns: repeat(2, 1fr); }
-  .content-layout { grid-template-columns: 1fr; }
-  .articles-grid { grid-template-columns: 1fr; }
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+  .features-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .use-cases-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .content-layout {
+    grid-template-columns: 1fr;
+  }
+  .articles-grid {
+    columns: 1;
+  }
+  .hero-container {
+    grid-template-columns: 1fr;
+  }
+  .hero-visual {
+    display: none;
+  }
 }
 
 @media (max-width: 600px) {
-  .features-grid-3 { grid-template-columns: 1fr; }
-  .landing-hero { padding: 100px 0 60px; }
-  .hero-title { font-size: 3rem; }
-  .hero-stats { gap: 24px; flex-wrap: wrap; }
-  .stat-value { font-size: 1.5rem; }
-  .use-cases-grid { grid-template-columns: 1fr; }
-  .vision-section { padding: 60px 0; }
-  .vision-values { gap: 24px; }
-  .hero-section { padding: 110px 0 40px; }
+  .features-grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .landing-hero {
+    padding: 100px 0 60px;
+  }
+  .hero-title {
+    font-size: 3rem;
+  }
+  .hero-stats {
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  .use-cases-grid {
+    grid-template-columns: 1fr;
+  }
+  .vision-section {
+    padding: 60px 0;
+  }
+  .vision-values {
+    gap: 24px;
+  }
+  .hero-section {
+    padding: 110px 0 40px;
+  }
 }
 </style>

@@ -13,6 +13,14 @@
     margin: 0;
   }
 
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 794px;
+    height: 1123px;
+    overflow: hidden;
+  }
+
   body {
     font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -22,12 +30,13 @@
   /* ===== Resume Page ===== */
   .resume-page {
     width: 794px;
-    min-height: 1123px;
+    height: 1123px;
     padding: 28px 45px 28px 30px;
     color: #333;
     font-weight: 500;
     position: relative;
     background: #fff;
+    overflow: hidden;
     --module-gap: {{moduleGap}}px;
     --line-gap: {{lineHeight}}px;
     --font-size: {{fontSize}}px;
@@ -65,13 +74,13 @@
     font-size: 11.5px;
     line-height: 1.5;
     margin-bottom: 0;
-    color: #555;
+    color: #444;
     font-weight: 500;
   }
   .rp-contact {
     font-size: 11.5px;
     line-height: 1.5;
-    color: #555;
+    color: #444;
     font-weight: 500;
   }
 
@@ -90,7 +99,7 @@
 
   /* ===== Text Styles ===== */
   .text-secondary {
-    color: #555;
+    color: #444;
     font-weight: 500;
   }
 
@@ -109,7 +118,7 @@
   .rp-edu-content {
     font-size: var(--font-size, 11.5px);
     line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
-    color: #777;
+    color: #444;
     font-weight: 500;
   }
   .rp-edu-content strong, .rp-edu-content b { color: #333; font-weight: 600; }
@@ -130,7 +139,7 @@
   .rp-exp-content {
     font-size: var(--font-size, 11.5px);
     line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
-    color: #777;
+    color: #444;
     font-weight: 500;
     text-align: left;
   }
@@ -154,7 +163,7 @@
   .rp-project-content {
     font-size: var(--font-size, 11.5px);
     line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
-    color: #777;
+    color: #444;
     font-weight: 500;
     text-align: left;
   }
@@ -167,7 +176,7 @@
   .rp-skills-content {
     font-size: var(--font-size, 11.5px);
     line-height: calc(var(--font-size, 14px) + var(--line-gap, 6px));
-    color: #777;
+    color: #444;
     font-weight: 500;
     text-align: left;
   }

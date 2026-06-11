@@ -144,8 +144,24 @@ async def analyze_image_stream(
 async def text_to_speech(
     request: Request,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "TTS 功能需要配置 MiMo TTS API"}
+    from fastapi.responses import Response
+    from app.services import tts_service
+
+    body = await request.json()
+    text = body.get("text", "")
+    if not text:
+        return {"error": "text 不能为空"}
+
+    try:
+        audio_bytes = await tts_service.synthesize(db, text)
+        return Response(content=audio_bytes, media_type="audio/wav")
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        logger.error("TTS error: %s", e)
+        return {"error": f"TTS 调用失败: {e}"}
 
 
 # ---------- 发散思维 ----------

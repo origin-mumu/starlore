@@ -314,13 +314,17 @@ const paginationButtons = computed(() => {
 }
 
 .article-items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  columns: 2;
+  column-gap: 16px;
+}
+
+.article-items > :deep(*) {
+  break-inside: avoid;
+  margin-bottom: 16px;
 }
 
 .loading-state {
-  grid-column: 1 / -1;
+  column-span: all;
   min-height: 220px;
   display: flex;
   flex-direction: column;
@@ -344,7 +348,7 @@ const paginationButtons = computed(() => {
 }
 
 .empty-state {
-  grid-column: 1 / -1;
+  column-span: all;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -8,11 +8,35 @@ import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import AICore from '@/components/AICore.vue'
 import ImmersiveMode from '@/components/ImmersiveMode.vue'
-import { Bot, MessageSquare, FileText, Image, Mic, MicOff, X, Trash2, Volume2, VolumeX, ClipboardList, Zap, CheckCircle, XCircle, RefreshCw, BarChart3 } from '@lucide/vue'
+import {
+  Bot,
+  MessageSquare,
+  FileText,
+  Image,
+  Mic,
+  MicOff,
+  X,
+  Trash2,
+  Volume2,
+  VolumeX,
+  ClipboardList,
+  Zap,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  BarChart3,
+} from '@lucide/vue'
 import { useTTS } from '@/composables/useTTS'
 
 const userStore = useUserStore()
-const { ttsEnabled, isSpeaking, toggleTTS, feedStreamChunk, flushStreamBuffer, reset: resetTTS } = useTTS()
+const {
+  ttsEnabled,
+  isSpeaking,
+  toggleTTS,
+  feedStreamChunk,
+  flushStreamBuffer,
+  reset: resetTTS,
+} = useTTS()
 import {
   appendChatPair,
   buildAgentSseUrl,
@@ -68,6 +92,23 @@ const agentMode = ref(true)
 const multiAgentMode = ref(false)
 const toolStatus = ref<string | null>(null)
 
+/* ─── 快捷语言 ─── */
+const quickReplies = [
+  '你好，介绍一下自己',
+  '帮我写一段代码',
+  '解释一下这个概念',
+  '帮我优化这段代码',
+  '总结一下要点',
+  '翻译成英文',
+  '给出学习建议',
+  '帮我排错 Debug',
+]
+
+function useQuickReply(text: string) {
+  if (isSending.value) return
+  inputText.value = text
+}
+
 /* ─── 多 Agent 追踪折叠状态 ─── */
 const traceCollapsed = ref<Record<number, boolean>>({})
 const reasoningCollapsed = ref<Record<number, boolean>>({})
@@ -84,7 +125,6 @@ function exitImmersive() {
   immersiveActive.value = false
 }
 
-
 /* ─── 图片上传 ─── */
 const pendingImage = ref<string | null>(null) // base64
 const pendingImagePreview = ref<string | null>(null) // preview URL
@@ -95,7 +135,6 @@ const imageRecognitionCollapsed = ref(false) // 识别结果是否折叠
 /* ─── 语音输入 ─── */
 const isListening = ref(false)
 const speechSupported = ref(false)
-let speechRecognition: any = null
 
 /* ─── 每日对话上限（走后端鉴权） ─── */
 const dailyRemaining = ref(10)
@@ -448,7 +487,12 @@ async function sendMessage() {
     // 图片已转为文字描述，始终用 DeepSeek，支持 Agent 模式
     if (multiAgentMode.value) {
       messages.value[assistantIndex].agentTrace = {
-        planSummary: '', subtasks: [], reviewDecision: '', reviewFeedback: '', retryCount: 0, metrics: null,
+        planSummary: '',
+        subtasks: [],
+        reviewDecision: '',
+        reviewFeedback: '',
+        retryCount: 0,
+        metrics: null,
       }
       toolStatus.value = '正在分析任务...'
       response = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
@@ -521,7 +565,11 @@ async function sendMessage() {
             const count = data.subtasks || 0
             if (trace) {
               trace.planSummary = data.summary || ''
-              trace.subtasks = Array.from({ length: count }, (_, i) => ({ id: i + 1, desc: '', status: 'pending' as const }))
+              trace.subtasks = Array.from({ length: count }, (_, i) => ({
+                id: i + 1,
+                desc: '',
+                status: 'pending' as const,
+              }))
             }
             toolStatus.value = `📋 规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
           }
@@ -530,7 +578,10 @@ async function sendMessage() {
             const node = data.node || ''
             if (trace) {
               const running = trace.subtasks.find(s => s.status === 'pending')
-              if (running) { running.status = 'running'; running.desc = node }
+              if (running) {
+                running.status = 'running'
+                running.desc = node
+              }
               const runningIdx = trace.subtasks.filter(s => s.status === 'done').length + 1
               toolStatus.value = `⚡ Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
             } else {
@@ -675,42 +726,278 @@ function clearPendingImage() {
   imageRecognitionContent.value = ''
 }
 
-/* ─── 语音输入 ─── */
-function initSpeechRecognition() {
-  const SpeechRecognition =
-    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  if (!SpeechRecognition) {
+/* ─── 语音输入（MediaRecorder + 静音自动停止 + 后端 MiMo ASR 转录）─── */
+let mediaRecorder: MediaRecorder | null = null
+let audioChunks: Blob[] = []
+let silenceTimer: ReturnType<typeof setTimeout> | null = null
+let audioContext: AudioContext | null = null
+let analyserNode: AnalyserNode | null = null
+let recordingMimeType = 'audio/webm'
+
+// 静音检测参数 — 使用时域 RMS 更准确
+const SILENCE_THRESHOLD = 0.008 // RMS 阈值，低于此值视为静音
+const SILENCE_TIMEOUT_MS = 1400 // 连续静音多少毫秒后自动停止
+
+async function initMediaRecorder() {
+  if (!navigator.mediaDevices?.getUserMedia) {
     speechSupported.value = false
     return
   }
   speechSupported.value = true
-  speechRecognition = new SpeechRecognition()
-  speechRecognition.lang = 'zh-CN'
-  speechRecognition.continuous = false
-  speechRecognition.interimResults = true
-  speechRecognition.onresult = (event: any) => {
-    let transcript = ''
-    for (let i = 0; i < event.results.length; i++) {
-      transcript += event.results[i][0].transcript
+}
+
+async function toggleVoiceInput() {
+  if (isListening.value) {
+    stopRecording()
+  } else {
+    await startRecording()
+  }
+}
+
+async function startRecording() {
+  audioChunks = []
+  connectionError.value = ''
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+    // 初始化 AudioContext 做静音检测
+    audioContext = new AudioContext()
+    const source = audioContext.createMediaStreamSource(stream)
+    analyserNode = audioContext.createAnalyser()
+    analyserNode.fftSize = 256
+    analyserNode.smoothingTimeConstant = 0.3
+    source.connect(analyserNode)
+
+    // 选择最佳 MIME 类型
+    recordingMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/ogg;codecs=opus'
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: recordingMimeType })
+    audioChunks = []
+
+    mediaRecorder.ondataavailable = (e: BlobEvent) => {
+      if (e.data.size > 0) audioChunks.push(e.data)
     }
-    inputText.value = transcript
-  }
-  speechRecognition.onend = () => {
-    isListening.value = false
-  }
-  speechRecognition.onerror = () => {
+
+    mediaRecorder.onstop = async () => {
+      // 释放资源
+      stream.getTracks().forEach(t => t.stop())
+      if (audioContext) {
+        audioContext.close()
+        audioContext = null
+      }
+      if (silenceTimer) {
+        clearTimeout(silenceTimer)
+        silenceTimer = null
+      }
+      analyserNode = null
+
+      if (audioChunks.length === 0) {
+        isListening.value = false
+        return
+      }
+      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
+      await transcribeAudio(audioBlob)
+    }
+
+    mediaRecorder.onerror = () => {
+      connectionError.value = '录音失败，请检查麦克风'
+      isListening.value = false
+    }
+
+    mediaRecorder.start(100) // 每 100ms 收集一个数据块，用于静音检测
+    isListening.value = true
+    console.log('[语音输入] 开始录音，静音 ' + SILENCE_TIMEOUT_MS / 1000 + 's 后自动停止')
+
+    // 启动静音检测
+    checkSilence()
+  } catch (e: any) {
+    console.error('[语音输入] 启动失败:', e)
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      connectionError.value = '麦克风权限被拒绝，请在浏览器设置中允许'
+    } else {
+      connectionError.value = '无法访问麦克风，请检查设备'
+    }
     isListening.value = false
   }
 }
 
-function toggleVoiceInput() {
-  if (isListening.value) {
-    speechRecognition?.stop()
-    isListening.value = false
-  } else {
-    speechRecognition?.start()
-    isListening.value = true
+/** 循环检测音量（时域 RMS），连续静音超时则自动停止 */
+function checkSilence() {
+  if (!analyserNode || !isListening.value || !mediaRecorder || mediaRecorder.state !== 'recording')
+    return
+
+  // 用时域数据算 RMS，比频域数据准确得多
+  const dataArray = new Uint8Array(analyserNode.fftSize)
+  analyserNode.getByteTimeDomainData(dataArray)
+
+  // RMS: 计算采样值相对中心线(128)的均方根
+  let sumSquares = 0
+  for (let i = 0; i < dataArray.length; i++) {
+    const normalized = (dataArray[i] - 128) / 128 // 归一化到 -1 ~ 1
+    sumSquares += normalized * normalized
   }
+  const rms = Math.sqrt(sumSquares / dataArray.length)
+
+  if (rms < SILENCE_THRESHOLD) {
+    if (!silenceTimer) {
+      silenceTimer = setTimeout(() => {
+        console.log('[语音输入] RMS=' + rms.toFixed(4) + '，检测到静音，自动停止')
+        stopRecording()
+      }, SILENCE_TIMEOUT_MS)
+    }
+  } else {
+    if (silenceTimer) {
+      clearTimeout(silenceTimer)
+      silenceTimer = null
+    }
+  }
+
+  // 每 100ms 检查一次，更快响应
+  setTimeout(checkSilence, 100)
+}
+
+function stopRecording() {
+  if (silenceTimer) {
+    clearTimeout(silenceTimer)
+    silenceTimer = null
+  }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+    console.log('[语音输入] 停止录音，正在转录...')
+  }
+  connectionError.value = ''
+  isListening.value = false
+}
+
+async function transcribeAudio(audioBlob: Blob) {
+  try {
+    // MiMo ASR 只支持 mp3 / wav，需要把浏览器录的 webm 转成 wav
+    const wavBlob = await convertToWav(audioBlob)
+    const arrayBuffer = await wavBlob.arrayBuffer()
+    const base64 = arrayBufferToBase64(arrayBuffer)
+    const dataUri = `data:audio/wav;base64,${base64}`
+
+    const token = localStorage.getItem('ro_blog_token')
+    const res = await fetch('/api/ai/transcribe/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ audio: dataUri }),
+    })
+
+    if (!res.ok) {
+      connectionError.value = `转录请求失败 (${res.status})`
+      return
+    }
+
+    // 读取 SSE 流，逐字显示
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    inputText.value = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed || !trimmed.startsWith('data:')) continue
+        try {
+          const data = JSON.parse(trimmed.slice(5).trim())
+          if (data.error) {
+            connectionError.value = data.error
+            break
+          }
+          if (data.text) {
+            inputText.value = data.text
+          }
+          if (data.done) {
+            console.log('[语音输入] 转录完成:', data.text)
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error('[语音输入] 转录请求失败:', e)
+    connectionError.value = '语音转录网络异常'
+  }
+}
+
+/** WebM/任意音频 Blob → WAV Blob（PCM 16-bit, mono） */
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+  const audioCtx = new AudioContext()
+  try {
+    const arrayBuffer = await audioBlob.arrayBuffer()
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+
+    // 取单声道 PCM
+    const channelData = audioBuffer.getChannelData(0)
+    const sampleRate = audioBuffer.sampleRate
+    const numChannels = 1
+    const bitsPerSample = 16
+    const byteRate = (sampleRate * numChannels * bitsPerSample) / 8
+    const blockAlign = (numChannels * bitsPerSample) / 8
+    const dataLength = channelData.length * blockAlign
+    const buffer = new ArrayBuffer(44 + dataLength)
+    const view = new DataView(buffer)
+
+    // WAV header
+    writeString(view, 0, 'RIFF')
+    view.setUint32(4, 36 + dataLength, true)
+    writeString(view, 8, 'WAVE')
+    writeString(view, 12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true) // PCM
+    view.setUint16(22, numChannels, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, byteRate, true)
+    view.setUint16(32, blockAlign, true)
+    view.setUint16(34, bitsPerSample, true)
+    writeString(view, 36, 'data')
+    view.setUint32(40, dataLength, true)
+
+    // PCM data
+    let offset = 44
+    for (let i = 0; i < channelData.length; i++) {
+      const sample = Math.max(-1, Math.min(1, channelData[i]))
+      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+      view.setInt16(offset, intSample, true)
+      offset += 2
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' })
+  } finally {
+    audioCtx.close()
+  }
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i))
+  }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
 }
 
 watch(
@@ -763,7 +1050,7 @@ onMounted(async () => {
 
   await refreshQuota()
   await refreshSessions()
-  initSpeechRecognition()
+  initMediaRecorder()
   if (sessions.value.length > 0) {
     await loadSession(sessions.value[0].id)
   } else {
@@ -800,7 +1087,12 @@ onBeforeUnmount(() => {
           </div>
           <span class="sess-label">会话：{{ sessionTitle }}</span>
           <div class="left-actions">
-            <button type="button" class="ghost-btn immersive-btn" title="沉浸模式" @click="enterImmersive">
+            <button
+              type="button"
+              class="ghost-btn immersive-btn"
+              title="沉浸模式"
+              @click="enterImmersive"
+            >
               沉浸
             </button>
           </div>
@@ -881,7 +1173,9 @@ onBeforeUnmount(() => {
                 :class="{ active: multiAgentMode }"
                 :disabled="isSending"
                 @click="toggleMultiAgentMode()"
-                :title="multiAgentMode ? '多Agent协作：Planner→Executor→Reviewer' : '点击开启多Agent协作'"
+                :title="
+                  multiAgentMode ? '多Agent协作：Planner→Executor→Reviewer' : '点击开启多Agent协作'
+                "
               >
                 <Bot :size="16" />
                 {{ multiAgentMode ? 'Multi-Agent' : '单Agent' }}
@@ -902,7 +1196,11 @@ onBeforeUnmount(() => {
 
           <div ref="chatScrollRef" class="chat-scroll">
             <p v-if="!messages.length && !toolStatus" class="chat-empty">
-              输入消息开始对话，支持上传 TXT。{{ multiAgentMode ? 'Multi-Agent 模式：自动拆解任务、并行执行、自我纠错。' : '开启 Agent 模式可查询 starlore 数据。' }}
+              输入消息开始对话，支持上传 TXT。{{
+                multiAgentMode
+                  ? 'Multi-Agent 模式：自动拆解任务、并行执行、自我纠错。'
+                  : '开启 Agent 模式可查询 starlore 数据。'
+              }}
             </p>
             <div
               v-for="(msg, i) in messages"
@@ -956,7 +1254,9 @@ onBeforeUnmount(() => {
                   <div class="trace-header" @click="toggleTrace(i)">
                     <Bot :size="14" class="trace-icon-svg" />
                     <span class="trace-label">Multi-Agent 执行追踪</span>
-                    <span v-if="msg.agentTrace.retryCount > 0" class="trace-retry">重试 #{{ msg.agentTrace.retryCount }}</span>
+                    <span v-if="msg.agentTrace.retryCount > 0" class="trace-retry"
+                      >重试 #{{ msg.agentTrace.retryCount }}</span
+                    >
                     <span class="trace-toggle">{{ traceCollapsed[i] ? '展开' : '收起' }}</span>
                   </div>
                   <div v-show="!traceCollapsed[i]" class="trace-body">
@@ -971,29 +1271,65 @@ onBeforeUnmount(() => {
                       <Zap :size="14" class="trace-step-icon-svg accent" />
                       <span class="trace-step-label">执行</span>
                       <div class="trace-subtasks">
-                        <div v-for="st in msg.agentTrace.subtasks" :key="st.id" class="trace-subtask" :class="'st-' + st.status">
+                        <div
+                          v-for="st in msg.agentTrace.subtasks"
+                          :key="st.id"
+                          class="trace-subtask"
+                          :class="'st-' + st.status"
+                        >
                           <span class="st-dot"></span>
                           <span class="st-desc">{{ st.desc || `子任务 ${st.id}` }}</span>
-                          <CheckCircle v-if="st.status === 'done'" :size="12" class="st-icon-done" />
-                          <RefreshCw v-else-if="st.status === 'running'" :size="12" class="st-icon-running" />
+                          <CheckCircle
+                            v-if="st.status === 'done'"
+                            :size="12"
+                            class="st-icon-done"
+                          />
+                          <RefreshCw
+                            v-else-if="st.status === 'running'"
+                            :size="12"
+                            class="st-icon-running"
+                          />
                         </div>
                       </div>
                     </div>
                     <!-- 审查结果 -->
                     <div v-if="msg.agentTrace.reviewDecision" class="trace-section">
-                      <CheckCircle v-if="msg.agentTrace.reviewDecision === 'PASS'" :size="14" class="trace-step-icon-svg pass" />
-                      <RefreshCw v-else-if="msg.agentTrace.reviewDecision === 'REVISE'" :size="14" class="trace-step-icon-svg revise" />
+                      <CheckCircle
+                        v-if="msg.agentTrace.reviewDecision === 'PASS'"
+                        :size="14"
+                        class="trace-step-icon-svg pass"
+                      />
+                      <RefreshCw
+                        v-else-if="msg.agentTrace.reviewDecision === 'REVISE'"
+                        :size="14"
+                        class="trace-step-icon-svg revise"
+                      />
                       <XCircle v-else :size="14" class="trace-step-icon-svg fail" />
                       <span class="trace-step-label">审查</span>
-                      <span class="trace-step-text" :class="'review-' + msg.agentTrace.reviewDecision.toLowerCase()">
-                        {{ msg.agentTrace.reviewDecision === 'PASS' ? '通过' : msg.agentTrace.reviewDecision === 'REVISE' ? '修正' : '未通过' }}
-                        <span v-if="msg.agentTrace.reviewFeedback" class="trace-feedback">— {{ msg.agentTrace.reviewFeedback }}</span>
+                      <span
+                        class="trace-step-text"
+                        :class="'review-' + msg.agentTrace.reviewDecision.toLowerCase()"
+                      >
+                        {{
+                          msg.agentTrace.reviewDecision === 'PASS'
+                            ? '通过'
+                            : msg.agentTrace.reviewDecision === 'REVISE'
+                              ? '修正'
+                              : '未通过'
+                        }}
+                        <span v-if="msg.agentTrace.reviewFeedback" class="trace-feedback"
+                          >— {{ msg.agentTrace.reviewFeedback }}</span
+                        >
                       </span>
                     </div>
                     <!-- 指标 -->
                     <div v-if="msg.agentTrace.metrics" class="trace-section trace-metrics">
                       <BarChart3 :size="14" class="trace-step-icon-svg" />
-                      <span class="trace-step-text">Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{ msg.agentTrace.metrics.tokensOut }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms</span>
+                      <span class="trace-step-text"
+                        >Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{
+                          msg.agentTrace.metrics.tokensOut
+                        }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms</span
+                      >
                     </div>
                   </div>
                 </div>
@@ -1019,6 +1355,20 @@ onBeforeUnmount(() => {
                 <span class="dot"></span>
               </div>
             </div>
+          </div>
+
+          <!-- 快捷语言 -->
+          <div class="quick-replies">
+            <button
+              v-for="item in quickReplies"
+              :key="item"
+              type="button"
+              class="quick-reply-btn"
+              :disabled="isSending"
+              @click="useQuickReply(item)"
+            >
+              {{ item }}
+            </button>
           </div>
 
           <div class="input-block">
@@ -1152,6 +1502,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+
   padding: 0.65rem 0.85rem 0.55rem;
   background: transparent;
   overflow: hidden;
@@ -1866,6 +2217,38 @@ onBeforeUnmount(() => {
   border-top: 1px solid transparent;
 }
 
+/* ── Quick Replies ── */
+.quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.quick-reply-btn {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.quick-reply-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.quick-reply-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── Input Area ── */
 .input-block {
   flex-shrink: 0;
@@ -1957,7 +2340,11 @@ onBeforeUnmount(() => {
   animation: pulse 1s ease-in-out infinite;
 }
 .tts-active {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15)) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.15),
+    rgba(99, 102, 241, 0.15)
+  ) !important;
   border-color: rgba(139, 92, 246, 0.4) !important;
   color: #8b5cf6 !important;
 }
@@ -2086,8 +2473,14 @@ onBeforeUnmount(() => {
 }
 
 @keyframes ma-slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ma-header {
@@ -2140,8 +2533,13 @@ onBeforeUnmount(() => {
 }
 
 @keyframes ma-pulse {
-  0%, 100% { box-shadow: 0 0 4px var(--accent); }
-  50% { box-shadow: 0 0 10px var(--accent); }
+  0%,
+  100% {
+    box-shadow: 0 0 4px var(--accent);
+  }
+  50% {
+    box-shadow: 0 0 10px var(--accent);
+  }
 }
 
 .ma-step-label {
@@ -2182,13 +2580,25 @@ onBeforeUnmount(() => {
   color: var(--ink-muted);
 }
 
-.ma-plan { font-style: italic; }
-.ma-subtasks { font-weight: 500; }
-.ma-current { color: var(--accent) !important; }
+.ma-plan {
+  font-style: italic;
+}
+.ma-subtasks {
+  font-weight: 500;
+}
+.ma-current {
+  color: var(--accent) !important;
+}
 
-.ma-review.review-pass { color: var(--success, #28a745) !important; }
-.ma-review.review-revise { color: var(--warn, #856404) !important; }
-.ma-review.review-fail { color: var(--danger, #dc3545) !important; }
+.ma-review.review-pass {
+  color: var(--success, #28a745) !important;
+}
+.ma-review.review-revise {
+  color: var(--warn, #856404) !important;
+}
+.ma-review.review-fail {
+  color: var(--danger, #dc3545) !important;
+}
 
 .ma-review-feedback {
   font-size: 0.72rem;
@@ -2225,8 +2635,15 @@ onBeforeUnmount(() => {
   background: var(--surface-hover, rgba(0, 0, 0, 0.04));
 }
 
-.trace-icon-svg { color: var(--accent); flex-shrink: 0; }
-.trace-label { font-weight: 600; color: var(--ink); font-size: 0.76rem; }
+.trace-icon-svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.trace-label {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.76rem;
+}
 
 .trace-retry {
   margin-left: 0.3rem;
@@ -2257,12 +2674,28 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
-.trace-step-icon { font-size: 0.8rem; flex-shrink: 0; margin-top: 0.05rem; }
-.trace-step-icon-svg { flex-shrink: 0; margin-top: 0.1rem; color: var(--ink-muted); }
-.trace-step-icon-svg.accent { color: var(--accent); }
-.trace-step-icon-svg.pass { color: var(--success, #28a745); }
-.trace-step-icon-svg.revise { color: var(--warn, #856404); }
-.trace-step-icon-svg.fail { color: var(--danger, #dc3545); }
+.trace-step-icon {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+.trace-step-icon-svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--ink-muted);
+}
+.trace-step-icon-svg.accent {
+  color: var(--accent);
+}
+.trace-step-icon-svg.pass {
+  color: var(--success, #28a745);
+}
+.trace-step-icon-svg.revise {
+  color: var(--warn, #856404);
+}
+.trace-step-icon-svg.fail {
+  color: var(--danger, #dc3545);
+}
 .trace-step-label {
   font-weight: 600;
   color: var(--ink-muted);
@@ -2270,7 +2703,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   min-width: 2rem;
 }
-.trace-step-text { color: var(--ink-muted); font-size: 0.76rem; }
+.trace-step-text {
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+}
 
 .trace-subtasks {
   display: flex;
@@ -2294,25 +2730,58 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.st-pending .st-dot { background: var(--border-interactive); }
-.st-running .st-dot { background: var(--accent); animation: trace-pulse 1s infinite; }
-.st-done .st-dot { background: var(--success, #28a745); }
-
-@keyframes trace-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.st-pending .st-dot {
+  background: var(--border-interactive);
+}
+.st-running .st-dot {
+  background: var(--accent);
+  animation: trace-pulse 1s infinite;
+}
+.st-done .st-dot {
+  background: var(--success, #28a745);
 }
 
-.st-desc { flex: 1; }
-.st-status { flex-shrink: 0; font-size: 0.7rem; }
-.st-icon-done { color: var(--success, #28a745); flex-shrink: 0; }
-.st-icon-running { color: var(--accent); flex-shrink: 0; animation: spin 1s linear infinite; }
+@keyframes trace-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
 
-.trace-feedback { font-size: 0.7rem; opacity: 0.7; }
+.st-desc {
+  flex: 1;
+}
+.st-status {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+}
+.st-icon-done {
+  color: var(--success, #28a745);
+  flex-shrink: 0;
+}
+.st-icon-running {
+  color: var(--accent);
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
 
-.review-pass { color: var(--success, #28a745); }
-.review-revise { color: var(--warn, #856404); }
-.review-fail { color: var(--danger, #dc3545); }
+.trace-feedback {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.review-pass {
+  color: var(--success, #28a745);
+}
+.review-revise {
+  color: var(--warn, #856404);
+}
+.review-fail {
+  color: var(--danger, #dc3545);
+}
 
 .trace-metrics {
   padding-top: 0.2rem;

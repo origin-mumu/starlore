@@ -9,19 +9,21 @@ const userStore = useUserStore()
 const route = useRoute()
 
 const navItems = computed(() => {
-  const items = [
+  const items: { name: string; path: string }[] = [
     { name: '首页', path: '/' },
+  ]
+  if (userStore.isLoggedIn) {
+    items.push({ name: '星迹', path: '/articles' })
+  }
+  if (!userStore.isLoggedIn) {
+    items.push({ name: '关于我', path: '/about' })
+  }
+  items.push(
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
     { name: '灵感', path: '/diverge' },
     { name: 'AI', path: '/echobot' },
-  ]
-  if (userStore.isLoggedIn) {
-    items.push(
-      { name: '星迹', path: '/articles' }
-      // { name: '添加星迹', path: '/articles/edit' },
-    )
-  }
+  )
   return items
 })
 
@@ -44,24 +46,48 @@ const themes: {
   { name: 'pink', label: '粉色', color: '#D4638F' },
 ]
 
-const guestAllowedPaths = ['/', '/categories', '/vr', '/diverge', '/echobot']
+const guestAllowedPaths = ['/', '/about', '/categories', '/vr', '/diverge', '/echobot']
 
 const handleLogout = () => {
   userStore.logout()
   mobileMenuOpen.value = false
+  moreOpen.value = false
   const path = route.path
   const isGuestAllowed = guestAllowedPaths.some(p => path === p || path.startsWith(p + '/'))
   if (isGuestAllowed) {
-    // 访客允许的页面：刷新当前页面以更新状态
     router.go(0)
   } else {
     router.push('/login')
   }
 }
+
+// ── Mobile bottom bar ──
+const moreOpen = ref(false)
+
+const mobileMainTabs = [
+  { name: '首页', path: '/' },
+  { name: '星域', path: '/categories' },
+  { name: '探索', path: '/vr' },
+  { name: 'AI', path: '/echobot' },
+]
+
+const mobileMoreItems = computed(() => {
+  const all = [
+    { name: '关于我', path: '/about' },
+    { name: '灵感', path: '/diverge' },
+  ]
+  if (userStore.isLoggedIn) {
+    all.push({ name: '星迹', path: '/articles' })
+  }
+  return all
+})
+
 </script>
 
 <template>
-  <nav class="navbar">
+  <div>
+  <!-- ── Desktop top navbar ── -->
+  <nav class="navbar desktop-nav">
     <div class="nav-inner">
       <div class="nav-brand" @click="router.push('/')">
         <span class="brand-mark"></span>
@@ -122,20 +148,94 @@ const handleLogout = () => {
       </div>
     </div>
   </nav>
+
+  <!-- ── Mobile bottom bar (same pill style as desktop) ── -->
+  <nav class="navbar mobile-nav">
+    <div class="nav-inner">
+      <RouterLink
+        v-for="tab in mobileMainTabs"
+        :key="tab.path"
+        :to="tab.path"
+        class="nav-link"
+        :class="{ active: isActive(tab.path) }"
+      >
+        {{ tab.name }}
+      </RouterLink>
+
+      <!-- "更多" button toggles dropdown -->
+      <button
+        class="nav-link more-btn"
+        :class="{ active: moreOpen }"
+        @click="moreOpen = !moreOpen"
+      >
+        更多
+      </button>
+
+      <!-- more dropdown -->
+      <div v-if="moreOpen" class="more-dropdown" @click.stop>
+        <RouterLink
+          v-for="item in mobileMoreItems"
+          :key="item.path"
+          :to="item.path"
+          class="nav-link drop-item"
+          :class="{ active: isActive(item.path) }"
+          @click="moreOpen = false"
+        >
+          {{ item.name }}
+        </RouterLink>
+
+        <span class="nav-divider drop-divider"></span>
+
+        <RouterLink
+          v-if="userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')"
+          to="/resume"
+          class="nav-link drop-item"
+          :class="{ active: isActive('/resume') }"
+          @click="moreOpen = false"
+        >
+          简历
+        </RouterLink>
+
+        <div v-if="userStore.isLoggedIn" class="drop-user">
+          <span class="drop-user-name" @click="router.push('/profile'); moreOpen = false">{{ userStore.nickname }}</span>
+          <button class="user-logout" @click="handleLogout">退出</button>
+        </div>
+        <RouterLink v-else to="/login" class="nav-link drop-item" @click="moreOpen = false">
+          登录
+        </RouterLink>
+      </div>
+    </div>
+  </nav>
+
+  <!-- click outside to close more dropdown -->
+  <div v-if="moreOpen" class="more-backdrop" @click="moreOpen = false"></div>
+  </div>
 </template>
 
 <style scoped>
+/* ── Shared Navbar Pill Style ── */
 .navbar {
   position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 100;
   background: var(--nav-bg);
   backdrop-filter: blur(30px);
-
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-card);
+}
+
+/* desktop: top-center */
+.desktop-nav {
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* mobile: bottom-center */
+.mobile-nav {
+  display: none;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .nav-inner {
@@ -144,6 +244,7 @@ const handleLogout = () => {
   gap: 2px;
   height: 46px;
   padding: 0 6px;
+  position: relative;
 }
 
 .nav-brand {
@@ -193,6 +294,11 @@ const handleLogout = () => {
   transition: all var(--transition);
   letter-spacing: -0.005em;
   white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
 }
 
 .nav-link:hover {
@@ -204,11 +310,6 @@ const handleLogout = () => {
   color: var(--accent);
   font-weight: 600;
   background: var(--accent-soft);
-}
-
-.nav-link--explore {
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .nav-divider {
@@ -277,6 +378,11 @@ const handleLogout = () => {
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   transition: all var(--transition);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
 }
 
 .user-logout:hover {
@@ -336,7 +442,82 @@ const handleLogout = () => {
   transform: rotate(-45deg);
 }
 
+/* ── More dropdown (fixed above mobile bottom bar) ── */
+.more-dropdown {
+  position: fixed;
+  bottom: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px;
+  background: var(--nav-bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+  min-width: 140px;
+  white-space: nowrap;
+  z-index: 110;
+}
+
+.drop-item {
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.drop-divider {
+  width: 100%;
+  height: 1px;
+  margin: 4px 0;
+}
+
+.drop-user {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+}
+
+.drop-user-name {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drop-user-name:hover {
+  color: var(--accent);
+}
+
+/* backdrop to close dropdown */
+.more-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+/* ── Responsive ── */
 @media (max-width: 768px) {
+  .desktop-nav {
+    display: none;
+  }
+
+  .mobile-nav {
+    display: block;
+  }
+
+  .more-backdrop {
+    display: block;
+  }
+
+  /* keep legacy mobile-menu styles in case still referenced */
   .mobile-toggle {
     display: block;
   }

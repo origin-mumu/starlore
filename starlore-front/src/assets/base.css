@@ -14,6 +14,10 @@ html {
 
 body {
   background: var(--canvas);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% 15%, rgba(255, 212, 168, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 75%, rgba(255, 228, 196, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 35% at 50% 40%, rgba(255, 240, 219, 0.08) 0%, transparent 45%);
   color: var(--ink);
   font: 400 16px/1.8 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
   -webkit-font-smoothing: antialiased;
@@ -49,58 +53,58 @@ ul, ol {
 
 /* Design Tokens */
 :root {
-  /* Canvas — warm parchment */
-  --canvas: #FAF6EE;
-  --canvas-deep: #F2EBD9;
+  /* Canvas — bright warm white */
+  --canvas: #FFFCF7;
+  --canvas-deep: #FFF5E8;
 
-  /* Background orbs */
-  --orb-1: #E8C4A0;
-  --orb-2: #F0D9C4;
-  --orb-3: #ffe7d1;
-  --orb-glow: rgba(232,196,160,0.25);
+  /* Background orbs — brighter */
+  --orb-1: #FFD4A8;
+  --orb-2: #FFE4C4;
+  --orb-3: #FFF0DB;
+  --orb-glow: rgba(255,212,168,0.35);
 
   /* Stars */
-  --star-color: rgba(160,140,120,0.5);
+  --star-color: rgba(180,160,140,0.4);
 
-  /* Text — warm charcoal, never black */
-  --ink: #2A2118;
-  --ink-soft: #6B5D4D;
-  --ink-muted: #9E8E7A;
+  /* Text — warm charcoal */
+  --ink: #1A1410;
+  --ink-soft: #5C4D3D;
+  --ink-muted: #8A7A6A;
 
-  /* Accent — burnt sienna */
-  --accent: #B85C38;
-  --accent-hover: #A04E2E;
-  --accent-soft: #F0DDD0;
+  /* Accent — vibrant orange */
+  --accent: #E85D2A;
+  --accent-hover: #D04E1E;
+  --accent-soft: #FFE8D8;
 
   /* Warm secondary — amber */
-  --warm: #C4893A;
-  --warm-soft: #F5E6C8;
+  --warm: #F5A623;
+  --warm-soft: #FFF2D8;
 
-  /* Surface */
-  --surface: #FDFBF5;
-  --surface-hover: #FAF6EE;
+  /* Surface — pure white */
+  --surface: #FFFFFF;
+  --surface-hover: #FFFCF7;
 
-  /* Borders */
-  --border: #E6DCCB;
-  --border-interactive: #D4C4AD;
-  --border-focus: #B85C38;
+  /* Borders — lighter */
+  --border: #F0E6D8;
+  --border-interactive: #E0D0C0;
+  --border-focus: #E85D2A;
 
-  /* Tags & badges */
-  --tag-bg: #F0DDD0;
-  --tag-hover: #E8CDB8;
-  --badge-bg: #F5E6C8;
-  --badge-border: #E6DCCB;
+  /* Tags & badges — brighter */
+  --tag-bg: #FFE8D8;
+  --tag-hover: #FFD8C0;
+  --badge-bg: #FFF2D8;
+  --badge-border: #F0E6D8;
 
   /* Navbar */
-  --nav-bg: oklch(0.97 0.01 80 / 0.72);
+  --nav-bg: rgba(255, 252, 247, 0.85);
 
   /* Shadows — warm, subtle */
-  --shadow-sm: 0 1px 3px oklch(0.25 0.02 50 / 0.06);
-  --shadow-card: 0 2px 12px oklch(0.25 0.02 50 / 0.06);
-  --shadow-card-hover: 0 8px 28px oklch(0.25 0.02 50 / 0.1);
+  --shadow-sm: 0 1px 3px rgba(26, 20, 16, 0.06);
+  --shadow-card: 0 2px 16px rgba(26, 20, 16, 0.06);
+  --shadow-card-hover: 0 12px 32px rgba(26, 20, 16, 0.1);
   --shadow-nav: 0 1px 0 var(--border);
-  --shadow-button: 0 2px 8px oklch(0.25 0.02 50 / 0.08);
-  --shadow-button-hover: 0 4px 16px oklch(0.25 0.02 50 / 0.12);
+  --shadow-button: 0 2px 8px rgba(232, 93, 42, 0.15);
+  --shadow-button-hover: 0 4px 16px rgba(232, 93, 42, 0.25);
 
   /* Radius */
   --radius-sm: 6px;
@@ -169,8 +173,8 @@ ul, ol {
 
 /* ── 黑色/深色（Dark Mode） ── */
 [data-theme="dark"] {
-  --canvas: #14151A;
-  --canvas-deep: #1E1F26;
+  --canvas: #0F1117;
+  --canvas-deep: #161822;
 
   --orb-1: #2A2050;
   --orb-2: #1E3050;
@@ -178,36 +182,36 @@ ul, ol {
   --orb-glow: rgba(180,170,220,0.2);
   --star-color: rgba(200,195,220,0.6);
 
-  --ink: #E4E4E7;
-  --ink-soft: #A1A1AA;
-  --ink-muted: #71717A;
+  --ink: #F0F0F2;
+  --ink-soft: #B8B8C0;
+  --ink-muted: #808090;
 
-  --accent: #6C8CFF;
-  --accent-hover: #8BA4FF;
-  --accent-soft: #1E2448;
+  --accent: #7B9AFF;
+  --accent-hover: #9BB4FF;
+  --accent-soft: #1A2548;
 
   --warm: #F5A623;
   --warm-soft: #3A2E14;
 
-  --surface: #1E1F26;
-  --surface-hover: #26272E;
+  --surface: #1A1C26;
+  --surface-hover: #22242E;
 
-  --border: #2D2E36;
-  --border-interactive: #3F404A;
-  --border-focus: #6C8CFF;
+  --border: rgba(255, 255, 255, 0.3);
+  --border-interactive: rgba(255, 255, 255, 0.2);
+  --border-focus: #7B9AFF;
 
-  --tag-bg: #1E2448;
-  --tag-hover: #2A3160;
+  --tag-bg: #1A2548;
+  --tag-hover: #243060;
   --badge-bg: #3A2E14;
-  --badge-border: #2D2E36;
+  --badge-border: rgba(255, 255, 255, 0.12);
 
-  --nav-bg: oklch(0.15 0.01 280 / 0.72);
+  --nav-bg: rgba(15, 17, 23, 0.85);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
-  --shadow-card-hover: 0 8px 28px rgba(0, 0, 0, 0.5);
-  --shadow-button: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-button-hover: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 2px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-card-hover: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  --shadow-button: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-button-hover: 0 4px 16px rgba(0, 0, 0, 0.6);
 }
 
 /* ── 绿色（Nature Green） ── */

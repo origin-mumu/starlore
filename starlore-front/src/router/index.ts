@@ -14,6 +14,16 @@ const router = createRouter({
       }
     },
     {
+      path: '/about',
+      name: 'about',
+      component: () => import('../views/AboutView.vue'),
+      meta: {
+        title: '关于我 - Starlore',
+        requiresAuth: false,
+        guestAllowed: true
+      }
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: () => import('../views/ProfileView.vue'),
