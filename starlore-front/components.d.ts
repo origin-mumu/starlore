@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AICore: typeof import('./src/components/AICore.vue')['default']
+    BlurredBubbles: typeof import('./src/components/BlurredBubbles.vue')['default']
     ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']

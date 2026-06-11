@@ -67,7 +67,15 @@ const A4_PX_H = 1138 // 1123 + 42px 浏览器渲染补偿
 const contentMeasurer = ref<HTMLElement>()
 const totalContentHeight = ref(0)
 
-const pageCount = computed(() => Math.max(1, Math.ceil(totalContentHeight.value / A4_PX_H)))
+const pageCount = computed(() => {
+  const pages = Math.max(1, Math.ceil(totalContentHeight.value / A4_PX_H))
+  // 最后一页溢出不足50px时忽略（仅为残留margin/padding），避免出现几乎空白的页面
+  if (pages > 1) {
+    const lastPageContent = totalContentHeight.value - (pages - 1) * A4_PX_H
+    if (lastPageContent <= 50) return pages - 1
+  }
+  return pages
+})
 const currentPage = ref(1)
 
 // 测量内容总高度
@@ -989,6 +997,10 @@ const spacingStyle = computed(() => ({
   opacity: 0;
   pointer-events: none;
   z-index: -1;
+}
+/* 去掉测量容器内的 min-height，避免人为撑高导致误判分页 */
+.content-measurer .resume-page {
+  min-height: auto;
 }
 
 /* 翻页导航 */

@@ -33,6 +33,7 @@ const statusText = ref('System Ready')
 const isRecording = ref(false)
 const showHint = ref(true)
 const isSending = ref(false)
+const interimText = ref('')
 
 /* ─── 显示用消息列表（同步父组件） ─── */
 const chatScrollRef = ref<HTMLElement | null>(null)
@@ -41,40 +42,24 @@ const chatScrollRef = ref<HTMLElement | null>(null)
 const mainCanvasRef = ref<HTMLCanvasElement | null>(null)
 const waveCanvasRef = ref<HTMLCanvasElement | null>(null)
 
-/* ─── 语音识别 ─── */
+/* ─── 语音识别（MediaRecorder + MiMo ASR + 静音自动停止）─── */
 const speechSupported = ref(false)
-let speechRecognition: any = null
-const interimText = ref('')
+let mediaRecorder: MediaRecorder | null = null
+let audioChunks: Blob[] = []
+let silenceTimer: ReturnType<typeof setTimeout> | null = null
+let audioCtx: AudioContext | null = null
+let analyser: AnalyserNode | null = null
+let recordingMimeType = 'audio/webm'
 let abortCtrl: AbortController | null = null
 
+const SILENCE_THRESHOLD = 0.008
+const SILENCE_TIMEOUT_MS = 1400
+
 function initSpeech() {
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  if (!SR) { speechSupported.value = false; return }
-  speechSupported.value = true
-  speechRecognition = new SR()
-  speechRecognition.lang = 'zh-CN'
-  speechRecognition.continuous = false
-  speechRecognition.interimResults = true
-  speechRecognition.onresult = (ev: any) => {
-    let t = ''
-    for (let i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript
-    interimText.value = t
-  }
-  speechRecognition.onend = () => {
-    if (currentMode.value === 'listening') {
-      const text = interimText.value.trim()
-      interimText.value = ''
-      if (text) handleVoiceSend(text)
-      else setMode('idle')
-    }
-  }
-  speechRecognition.onerror = () => {
-    interimText.value = ''
-    setMode('idle')
-  }
+  speechSupported.value = !!(navigator.mediaDevices?.getUserMedia)
 }
 
-function toggleVoice() {
+async function toggleVoice() {
   if (currentMode.value === 'thinking' || currentMode.value === 'speaking') return
   if (!speechSupported.value) return
 
@@ -82,10 +67,181 @@ function toggleVoice() {
     abortCtrl?.abort()
     isRecording.value = true
     setMode('listening')
-    speechRecognition?.start()
+    await startRecording()
   } else {
-    isRecording.value = false
-    speechRecognition?.stop()
+    stopRecording()
+  }
+}
+
+async function startRecording() {
+  audioChunks = []
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioCtx = new AudioContext()
+    const source = audioCtx.createMediaStreamSource(stream)
+    analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.3
+    source.connect(analyser)
+
+    recordingMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm'
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: recordingMimeType })
+    audioChunks = []
+
+    mediaRecorder.ondataavailable = (e: BlobEvent) => {
+      if (e.data.size > 0) audioChunks.push(e.data)
+    }
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop())
+      if (audioCtx) { audioCtx.close(); audioCtx = null }
+      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+      analyser = null
+
+      if (audioChunks.length === 0) {
+        setMode('idle')
+        return
+      }
+      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
+      await transcribeAndSend(audioBlob)
+    }
+
+    mediaRecorder.onerror = () => {
+      setMode('idle')
+    }
+
+    mediaRecorder.start(100)
+    checkSilence()
+  } catch {
+    interimText.value = '麦克风权限被拒绝'
+    setMode('idle')
+  }
+}
+
+function checkSilence() {
+  if (!analyser || !isRecording.value || !mediaRecorder || mediaRecorder.state !== 'recording') return
+
+  const data = new Uint8Array(analyser.fftSize)
+  analyser.getByteTimeDomainData(data)
+  let sumSq = 0
+  for (let i = 0; i < data.length; i++) {
+    const n = (data[i] - 128) / 128
+    sumSq += n * n
+  }
+  const rms = Math.sqrt(sumSq / data.length)
+
+  if (rms < SILENCE_THRESHOLD) {
+    if (!silenceTimer) {
+      silenceTimer = setTimeout(() => stopRecording(), SILENCE_TIMEOUT_MS)
+    }
+  } else {
+    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+  }
+  setTimeout(checkSilence, 100)
+}
+
+function stopRecording() {
+  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  isRecording.value = false
+}
+
+/** WebM → WAV 转换 */
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+  const ctx = new AudioContext()
+  try {
+    const buf = await ctx.decodeAudioData(await audioBlob.arrayBuffer())
+    const ch = buf.getChannelData(0)
+    const sr = buf.sampleRate, nc = 1, bps = 16
+    const br = sr * nc * bps / 8, ba = nc * bps / 8
+    const dl = ch.length * ba
+    const ab = new ArrayBuffer(44 + dl)
+    const v = new DataView(ab)
+    writeStr(v, 0, 'RIFF'); v.setUint32(4, 36 + dl, true); writeStr(v, 8, 'WAVE')
+    writeStr(v, 12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true)
+    v.setUint16(22, nc, true); v.setUint32(24, sr, true); v.setUint32(28, br, true)
+    v.setUint16(32, ba, true); v.setUint16(34, bps, true)
+    writeStr(v, 36, 'data'); v.setUint32(40, dl, true)
+    let off = 44
+    for (let i = 0; i < ch.length; i++) {
+      const s = Math.max(-1, Math.min(1, ch[i]))
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+      off += 2
+    }
+    return new Blob([ab], { type: 'audio/wav' })
+  } finally { ctx.close() }
+}
+
+function writeStr(v: DataView, o: number, s: string) {
+  for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i))
+}
+
+function arrayBufToB64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+/** 转录 + 发送给 AI 对话 */
+async function transcribeAndSend(audioBlob: Blob) {
+  try {
+    const wav = await convertToWav(audioBlob)
+    const b64 = arrayBufToB64(await wav.arrayBuffer())
+    const dataUri = `data:audio/wav;base64,${b64}`
+    const token = localStorage.getItem('ro_blog_token')
+
+    const res = await fetch('/api/ai/transcribe/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ audio: dataUri }),
+    })
+
+    if (!res.ok) { setMode('idle'); return }
+
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let fullText = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() || ''
+      for (const line of lines) {
+        const t = line.trim()
+        if (!t || !t.startsWith('data:')) continue
+        try {
+          const d = JSON.parse(t.slice(5).trim())
+          if (d.error) { setMode('idle'); return }
+          if (d.text) {
+            fullText = d.text
+            interimText.value = fullText
+          }
+          if (d.done) break
+        } catch {}
+      }
+    }
+
+    if (fullText) {
+      interimText.value = ''
+      handleVoiceSend(fullText)
+    } else {
+      setMode('idle')
+    }
+  } catch {
+    setMode('idle')
   }
 }
 
@@ -520,7 +676,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeMain)
   window.removeEventListener('resize', resizeWave)
   window.removeEventListener('keydown', handleKeydown)
-  speechRecognition?.abort()
+  if (silenceTimer) clearTimeout(silenceTimer)
+  mediaRecorder?.stop()
+  audioCtx?.close()
   abortCtrl?.abort()
 })
 
