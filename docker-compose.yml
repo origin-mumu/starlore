@@ -23,6 +23,8 @@ services:
       - APP_JWT_SECRET=${JWT_SECRET}
       # LangSmith 配置
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      # PDF 服务配置：指回宿主机的 PM2 端口 (通常是 Docker 默认网桥网关 172.17.0.1)
+      - PDF_SERVICE_URL=http://172.17.0.1:3001
 
   # MinIO 对象存储
   minio:
@@ -47,13 +49,6 @@ services:
       - "5173:80"  # 必须暴露，用于宝塔 Nginx 做反向代理
     depends_on:
       - starlore-back
-
-  # PDF 服务
-  starlore-pdf:
-    image: ghcr.io/origin-mumu/starlore/starlore-pdf:latest
-    restart: unless-stopped
-    ports:
-      - "3001:3001"  # 必须暴露，用于服务调用/直接访问
 
 volumes:
   minio_data:

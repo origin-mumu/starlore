@@ -47,15 +47,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push starlore-pdf
-        uses: docker/build-push-action@v6
-        with:
-          context: ./starlore-pdf
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/starlore-pdf:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Deploy to Server
         uses: appleboy/ssh-action@v1
         with:
