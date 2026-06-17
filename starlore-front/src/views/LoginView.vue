@@ -11,7 +11,7 @@
       <!-- 品牌标志与标题 -->
       <div class="brand-section">
         <div class="brand-logo">
-          <Sparkles class="logo-icon" :size="28" />
+          <Sparkles class="logo-icon" :size="24" />
         </div>
         <h1 class="brand-title">Starlore</h1>
         <p class="brand-tagline">用理性的光芒照亮人文的星空</p>
@@ -271,7 +271,7 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--canvas); /* Use theme background variable */
+  /* background: var(--canvas);  */
   padding: 40px 20px;
   overflow: hidden;
 }
@@ -339,27 +339,27 @@ const handleRegister = async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   text-align: center;
 }
 
 .brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--accent-soft);
   color: var(--accent);
-  border-radius: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 15%, transparent);
   animation: logoPulse 4s infinite ease-in-out;
 }
 
 .brand-title {
   font-family: 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--ink);
   margin: 0;
@@ -383,32 +383,33 @@ const handleRegister = async () => {
 .auth-card {
   position: relative;
   z-index: 1;
-  background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   border: 1px solid var(--border);
   border-radius: 28px;
   box-shadow: var(--shadow-card);
-  padding: 40px 32px 32px;
+  padding: 32px 32px 24px;
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   display: flex;
   flex-direction: column;
-  transition: max-width 0.4s var(--ease-out-quart), box-shadow 0.3s;
+  transition: max-width 0.4s var(--ease-out-quart), box-shadow 0.3s, border-color var(--transition);
 }
 
 .auth-card:hover {
-  box-shadow: var(--shadow-card-hover), 0 20px 48px color-mix(in srgb, var(--accent) 5%, transparent);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-interactive);
 }
 
 .auth-card--wide {
-  max-width: 540px;
+  max-width: 580px;
 }
 
 /* ── Header & Tabs ── */
 .auth-header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .auth-tabs {
@@ -416,13 +417,13 @@ const handleRegister = async () => {
   background: var(--canvas-deep);
   border-radius: var(--radius-full);
   padding: 4px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .auth-tab {
   flex: 1;
-  padding: 10px 0;
+  padding: 8px 0;
   border: none;
   background: transparent;
   font-size: 14px;
@@ -456,13 +457,13 @@ const handleRegister = async () => {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .auth-form--grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .form-field--full {
@@ -472,7 +473,7 @@ const handleRegister = async () => {
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .form-field label {
@@ -504,7 +505,7 @@ const handleRegister = async () => {
 
 .input-wrapper input {
   width: 100%;
-  padding: 12px 16px 12px 44px;
+  padding: 10px 16px 10px 42px;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   font-size: 14px;
@@ -552,8 +553,8 @@ const handleRegister = async () => {
 
 /* ── Button ── */
 .auth-btn {
-  margin-top: 8px;
-  padding: 13px;
+  margin-top: 4px;
+  padding: 11px;
   border: none;
   border-radius: var(--radius-full);
   font-size: 15px;
@@ -612,8 +613,8 @@ const handleRegister = async () => {
 
 /* ── Footer / Back Link ── */
 .auth-footer {
-  margin-top: 24px;
-  padding-top: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
   border-top: 1px dashed var(--border);
   text-align: center;
 }
