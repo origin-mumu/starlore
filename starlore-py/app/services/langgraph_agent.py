@@ -178,6 +178,17 @@ async def run_agent(
 ):
     """运行 Agent，返回流式事件。"""
     tools = _create_tools(db, user_id)
+
+    # 加载已配置的外部 MCP Server 工具（如 Brave Search 等）
+    try:
+        from app.services.mcp_client import load_mcp_tools
+        mcp_tools = await load_mcp_tools()
+        if mcp_tools:
+            tools = tools + mcp_tools
+            logger.info("已合并 %d 个 MCP 外部工具，总工具数 %d", len(mcp_tools), len(tools))
+    except Exception as e:
+        logger.debug("MCP 工具加载跳过: %s", e)
+
     graph = _build_graph(llm, tools)
 
     # 构建消息列表

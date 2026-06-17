@@ -1,154 +1,482 @@
-# Design — Starlore Deep Space
+# Design — Starlore
 
-## Concept
+> Last updated: 2026-06-12
 
-A cosmic interface that feels like navigating through deep space. Every surface is a frosted glass pane floating in an infinite void. Neon light bleeds through translucent layers, creating depth without weight. The design evokes exploration — each screen is a new constellation to discover.
+## 设计哲学
 
-**Scene sentence:** You're piloting a sleek spacecraft through a nebula. The dashboard is made of layered holographic glass, each panel glowing softly with data. Stars drift past the viewport. Information floats in mid-air, organized by light and shadow.
+Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认主题）与**深空科幻美学**（暗黑/VR 场景）。核心原则是——界面如同漂浮在无限空间中的磨砂玻璃面板，光从半透明层间渗出，以光与影组织信息。
 
-## Register
+**场景感：** 你正驾驶一艘流线型飞船穿越星云。仪表盘由层叠的全息玻璃构成，每个面板柔和地发着光。星辰从舷窗外掠过。信息悬浮在半空中。
 
-Product — design serves the product. Familiar affordances wrapped in extraordinary materials.
+---
 
-## Color Palette
+## 技术栈
 
-**Strategy: Committed** — A restrained neon spectrum against an infinite dark canvas. Color signals meaning, not decoration.
+| 类别 | 技术 | 版本 |
+|------|------|------|
+| 框架 | Vue 3 (Composition API + `<script setup lang="ts">`) | 3.5 |
+| 构建 | Vite | 7.3 |
+| 语言 | TypeScript | 5.9 |
+| 路由 | vue-router | 4.6 |
+| 状态 | Pinia (Composition API style) | 3.0 |
+| HTTP | axios | 1.13 |
+| 3D | Three.js | 0.184 |
+| 动画 | GSAP | 3.15 |
+| 图表 | ECharts | 6.0 |
+| UI 库 | Element Plus (auto-import) | 2.13 |
+| 图标 | Lucide Vue | 1.17 |
+| 虚拟滚动 | vue-virtual-scroller | 2.0-beta |
+| 富文本 | @wangeditor/editor-for-vue | - |
+| 代码高亮 | highlight.js | 11.11 |
+| 移动端 | Capacitor (Android) | 8.3 |
 
-| Token | OKLCH | Hex | Role |
-|---|---|---|---|
-| --cosmos | oklch(0.08 0.03 280) | #06060F | Deepest void — absolute background |
-| --nebula | oklch(0.12 0.04 275) | #0C0C1E | Subtle purple-black surface |
-| --bg | oklch(0.10 0.03 278) | #08081A | Scaffold background |
-| --bg-light | oklch(0.14 0.04 275) | #0E0E28 | Elevated background |
-| --glass | oklch(1.00 0 0 / 0.05) | #0CFFFFFF | Base glass — whisper |
-| --glass-mid | oklch(1.00 0 0 / 0.08) | #14FFFFFF | Mid glass — cards |
-| --glass-top | oklch(1.00 0 0 / 0.11) | #1CFFFFFF | Top glass — nav, inputs |
-| --glass-bright | oklch(1.00 0 0 / 0.16) | #28FFFFFF | Bright glass — hover |
-| --glass-border | oklch(1.00 0 0 / 0.09) | #18FFFFFF | Subtle edge light |
-| --glass-edge | oklch(1.00 0 0 / 0.14) | #24FFFFFF | Interactive border |
-| --ink | oklch(0.98 0 0 / 0.95) | #F2FFFFFF | Primary text |
-| --ink-soft | oklch(0.98 0 0 / 0.70) | #B3FFFFFF | Secondary text |
-| --ink-muted | oklch(0.98 0 0 / 0.40) | #66FFFFFF | Tertiary/meta text |
-| --ink-ghost | oklch(0.98 0 0 / 0.24) | #3DFFFFFF | Ghost — barely visible |
-| --cyan | oklch(0.82 0.14 195) | #22D3EE | Primary accent — electric |
-| --purple | oklch(0.70 0.16 290) | #A78BFA | Secondary — lavender |
-| --pink | oklch(0.75 0.14 350) | #F472B6 | Tertiary — soft rose |
-| --green | oklch(0.78 0.14 160) | #34D399 | Success — emerald |
-| --orange | oklch(0.82 0.16 85) | #FBBF24 | Warning — amber |
-| --red | oklch(0.70 0.15 25) | #F87171 | Error — coral |
+---
 
-No #000, no #fff. Every neutral breathes with cosmic tint.
+## 多主题系统
 
-## Typography
+通过 `<html data-theme="xxx">` 切换 6 套完整配色方案，所有颜色通过 CSS Custom Properties 驱动。
 
-### Fonts
+| 主题 | 画布 | 强调色 | 墨色 | 气质 |
+|------|------|--------|------|------|
+| **default** | `#FFFCF7` 暖白 | `#E85D2A` 活力橙 | `#1A1410` 暖炭 | 温暖、文学 |
+| **white** | `#F5F5F5` 纯灰 | `#333333` 炭灰 | `#1A1A1A` 墨黑 | 极简、素净 |
+| **dark** | `#0F1117` 深空 | `#7B9AFF` 柔蓝 | `#F0F0F2` 银白 | 深邃、科幻 |
+| **green** | `#F0F7EE` 薄荷 | `#4A8C5C` 翡翠 | `#1A3A2D` 深苔 | 自然、清新 |
+| **blue** | `#EEF3F8` 浅海 | `#3B7DD8` 海蓝 | `#1A2A3E` 深海 | 海洋、沉静 |
+| **pink** | `#FDF2F6` 裸粉 | `#D4638F` 玫瑰 | `#2D1B24` 暗莓 | 柔美、浪漫 |
 
-- **System stack**: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif
-- Single family carries all roles — tight hierarchy via weight and size, not font pairing.
+---
 
-### Scale (fixed rem)
+## Design Tokens
 
-| Level | Size | Weight | Letter-spacing | Usage |
-|---|---|---|---|---|
-| Display | 30px | 800 | -1.2em | Page hero titles |
-| H1 | 24px | 700 | -0.6em | Section headers |
-| H2 | 20px | 700 | -0.3em | Card titles |
-| H3 | 16px | 600 | 0 | Sub-sections |
-| Body | 15px | 400 | 0 | Content text |
-| Body small | 13px | 400 | 0 | Meta, descriptions |
-| Caption | 12px | 400 | 0 | Labels, hints |
-| Ghost | 11px | 500 | 0.2em | Tags, badges |
+### 颜色分类
 
-Body line length: max 65ch.
+```css
+/* 画布 */
+--canvas          /* 页面最底层背景 */
+--canvas-deep     /* 更深的背景层次 */
 
-## Layout
+/* 背景光晕 */
+--orb-1, --orb-2, --orb-3   /* body 上的径向渐变球 */
+--orb-glow                  /* 光晕发光色 */
 
-- Max content width: 420px (mobile-first)
-- Horizontal padding: 20–24px
-- Spacing scale: 4 / 6 / 8 / 10 / 12 / 16 / 18 / 20 / 24 / 28 / 32 / 36 / 48px
-- Cards: 20–24px border-radius, frosted glass with colored shadow glow
-- Navigation: floating glass bar with rounded corners (28px radius), 20px horizontal margin
+/* 文字层级 */
+--ink             /* 主文字 */
+--ink-soft        /* 次要文字 */
+--ink-muted       /* 辅助/meta 文字 */
 
-## Glass System — 4 Levels
+/* 强调色 */
+--accent          /* 主强调色 */
+--accent-hover    /* 悬停态 */
+--accent-soft     /* 浅底色 */
 
-| Level | Opacity | Blur | Usage |
-|---|---|---|---|
-| Base | 5% | 12px | Subtle backgrounds, dividers |
-| Mid | 8% | 20px | Cards, list items |
-| Top | 11% | 28px | Navigation, inputs, modals |
-| Bright | 16% | 36px | Hover states, active elements |
+/* 暖色辅助 */
+--warm, --warm-soft
 
-Every glass surface: ackdrop-filter: blur(), subtle 0.5px border, layered box-shadow.
+/* 表面 */
+--surface, --surface-hover
 
-## Depth Model
+/* 边框 */
+--border              /* 默认边框 */
+--border-interactive  /* 可交互边框 */
+--border-focus        /* 聚焦态 */
 
-`
-Layer 0: Cosmic void (animated starfield + nebula glow)
-Layer 1: Content cards (glass-mid)
-Layer 2: Navigation / inputs (glass-top)
-Layer 3: Buttons / chips (glass-bright / gradient)
-Layer 4: Glow effects (box-shadow bleeds through layers)
-`
+/* 标签/徽章 */
+--tag-bg, --tag-hover
+--badge-bg, --badge-border
 
-Shadows carry colored tints — cyan for primary, purple for secondary. No pure black shadows.
+/* 阴影 */
+--shadow-sm, --shadow-card, --shadow-card-hover
+--shadow-nav, --shadow-button, --shadow-button-hover
 
-## Components
+/* 圆角 */
+--radius-sm:   6px
+--radius-md:   12px
+--radius-lg:   20px
+--radius-xl:   28px
+--radius-full: 9999px   /* 胶囊形 */
 
-### Surface/Cards
+/* 过渡 */
+--ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1)
+--transition:      0.25s
+--transition-slow: 0.5s
 
-`css
+/* 间距阶梯 */
+--space-1: 4px  →  --space-2: 8px  →  --space-3: 12px
+→ --space-4: 16px → --space-5: 24px → --space-6: 32px
+→ --space-7: 48px → --space-8: 64px → --space-9: 96px
+```
+
+---
+
+## 字体
+
+### 字体栈
+
+| 角色 | 字体栈 |
+|------|--------|
+| 正文（中文优先） | `'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif` |
+| 代码 | `'Fira Code', 'Consolas', monospace` |
+| UI 辅助 | `'Inter', 'Noto Sans SC', system-ui, sans-serif` |
+
+- Google Fonts 加载：Inter (400-700)、Noto Sans SC (400-700)、LXGW WenKai (300/400/700)、Source Serif 4 (variable)
+- 基础字号 16px，行高 1.8
+- 标题使用负字间距 (`-0.02em` ~ `-00.05em`) 营造紧凑现代感
+
+### 排版阶梯
+
+| 级别 | 大小 | 字重 | 字间距 | 用途 |
+|------|------|------|--------|------|
+| Display | clamp(2rem, 4vw, 2.8rem) | 800 | -0.05em | 页面大标题 |
+| H1 | 24px | 700 | -0.03em | 区块标题 |
+| H2 | 20px | 700 | -0.02em | 卡片标题 |
+| H3 | 16px | 600 | 0 | 子区块 |
+| Body | 15px | 400 | 0 | 正文 |
+| Body small | 13px | 400 | 0 | 描述/meta |
+| Caption | 12px | 400 | 0 | 标签/提示 |
+
+正文最大行宽：65ch
+
+---
+
+## 布局
+
+- 内容最大宽度：420px（移动优先）
+- 水平内边距：`clamp(16px, 4vw, 32px)`
+- 卡片：20-24px 圆角，磨砂玻璃 + 彩色阴影光晕
+- 导航栏：浮动胶囊条，`border-radius: 999px`，`backdrop-filter: blur(30px)`
+
+---
+
+## 玻璃系统
+
+项目中存在两套玻璃效果方案，根据场景选择：
+
+### 方案一：暖色磨砂（默认/浅色主题）
+
+```css
+.ink-glass-card {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+```
+
+### 方案二：深空玻璃（暗黑/VR 场景）
+
+| 层级 | 透明度 | 模糊 | 用途 |
+|------|--------|------|------|
+| Base | 5% | 12px | 微妙背景、分割线 |
+| Mid | 8% | 20px | 卡片、列表项 |
+| Top | 11% | 28px | 导航、输入框、弹窗 |
+| Bright | 16% | 36px | 悬停态、激活元素 |
+
+```css
 .glass-card {
-  background: var(--glass-mid);
+  background: var(--glass-mid);           /* oklch(1 0 0 / 0.08) */
   backdrop-filter: blur(20px);
-  border: 0.5px solid var(--glass-border);
+  border: 0.5px solid var(--glass-border); /* oklch(1 0 0 / 0.09) */
   border-radius: 20px;
-  box-shadow: 
+  box-shadow:
     0 8px 20px rgba(0,0,0,0.23),
     0 20px 40px rgba(0,0,0,0.12);
 }
-`
+```
 
-### Buttons
+---
 
-Primary: gradient (cyan → purple), 26px radius, colored glow shadow on press.
-Secondary: glass background, icon + text, no gradient.
-Icon buttons: 38px square, glass-mid, 12px radius.
+## 深度模型
 
-### Navigation
+```
+Layer 0: 宇宙底景（动态星空 + 星云光晕 / 暖色渐变光球）
+Layer 1: 内容卡片（glass-mid / surface）
+Layer 2: 导航 / 输入框（glass-top）
+Layer 3: 按钮 / 标签（glass-bright / gradient）
+Layer 4: 发光效果（box-shadow 穿透各层）
+```
 
-Floating glass bar at bottom. 68px height, 28px radius.
-Active tab: colored accent with subtle glow background.
-Inactive: ghost text color.
+- 浅色主题：阴影带暖色调，不用纯黑
+- 深色主题：阴影带青色/紫色色调，不用纯黑
 
-### Chips / Tags
+---
 
-Selected: tinted background + colored border + subtle glow.
-Unselected: glass background, muted text.
+## 组件规范
 
-### Glow Effects
+### 导航栏
 
-- Primary glow: cyan at 15% opacity, 20px blur
-- Secondary glow: purple at 12% opacity, 24px blur
-- Card ambient: behind-card colored shadow, 40-60px blur
+- **桌面端：** 顶部浮动胶囊条，`backdrop-filter: blur(30px)`，居中，左右留白 20px
+- **移动端：** 底部浮动胶囊导航栏，68px 高，28px 圆角
+- 激活标签：彩色强调色 + 微妙光晕背景
+- 未激活：ghost 文字色
+- 主题切换器：导航栏中的彩色圆点
 
-## Motion
+### 卡片
 
-- Page entrance: fade-in + slide-up (16px), 500ms ease-out-quart, staggered 40-60ms
-- Card hover: translateY(-2px), 150ms
-- Button press: scale(0.97), 150ms
-- Tab switch: color crossfade, 200ms
-- Background: slow-drifting nebula blobs (20s loop), twinkling star field
+```css
+.article-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+.article-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+```
 
-## Imagery
+### 按钮
 
-No stock imagery. The cosmic background (animated starfield + nebula glows) IS the imagery. Typography and glass surfaces carry the rest.
+- **Primary：** 胶囊形 (`border-radius: var(--radius-full)`)，强调色背景，悬停时微上浮 `translateY(-1px)`
+- **Secondary：** 玻璃背景，图标 + 文字，无渐变
+- **Icon 按钮：** 38px 方形，glass-mid，12px 圆角
+- **深空风格 Primary：** 渐变 (cyan → purple)，26px 圆角，按下时彩色发光阴影
 
-## Anti-patterns
+### 标签 / Chips
 
-- No warm parchment tones (moved to a different design direction)
-- No serif fonts
-- No flat white backgrounds
-- No solid-colored cards without glass effect
-- No static backgrounds — every screen has the cosmic field
-- No pure black (#000) or pure white (#fff)
-- No unstyled shadows (all shadows carry tint)
+- 选中态：带色调背景 + 彩色边框 + 微妙光晕
+- 未选中态：玻璃背景，muted 文字
+
+---
+
+## 动效系统
+
+### CSS 动画
+
+| 动画名 | 效果 | 用途 |
+|--------|------|------|
+| `fadeInUp` | 淡入 + 上移 16px | 页面区块入场，**最主要的入场动画**，配合交错 `animation-delay` |
+| `spin` | 360° 旋转 | 加载指示器 |
+| `floatCard` / `floatCardTag` / `floatDot` | 微浮动 | 首页装饰性元素 |
+| `breathe-text` | 透明度脉冲 | 交互提示文字 |
+| `typing-bounce` | 三点跳动 | AI 打字指示器 |
+| `nodeFloat` | 垂直微浮动 | 知识图谱节点 |
+| `pulse` | 透明度脉冲 | 加载态 |
+| `blink` | 光标闪烁 | 终端光标 |
+| `trace-pulse` | 脉冲 | Agent 状态指示 |
+| `ring-rotate` | 旋转 | VR 加载环 |
+| `bar-slide` | 滑动 | 加载进度条 |
+
+### 过渡参数
+
+- 页面入场：fade-in + slide-up (16px)，500ms `ease-out-quart`，交错 40-60ms
+- 卡片悬停：`translateY(-2px)`，150ms
+- 按钮按下：`scale(0.97)`，150ms
+- 标签切换：颜色交叉淡入，200ms
+- 背景：慢速漂移星云 (20s 循环)，闪烁星空
+
+### Vue Transition
+
+```html
+<Transition name="ui-fade">      <!-- VR 覆层淡入 -->
+<Transition name="loading-fade">  <!-- VR 加载屏 -->
+<Transition name="modal-fade">    <!-- 弹窗 -->
+<Transition name="panel-fade">    <!-- 侧边面板 -->
+```
+
+### GSAP
+
+- VR 场景中用于相机平滑过渡：`gsap.to(camera.position, ...)`
+- 星球悬停缩放：`gsap.to(mesh.scale, { x: 1.12, ... })`
+
+### 减弱动效
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+```
+
+---
+
+## Canvas 2D 特效
+
+| 组件 | 技术 | 描述 |
+|------|------|------|
+| `BlurredBubbles.vue` | Simplex 噪声 + 物理模拟 | 漂浮模糊光球，碰撞避免、速度阻尼、边界力，per-theme 调色板，6 FPS 节流 |
+| `AICore.vue` | 2D Canvas + 透视投影 | 1200 粒子 3D 球体，鼠标拖拽旋转，状态响应变色（signal/core/void 三类粒子） |
+| `ImmersiveMode.vue` | 全屏 Canvas | 800 粒子 3D 球 + 250 星星 + 多层正弦波浪 + 液态 blob 形态 |
+| `StarfieldCanvas.vue` | Canvas + 视差 | 视差星空 + 流星 + 知识节点光晕 + 旋转虚线环 + 卫星点 |
+
+---
+
+## Three.js / WebGL 特效
+
+| 组件 | 粒子数 | 核心技术 |
+|------|--------|----------|
+| `GeoNexusGlobe.vue` | 12,000 | 自定义 GLSL 着色器（idle/thinking/answering 三态顶点位移），UnrealBloomPass 后处理，加法混合 |
+| `ParticleGlobe.vue` | ~10,000 | Fibonacci 球面分布，程序化大陆检测，Fresnel 大气着色器，贝塞尔曲线神经网络连接 + 脉冲点动画 |
+| `FloatingParticles.vue` | 2,300 | 球壳粒子云，自定义着色器，鼠标轨道控制，滚动缩放 |
+| VR Scene (`useVRScene.ts`) | ~500 | 线框八面体核心 + 发光精灵，轨道线框星球，Canvas 标签精灵，GSAP 相机动画，Raycaster 交互 |
+
+---
+
+## 沉浸模式 (Immersive Mode)
+
+Echobot（AI 助手）拥有专属全屏沉浸模式：
+
+- 全屏 Canvas 背景（粒子球 + 星空 + 波浪可视化）
+- 语音输入 + 静音检测
+- TTS 语音播放（`useTTS` composable，支持队列、预加载、浏览器降级）
+- 侧边聊天面板，`mask-image` 渐变淡出
+- `Escape` 键退出
+- `mix-blend-mode: screen` 叠加混合
+
+---
+
+## 响应式设计
+
+### 断点
+
+| 断点 | 场景 |
+|------|------|
+| `600px` | 小屏微调 |
+| `768px` | **主移动端断点**（导航栏切换为底部栏） |
+| `900px` | 平板（网格列数折叠） |
+| `1024px` | 中屏调整 |
+
+### 模式
+
+- **流式字号：** `font-size: clamp(2rem, 4vw, 2.8rem)`
+- **流式内边距：** `padding: 0 clamp(16px, 4vw, 32px)`
+- **CSS Grid 响应式列数：** `repeat(3, 1fr)` → `repeat(2, 1fr)` → `1fr`
+- **多列布局：** 文章卡片 `columns: 2` + `break-inside: avoid`
+- **全屏视图：** `max-height: 100vh; overflow: hidden`（Echobot、VR）
+- **性能降级：** 移动端减少粒子数（`isMobile ? 100 : 250` 星星），Three.js 像素比上限 1.2（桌面 1.5）
+
+---
+
+## 状态管理
+
+### Pinia Stores (Composition API style)
+
+| Store | 职责 | 持久化 |
+|-------|------|--------|
+| `useThemeStore` | 主题名 → `data-theme` 属性同步 | `localStorage: ro_blog_theme` |
+| `useUserStore` | JWT token、用户信息、登录/注册/登出 | `localStorage: ro_blog_token` |
+
+- 视图级数据在组件内管理（无集中式文章/分类 store）
+- 使用 `ref()` / `reactive()` 管理局部状态，`computed()` 派生状态
+
+---
+
+## 路由
+
+### 14 条路由
+
+| 路径 | 名称 | 认证 | 角色 |
+|------|------|------|------|
+| `/` | home | 访客可访问 | - |
+| `/about` | about | 访客可访问 | - |
+| `/categories` | categories | 访客可访问 | - |
+| `/echobot` | echobot | 访客可访问 | - |
+| `/diverge` | diverge | 访客可访问 | - |
+| `/vr` | vr | 访客可访问 | - |
+| `/login` | login | - | - |
+| `/profile` | profile | 需要认证 | - |
+| `/articles` | articles | 需要认证 | - |
+| `/articles/:id` | articleDetail | 需要认证 | - |
+| `/articles/edit/:id?` | articleEdit | 需要认证 | - |
+| `/resume` | resume | 需要认证 | member, admin |
+| `/resume/edit/:id?` | resumeEdit | 需要认证 | member, admin |
+| `/:pathMatch(.*)*` | notFound | - | - |
+
+### 导航守卫
+
+- `guestAllowed: true` 的页面无需认证即可访问（含 demo 数据降级）
+- 未认证访问受保护路由 → 重定向 `/login`
+- 已认证访问 `/login` → 重定向 `/`
+- 所有路由组件懒加载 `() => import(...)`
+
+---
+
+## API 集成
+
+### Axios 实例 (`utils/request.ts`)
+
+- 基础 URL：`/api`（Vite 代理到后端）
+- 请求拦截器：附加 JWT `Authorization: Bearer <token>`
+- 响应拦截器：解包 `result.data`，401 清除 token 并重定向，403 toast 通知并重定向首页
+- 代理超时：120 秒
+
+### API 服务模式
+
+- 按领域拆分文件：`src/api/article.ts`、`auth.ts`、`ai.ts`、`diverge.ts`、`project.ts`、`resume.ts`
+- 返回类型化 Promise：`request.get<never, { data: UserInfo }>('/auth/me')`
+- TypeScript 接口与服务函数就近定义
+
+### SSE 流式
+
+- AI 聊天使用 `fetch()` + `ReadableStream` 实现 SSE 流式响应
+- 手动解析：按 `\n` 分割，提取 `data:` 行，JSON 解析
+- 应用于：多 Agent 聊天、图片分析、语音转录
+- `AbortController` 取消支持
+
+---
+
+## CSS 方法论
+
+### 原则
+
+- **Scoped styles：** 每个 `.vue` 文件使用 `<style scoped>`
+- **CSS Custom Properties：** 主题驱动的核心机制
+- **语义化类名：** 无 BEM、无 Tailwind，自定义语义命名（`.article-card`、`.card-cover`、`.card-body`）
+- **`:deep()`** 用于 `v-html` 渲染内容（Markdown 排版、聊天气泡）
+- **`:global()`** 用于路由级 body/html 覆盖（如 Echobot 全屏模式）
+
+### 全局样式文件
+
+| 文件 | 职责 |
+|------|------|
+| `base.css` | Reset + 全部 Design Tokens |
+| `main.css` | 工具类（`.page-container`、`.btn-primary`、`.fade-in-up` 等） |
+
+### CSS 视觉技巧
+
+| 技巧 | 用途 |
+|------|------|
+| `backdrop-filter: blur()` | 导航栏、弹窗、VR 覆层的磨砂玻璃 |
+| `radial-gradient` | body 背景光球、发光效果 |
+| `linear-gradient` | 文字渐变填充 (`-webkit-background-clip: text`)、波浪填充 |
+| `box-shadow` | 温暖的多层阴影营造深度 |
+| `mask-image` | 聊天面板边缘渐变淡出 |
+| `mix-blend-mode: screen` | 波浪可视化的加法混合 |
+| `oklch()` | 现代色彩空间操作 |
+
+---
+
+## 无障碍
+
+### 已实现
+
+- `aria-label` 用于交互元素（主题圆点、菜单切换）
+- `aria-hidden="true"` 用于装饰元素（背景 Canvas、分隔线）
+- `rel="noopener noreferrer"` 用于外部链接
+- `autocomplete` 用于登录/注册表单
+- `loading="lazy"` 用于文章封面图
+- `::selection` 自定义文字选择样式
+- `@media (prefers-reduced-motion: reduce)` 禁用所有动画
+- 键盘支持：`Escape` 关闭沉浸模式、`Ctrl+Z` 撤销、`Enter` 发送
+- 语义化 HTML：`<nav>`、`<main>`、`<aside>`、`<footer>`、`<section>`、`<header>`
+
+### 待改进
+
+- 弹窗缺少 `role="dialog"`
+- 折叠元素缺少 `aria-expanded`
+- 无 skip-to-content 链接
+- Canvas 元素缺少文本替代（已标记 `aria-hidden="true"`）
+
+---
+
+## 反模式
+
+- ~~暖色羊皮纸色调~~（已转向多主题系统）
+- 不使用衬线字体作为 UI 字体（正文用衬线营造文学感，UI 元素用无衬线）
+- 不使用纯白背景（所有浅色主题都有微妙色调）
+- 不使用纯黑 `#000` 或纯白 `#fff`（所有中性色带宇宙/主题色调）
+- 不使用无色阴影（所有阴影带色调）
+- 不使用静态背景（每页都有动态光球或星空）
+- 不使用无玻璃效果的纯色卡片

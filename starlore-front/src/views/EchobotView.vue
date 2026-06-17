@@ -1,45 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { marked } from 'marked'
-import hljs from 'highlight.js'
-import 'highlight.js/styles/atom-one-dark.css'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import ConfirmModal from '@/components/ConfirmModal.vue'
-import AICore from '@/components/AICore.vue'
 import ImmersiveMode from '@/components/ImmersiveMode.vue'
-import {
-  Bot,
-  MessageSquare,
-  FileText,
-  Image,
-  Mic,
-  MicOff,
-  X,
-  Trash2,
-  Volume2,
-  VolumeX,
-  ClipboardList,
-  Zap,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  BarChart3,
-} from '@lucide/vue'
 import { useTTS } from '@/composables/useTTS'
 
 const userStore = useUserStore()
 const {
-  ttsEnabled,
   isSpeaking,
-  toggleTTS,
   feedStreamChunk,
   flushStreamBuffer,
   reset: resetTTS,
 } = useTTS()
 import {
   appendChatPair,
-  buildAgentSseUrl,
   buildMultiAgentSseUrl,
   createAiSession,
   deleteAiSession,
@@ -88,26 +62,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const chatScrollRef = ref<HTMLElement | null>(null)
 const charPickerOpen = ref(false)
-const agentMode = ref(true)
-const multiAgentMode = ref(false)
 const toolStatus = ref<string | null>(null)
-
-/* ─── 快捷语言 ─── */
-const quickReplies = [
-  '你好，介绍一下自己',
-  '帮我写一段代码',
-  '解释一下这个概念',
-  '帮我优化这段代码',
-  '总结一下要点',
-  '翻译成英文',
-  '给出学习建议',
-  '帮我排错 Debug',
-]
-
-function useQuickReply(text: string) {
-  if (isSending.value) return
-  inputText.value = text
-}
 
 /* ─── 多 Agent 追踪折叠状态 ─── */
 const traceCollapsed = ref<Record<number, boolean>>({})
@@ -115,14 +70,41 @@ const reasoningCollapsed = ref<Record<number, boolean>>({})
 const hasReceivedContent = ref(false)
 
 /* ─── 沉浸模式 ─── */
-const immersiveActive = ref(false)
-
-function enterImmersive() {
-  immersiveActive.value = true
-}
+const immersiveActive = ref(true)
 
 function exitImmersive() {
-  immersiveActive.value = false
+  router.push({ path: '/' })
+}
+
+function handleImmersiveImageUpload(base64: string) {
+  pendingImage.value = base64
+  pendingImagePreview.value = base64
+}
+
+function handleImmersiveTxtUpload(text: string) {
+  inputText.value = (inputText.value ? `${inputText.value}\n\n` : '') + text
+}
+
+async function onImmersiveSend(userContent: string, assistantContent: string, agentTrace?: string) {
+  const sid = currentSessionId.value
+  if (sid == null) return
+  try {
+    await appendChatPair(sid, userContent, assistantContent, agentTrace)
+    await refreshSessions()
+  } catch {
+    /* ignore persistence errors */
+  }
+}
+
+/** 流式用 auto 紧跟光标；平时用 smooth */
+function scrollChatToBottom(behavior: ScrollBehavior = 'auto') {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = chatScrollRef.value
+      if (!el || activeTab.value !== 'chat') return
+      el.scrollTo({ top: el.scrollHeight, behavior })
+    })
+  })
 }
 
 /* ─── 图片上传 ─── */
@@ -141,13 +123,6 @@ const dailyRemaining = ref(10)
 const dailyLimit = ref(10)
 const isAdminUser = ref(false)
 const dailyExceeded = computed(() => !isAdminUser.value && dailyRemaining.value <= 0)
-
-/** 粒子状态：0=平常 1=思考 2=回答 */
-const particleState = computed(() => {
-  if (!isSending.value) return 0
-  if (hasReceivedContent.value) return 2
-  return 1
-})
 
 async function refreshQuota() {
   try {
@@ -189,98 +164,9 @@ const toolLabelMap: Record<string, string> = {
 
 let abortController: AbortController | null = null
 
-marked.use({
-  breaks: false,
-  gfm: true,
-})
-
-/* 自定义代码块渲染器，带 highlight.js 高亮 */
-const renderer = new marked.Renderer()
-renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
-  const langAttr = lang ? ` class="language-${lang}"` : ''
-  try {
-    const highlighted = lang
-      ? hljs.highlight(text, { language: lang }).value
-      : hljs.highlightAuto(text).value
-    return `<pre><code${langAttr}>${highlighted}</code></pre>`
-  } catch {
-    return `<pre><code${langAttr}>${hljs.highlightAuto(text).value}</code></pre>`
-  }
-}
-marked.use({ renderer })
-
-function formatMessage(content: string): string {
-  if (!content) return ''
-  try {
-    // 清理多余空行：把连续空行合并为1个换行
-    let cleaned = content
-      .trim()
-      .replace(/^\n+/, '')
-      .replace(/\n+$/, '')
-      .replace(/\n{2,}/g, '\n')
-      // 转义单个 ~ 符号，避免被误解为删除线语法（保留 ~~ 用于真正的删除线）
-      .replace(/(?<!~)~(?!~)/g, '\\~')
-    const html = marked.parse(cleaned) as string
-    return html
-      .replace(/<table>/g, '<table class="chat-table">')
-      .replace(/<img /g, '<img class="chat-img" ')
-      .replace(/<p>\s*<\/p>/g, '')
-      .replace(/(<br\s*\/?>){2,}/g, '<br>')
-      .replace(/<p>(\s*<br\s*\/?>\s*)*<\/p>/g, '')
-      .trim()
-  } catch {
-    return content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\n/g, '<br>')
-  }
-}
-
-function toggleAgentMode() {
-  if (isSending.value) return
-  agentMode.value = !agentMode.value
-  if (!agentMode.value) multiAgentMode.value = false
-}
-
-function toggleMultiAgentMode() {
-  if (isSending.value) return
-  multiAgentMode.value = !multiAgentMode.value
-  if (multiAgentMode.value) agentMode.value = true
-}
-
-function toggleTrace(i: number) {
-  traceCollapsed.value[i] = !traceCollapsed.value[i]
-}
-
-function toggleCharPicker() {
-  charPickerOpen.value = !charPickerOpen.value
-}
-
-function pickCharacter(key: string) {
-  selectedCharacterKey.value = key
-  charPickerOpen.value = false
-}
-
-/** 流式用 auto 紧跟光标；平时用 smooth */
-function scrollChatToBottom(behavior: ScrollBehavior = 'auto') {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      const el = chatScrollRef.value
-      if (!el || activeTab.value !== 'chat') return
-      el.scrollTo({ top: el.scrollHeight, behavior })
-    })
-  })
-}
-
 const systemPrompt = computed(() => {
   const c = characterCards.value.find(x => x.key === selectedCharacterKey.value)
   return c?.systemPrompt ?? ''
-})
-
-const sessionTitle = computed(() => {
-  const s = sessions.value.find(x => x.id === currentSessionId.value)
-  return s?.title ?? '未选择会话'
 })
 
 function cancelStream() {
@@ -332,7 +218,13 @@ async function loadSession(id: number) {
   selectedCharacterKey.value = res.session.characterKey || 'default'
   messages.value = res.messages
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    .map(m => {
+      const msg: ChatMsg = { role: m.role as 'user' | 'assistant', content: m.content }
+      if (m.agentTrace) {
+        try { msg.agentTrace = JSON.parse(m.agentTrace) } catch { /* ignore */ }
+      }
+      return msg
+    })
   activeTab.value = 'chat'
 }
 
@@ -356,8 +248,8 @@ function removeSession(id: number, e: Event) {
   showDeleteSession.value = true
 }
 
-async function confirmDeleteSession() {
-  const id = deleteSessionId.value
+async function confirmDeleteSession(emitId?: number) {
+  const id = emitId ?? deleteSessionId.value
   if (id == null) return
   showDeleteSession.value = false
   await deleteAiSession(id)
@@ -483,40 +375,22 @@ async function sendMessage() {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     }
 
-    let response: Response
-    // 图片已转为文字描述，始终用 DeepSeek，支持 Agent 模式
-    if (multiAgentMode.value) {
-      messages.value[assistantIndex].agentTrace = {
-        planSummary: '',
-        subtasks: [],
-        reviewDecision: '',
-        reviewFeedback: '',
-        retryCount: 0,
-        metrics: null,
-      }
-      toolStatus.value = '正在分析任务...'
-      response = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(history),
-        signal: abortController.signal,
-      })
-    } else if (agentMode.value) {
-      response = await fetch(buildAgentSseUrl('deepseek-v4-flash'), {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(history),
-        signal: abortController.signal,
-      })
-    } else {
-      response = await fetch(
-        `/api/ai/sse?model=deepseek-v4-flash&messages=${encodeURIComponent(JSON.stringify(history))}`,
-        {
-          headers: authHeaders,
-          signal: abortController.signal,
-        }
-      )
+    // Multi-Agent 模式：Planner → Executor → Reviewer
+    messages.value[assistantIndex].agentTrace = {
+      planSummary: '',
+      subtasks: [],
+      reviewDecision: '',
+      reviewFeedback: '',
+      retryCount: 0,
+      metrics: null,
     }
+    toolStatus.value = '正在分析任务...'
+    const response = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(history),
+      signal: abortController.signal,
+    })
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }
@@ -558,7 +432,7 @@ async function sendMessage() {
           }
           // ── 多 Agent 事件处理（写入消息的 agentTrace）──
           if (data.type === 'plan_start') {
-            toolStatus.value = '🧠 Planner 正在分析您的请求，拆解为可执行的子任务...'
+            toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
           }
           if (data.type === 'plan') {
             const trace = messages.value[assistantIndex].agentTrace
@@ -571,7 +445,7 @@ async function sendMessage() {
                 status: 'pending' as const,
               }))
             }
-            toolStatus.value = `📋 规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
+            toolStatus.value = `规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
           }
           if (data.type === 'subtask_start') {
             const trace = messages.value[assistantIndex].agentTrace
@@ -583,7 +457,7 @@ async function sendMessage() {
                 running.desc = node
               }
               const runningIdx = trace.subtasks.filter(s => s.status === 'done').length + 1
-              toolStatus.value = `⚡ Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
+              toolStatus.value = `Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
             } else {
               toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
             }
@@ -596,9 +470,9 @@ async function sendMessage() {
               const doneCount = trace.subtasks.filter(s => s.status === 'done').length
               const total = trace.subtasks.length
               if (doneCount < total) {
-                toolStatus.value = `⚡ 子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
+                toolStatus.value = `子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
               } else {
-                toolStatus.value = `⚡ 全部 ${total} 个子任务执行完毕，进入审查阶段...`
+                toolStatus.value = `全部 ${total} 个子任务执行完毕，进入审查阶段...`
               }
             }
           }
@@ -610,11 +484,11 @@ async function sendMessage() {
               trace.retryCount = data.retry_count || 0
             }
             if (data.decision === 'PASS') {
-              toolStatus.value = '✅ Reviewer 审查通过，正在生成最终回答...'
+              toolStatus.value = 'Reviewer 审查通过，正在生成最终回答...'
             } else if (data.decision === 'REVISE') {
-              toolStatus.value = `🔄 Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
+              toolStatus.value = `Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
             } else {
-              toolStatus.value = '❌ Reviewer 审查未通过，生成最终回答...'
+              toolStatus.value = 'Reviewer 审查未通过，生成最终回答...'
             }
           }
           if (data.type === 'metrics') {
@@ -642,8 +516,10 @@ async function sendMessage() {
 
     const userContent = messages.value[messages.value.length - 2]?.content ?? text
     const assistantContent = messages.value[assistantIndex].content
+    const trace = messages.value[assistantIndex].agentTrace
+    const agentTraceStr = trace && trace.subtasks.length > 0 ? JSON.stringify(trace) : undefined
     if (assistantContent && !assistantContent.startsWith('错误：')) {
-      await appendChatPair(sid, userContent, assistantContent)
+      await appendChatPair(sid, userContent, assistantContent, agentTraceStr)
       await refreshSessions()
     }
   } catch (e: any) {
@@ -1066,430 +942,35 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="echobot-page page-container">
-    <!-- Guest overlay -->
-    <div v-if="!userStore.isLoggedIn" class="guest-overlay">
-      <div class="guest-overlay-content">
-        <h2>AI 助手</h2>
-        <p>登录后即可使用 AI 对话功能</p>
-        <router-link to="/login" class="btn-primary">立即登录</router-link>
-      </div>
-    </div>
-    <div class="echobot-shell">
-      <section class="echobot-left echobot-card" aria-label="粒子效果">
-        <header class="left-topbar">
-          <button type="button" class="back-btn" title="返回首页" @click="goHome">← 返回</button>
-          <div class="brand">
-            <span class="brand-title">RO ECHOBOT</span>
-            <span class="badge" :class="{ on: !isSending }">{{
-              isSending ? '生成中' : '就绪'
-            }}</span>
-          </div>
-          <span class="sess-label">会话：{{ sessionTitle }}</span>
-          <div class="left-actions">
-            <button
-              type="button"
-              class="ghost-btn immersive-btn"
-              title="沉浸模式"
-              @click="enterImmersive"
-            >
-              沉浸
-            </button>
-          </div>
-        </header>
-        <div class="left-canvas" aria-hidden="true">
-          <AICore :state="particleState" />
-        </div>
-      </section>
-
-      <aside class="echobot-right echobot-card">
-        <nav class="right-tabs">
-          <button
-            type="button"
-            :class="{ active: activeTab === 'chat' }"
-            @click="activeTab = 'chat'"
-          >
-            对话
-          </button>
-          <button
-            type="button"
-            :class="{ active: activeTab === 'sessions' }"
-            @click="activeTab = 'sessions'"
-          >
-            会话列表
-          </button>
-          <button type="button" class="new-chat" @click="newSession">＋ 新会话</button>
-        </nav>
-
-        <div v-show="activeTab === 'chat'" class="panel-chat">
-          <div class="panel-toolbar">
-            <div class="toolbar-well">
-              <div class="fld fld-grow">
-                <span class="lbl">角色卡</span>
-                <div
-                  class="ui-select ui-select-wide"
-                  :class="{ open: charPickerOpen, disabled: isSending }"
-                >
-                  <button
-                    type="button"
-                    class="ui-select-trigger"
-                    :disabled="isSending"
-                    @click.stop="toggleCharPicker"
-                  >
-                    <span class="ui-select-value">{{
-                      characterCards.find(x => x.key === selectedCharacterKey)?.name || '—'
-                    }}</span>
-                    <svg
-                      class="ui-select-chev"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
-                    </svg>
-                  </button>
-                  <div v-show="charPickerOpen" class="ui-select-panel" role="listbox">
-                    <button
-                      v-for="c in characterCards"
-                      :key="c.key"
-                      type="button"
-                      class="ui-select-opt"
-                      :class="{ active: c.key === selectedCharacterKey }"
-                      role="option"
-                      @click.stop="pickCharacter(c.key)"
-                    >
-                      <span class="ui-select-opt-main">{{ c.name }}</span>
-                      <span class="ui-select-opt-sub">{{ c.description }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="agent-toggle">
-              <button
-                type="button"
-                class="agent-btn"
-                :class="{ active: multiAgentMode }"
-                :disabled="isSending"
-                @click="toggleMultiAgentMode()"
-                :title="
-                  multiAgentMode ? '多Agent协作：Planner→Executor→Reviewer' : '点击开启多Agent协作'
-                "
-              >
-                <Bot :size="16" />
-                {{ multiAgentMode ? 'Multi-Agent' : '单Agent' }}
-              </button>
-              <button
-                v-if="!multiAgentMode"
-                type="button"
-                class="agent-btn agent-btn-sm"
-                :class="{ active: agentMode }"
-                :disabled="isSending"
-                @click="toggleAgentMode()"
-              >
-                <MessageSquare :size="14" />
-                {{ agentMode ? 'Agent' : '普通' }}
-              </button>
-            </div>
-          </div>
-
-          <div ref="chatScrollRef" class="chat-scroll">
-            <p v-if="!messages.length && !toolStatus" class="chat-empty">
-              输入消息开始对话，支持上传 TXT。{{
-                multiAgentMode
-                  ? 'Multi-Agent 模式：自动拆解任务、并行执行、自我纠错。'
-                  : '开启 Agent 模式可查询 starlore 数据。'
-              }}
-            </p>
-            <div
-              v-for="(msg, i) in messages"
-              :key="i"
-              class="row"
-              :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
-              v-show="
-                msg.role === 'user' ||
-                msg.content ||
-                msg.reasoningContent ||
-                (i === messages.length - 1 && imageRecognitionContent)
-              "
-            >
-              <div class="bubble">
-                <div v-if="msg.role === 'assistant' && msg.reasoningContent" class="think-block">
-                  <div class="think-header" @click="toggleReasoning(i)">
-                    <span class="think-icon">🤔</span>
-                    <span class="think-label">思考过程</span>
-                    <span class="think-toggle">{{ reasoningCollapsed[i] ? '展开' : '收起' }}</span>
-                  </div>
-                  <div
-                    v-show="!reasoningCollapsed[i]"
-                    class="think-body"
-                    v-html="formatMessage(msg.reasoningContent)"
-                  ></div>
-                </div>
-                <!-- 图片识别结果：在最后一条 AI 消息且正在识别时显示 -->
-                <div
-                  v-if="
-                    msg.role === 'assistant' && i === messages.length - 1 && imageRecognitionContent
-                  "
-                  class="recognition-block"
-                >
-                  <div
-                    class="recognition-header"
-                    @click="imageRecognitionCollapsed = !imageRecognitionCollapsed"
-                  >
-                    <Image :size="14" />
-                    <span class="recognition-label">图片识别结果</span>
-                    <span class="recognition-toggle">{{
-                      imageRecognitionCollapsed ? '展开' : '收起'
-                    }}</span>
-                  </div>
-                  <div v-show="!imageRecognitionCollapsed" class="recognition-body">
-                    {{ imageRecognitionContent }}
-                  </div>
-                </div>
-                <img v-if="msg.imageUrl" :src="msg.imageUrl" class="chat-image" />
-                <!-- Multi-Agent 执行追踪（嵌入气泡，可折叠，保存在聊天记录中） -->
-                <div v-if="msg.agentTrace" class="agent-trace-block">
-                  <div class="trace-header" @click="toggleTrace(i)">
-                    <Bot :size="14" class="trace-icon-svg" />
-                    <span class="trace-label">Multi-Agent 执行追踪</span>
-                    <span v-if="msg.agentTrace.retryCount > 0" class="trace-retry"
-                      >重试 #{{ msg.agentTrace.retryCount }}</span
-                    >
-                    <span class="trace-toggle">{{ traceCollapsed[i] ? '展开' : '收起' }}</span>
-                  </div>
-                  <div v-show="!traceCollapsed[i]" class="trace-body">
-                    <!-- 规划 -->
-                    <div v-if="msg.agentTrace.planSummary" class="trace-section">
-                      <ClipboardList :size="14" class="trace-step-icon-svg" />
-                      <span class="trace-step-label">规划</span>
-                      <span class="trace-step-text">{{ msg.agentTrace.planSummary }}</span>
-                    </div>
-                    <!-- 子任务列表 -->
-                    <div v-if="msg.agentTrace.subtasks.length" class="trace-section">
-                      <Zap :size="14" class="trace-step-icon-svg accent" />
-                      <span class="trace-step-label">执行</span>
-                      <div class="trace-subtasks">
-                        <div
-                          v-for="st in msg.agentTrace.subtasks"
-                          :key="st.id"
-                          class="trace-subtask"
-                          :class="'st-' + st.status"
-                        >
-                          <span class="st-dot"></span>
-                          <span class="st-desc">{{ st.desc || `子任务 ${st.id}` }}</span>
-                          <CheckCircle
-                            v-if="st.status === 'done'"
-                            :size="12"
-                            class="st-icon-done"
-                          />
-                          <RefreshCw
-                            v-else-if="st.status === 'running'"
-                            :size="12"
-                            class="st-icon-running"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <!-- 审查结果 -->
-                    <div v-if="msg.agentTrace.reviewDecision" class="trace-section">
-                      <CheckCircle
-                        v-if="msg.agentTrace.reviewDecision === 'PASS'"
-                        :size="14"
-                        class="trace-step-icon-svg pass"
-                      />
-                      <RefreshCw
-                        v-else-if="msg.agentTrace.reviewDecision === 'REVISE'"
-                        :size="14"
-                        class="trace-step-icon-svg revise"
-                      />
-                      <XCircle v-else :size="14" class="trace-step-icon-svg fail" />
-                      <span class="trace-step-label">审查</span>
-                      <span
-                        class="trace-step-text"
-                        :class="'review-' + msg.agentTrace.reviewDecision.toLowerCase()"
-                      >
-                        {{
-                          msg.agentTrace.reviewDecision === 'PASS'
-                            ? '通过'
-                            : msg.agentTrace.reviewDecision === 'REVISE'
-                              ? '修正'
-                              : '未通过'
-                        }}
-                        <span v-if="msg.agentTrace.reviewFeedback" class="trace-feedback"
-                          >— {{ msg.agentTrace.reviewFeedback }}</span
-                        >
-                      </span>
-                    </div>
-                    <!-- 指标 -->
-                    <div v-if="msg.agentTrace.metrics" class="trace-section trace-metrics">
-                      <BarChart3 :size="14" class="trace-step-icon-svg" />
-                      <span class="trace-step-text"
-                        >Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{
-                          msg.agentTrace.metrics.tokensOut
-                        }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms</span
-                      >
-                    </div>
-                  </div>
-                </div>
-                <div
-                  v-if="msg.content"
-                  class="answer-text"
-                  v-html="formatMessage(msg.content)"
-                ></div>
-              </div>
-            </div>
-            <!-- 工具调用状态：显示在最后一条消息下方 -->
-            <div v-if="toolStatus" class="row is-ai">
-              <div class="bubble tool-status-bubble">
-                <span class="tool-spinner"></span>
-                <span>{{ toolStatus }}</span>
-              </div>
-            </div>
-            <!-- 加载动画：AI 正在思考（等待响应且无工具执行时显示） -->
-            <div v-if="isSending && !toolStatus && !hasReceivedContent" class="row is-ai">
-              <div class="bubble typing-indicator">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 快捷语言 -->
-          <div class="quick-replies">
-            <button
-              v-for="item in quickReplies"
-              :key="item"
-              type="button"
-              class="quick-reply-btn"
-              :disabled="isSending"
-              @click="useQuickReply(item)"
-            >
-              {{ item }}
-            </button>
-          </div>
-
-          <div class="input-block">
-            <!-- 图片预览 -->
-            <div v-if="pendingImagePreview" class="image-preview">
-              <img :src="pendingImagePreview" alt="预览" />
-              <button class="image-preview-close" @click="clearPendingImage">
-                <X :size="14" />
-              </button>
-            </div>
-            <textarea
-              v-model="inputText"
-              class="area"
-              rows="4"
-              :placeholder="
-                pendingImagePreview
-                  ? '描述一下你想让 AI 分析什么...'
-                  : '例如：今天帮我安排一下工作重点。'
-              "
-              :disabled="isSending"
-              @keydown="onKeydown"
-            />
-            <div class="input-bar">
-              <span class="tip"
-                >Shift + Enter 换行 ·
-                {{ isAdminUser ? '管理员无限制' : `今日剩余 ${dailyRemaining} 次` }}</span
-              >
-              <div class="input-bar-right">
-                <input
-                  ref="fileInputRef"
-                  type="file"
-                  accept=".txt,text/plain"
-                  class="hidden-file"
-                  @change="onTxtFile"
-                />
-                <input
-                  ref="imageInputRef"
-                  type="file"
-                  accept="image/*"
-                  class="hidden-file"
-                  @change="onImageUpload"
-                />
-                <button type="button" class="icon-btn" title="上传图片" @click="triggerImageUpload">
-                  <Image :size="16" />
-                </button>
-                <button type="button" class="icon-btn" title="上传 TXT" @click="triggerTxtUpload">
-                  <FileText :size="16" />
-                </button>
-                <button
-                  v-if="speechSupported"
-                  type="button"
-                  class="icon-btn"
-                  :class="{ 'voice-active': isListening }"
-                  :title="isListening ? '停止录音' : '语音输入'"
-                  @click="toggleVoiceInput"
-                >
-                  <Mic v-if="!isListening" :size="16" />
-                  <MicOff v-else :size="16" />
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  :class="{ 'tts-active': ttsEnabled }"
-                  :title="ttsEnabled ? '关闭 AI 朗读' : '开启 AI 朗读'"
-                  @click="toggleTTS()"
-                >
-                  <Volume2 v-if="ttsEnabled" :size="16" />
-                  <VolumeX v-else :size="16" />
-                </button>
-                <button
-                  type="button"
-                  class="send"
-                  :disabled="isSending || (!inputText.trim() && !pendingImage) || dailyExceeded"
-                  @click="sendMessage"
-                >
-                  {{ isSending ? '生成中…' : dailyExceeded ? '已达上限' : '发送' }}
-                </button>
-              </div>
-            </div>
-            <p v-if="connectionError" class="err">{{ connectionError }}</p>
-          </div>
-        </div>
-
-        <div v-show="activeTab === 'sessions'" class="panel-sessions">
-          <ul class="sess-list">
-            <li
-              v-for="s in sessions"
-              :key="s.id"
-              class="sess-item"
-              :class="{ current: s.id === currentSessionId }"
-              @click="loadSession(s.id)"
-            >
-              <div class="sess-title">{{ s.title }}</div>
-              <div class="sess-meta">{{ s.modelId }} · {{ s.characterKey }}</div>
-              <button type="button" class="del" @click="removeSession(s.id, $event)">
-                <Trash2 :size="14" />
-              </button>
-            </li>
-          </ul>
-          <p v-if="!sessions.length" class="empty">暂无会话，点「新会话」开始</p>
-        </div>
-      </aside>
+  <!-- Guest overlay -->
+  <div v-if="!userStore.isLoggedIn" class="guest-overlay">
+    <div class="guest-overlay-content">
+      <h2>AI 助手</h2>
+      <p>登录后即可使用 AI 对话功能</p>
+      <router-link to="/login" class="btn-primary">立即登录</router-link>
     </div>
   </div>
 
-  <ConfirmModal
-    :show="showDeleteSession"
-    title="确认删除"
-    message="确定删除该会话？"
-    confirm-text="删除"
-    @confirm="confirmDeleteSession"
-    @cancel="showDeleteSession = false"
-  />
-
-  <!-- 沉浸模式 -->
+  <!-- 沉浸模式（仅登录后显示） -->
   <ImmersiveMode
-    v-if="immersiveActive"
+    v-if="immersiveActive && userStore.isLoggedIn"
     :messages="messages"
     :system-prompt="systemPrompt"
-    :agent-mode="agentMode"
+    :character-cards="characterCards"
+    :selected-character-key="selectedCharacterKey"
+    :is-sending="isSending"
+    :daily-remaining="dailyRemaining"
+    :daily-exceeded="dailyExceeded"
+    :sessions="sessions"
+    :current-session-id="currentSessionId"
     @close="exitImmersive"
+    @update:selected-character-key="selectedCharacterKey = $event"
+    @image-upload="handleImmersiveImageUpload"
+    @txt-upload="handleImmersiveTxtUpload"
+    @load-session="loadSession"
+    @new-session="newSession"
+    @delete-session="confirmDeleteSession"
+    @send="onImmersiveSend"
   />
 </template>
 
@@ -1511,33 +992,78 @@ onBeforeUnmount(() => {
 
 /* ── Guest Overlay ── */
 .guest-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 10000;
   background: var(--canvas);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-lg);
+  animation: overlay-fade-in 0.4s ease;
 }
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .guest-overlay-content {
   text-align: center;
-  padding: 40px;
+  padding: 48px 56px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-card-hover);
+  animation: content-rise 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.guest-overlay-icon {
-  font-size: 3rem;
-  margin-bottom: 16px;
+
+@keyframes content-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
+
 .guest-overlay-content h2 {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 800;
   color: var(--ink);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  letter-spacing: 0.02em;
 }
+
 .guest-overlay-content p {
   color: var(--ink-muted);
-  margin: 0 0 24px;
+  margin: 0 0 28px;
   font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.guest-overlay-content .btn-primary {
+  display: inline-block;
+  padding: 0.6rem 2rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-decoration: none;
+  box-shadow: var(--shadow-button);
+  transition: all 0.25s ease;
+}
+
+.guest-overlay-content .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-button-hover);
 }
 
 .echobot-page.page-container {
@@ -2456,11 +1982,6 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-.agent-btn-sm {
-  padding: 0.25rem 0.55rem;
-  font-size: 0.72rem;
-}
-
 /* ── Multi-Agent Progress Panel ── */
 .multi-agent-panel {
   background: var(--surface);
@@ -2955,6 +2476,15 @@ onBeforeUnmount(() => {
   .echobot-page {
     padding: 0.45rem 0.5rem 0.45rem;
   }
+
+  .guest-overlay-content {
+    padding: 32px 28px;
+    margin: 0 16px;
+  }
+
+  .guest-overlay-content h2 {
+    font-size: 1.25rem;
+  }
 }
 </style>
 
@@ -3078,5 +2608,18 @@ onBeforeUnmount(() => {
     transform: translateY(-6px);
     opacity: 1;
   }
+}
+
+/* ── 深色主题下的 Guest Overlay ── */
+[data-theme="dark"] .guest-overlay {
+  background: rgba(15, 17, 23, 0.78);
+}
+
+[data-theme="dark"] .guest-overlay-content {
+  background: rgba(26, 28, 38, 0.9);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2);
 }
 </style>

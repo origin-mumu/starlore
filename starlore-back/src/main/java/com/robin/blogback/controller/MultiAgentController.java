@@ -148,7 +148,7 @@ public class MultiAgentController {
                 } catch (Exception e) {
                     log.error("Multi-Agent execution error: {}", e.getMessage(), e);
                     sendSseEvent(emitter, "error", Map.of("error", "Agent 执行错误: " + e.getMessage()));
-                    emitter.complete();
+                    completeEmitter(emitter);
                     return;
                 }
 
@@ -225,22 +225,23 @@ public class MultiAgentController {
                 }
 
                 sendSseEvent(emitter, "done", Map.of("done", "true"));
-                emitter.complete();
+                completeEmitter(emitter);
 
             } catch (Exception e) {
                 log.error("Multi-Agent error: {}", e.getMessage(), e);
                 try {
                     sendSseEvent(emitter, "error", Map.of("error", "Agent 错误: " + e.getMessage()));
                 } catch (IOException ex) { /* ignore */ }
-                emitter.completeWithError(e);
+                completeEmitter(emitter);
             } finally {
+                multiAgentGraph.clearEvents();
                 UserContext.clear();
                 UserContext.clearCrossThread("multi-agent-stream");
                 SseContextHolder.clear("multi-agent-stream");
             }
         });
 
-        emitter.onTimeout(emitter::complete);
+        emitter.onTimeout(() -> completeEmitter(emitter));
         return emitter;
     }
 
@@ -309,5 +310,16 @@ public class MultiAgentController {
         event.put("type", type);
         event.putAll(data);
         emitter.send(event);
+    }
+
+    /**
+     * 安全地完成 SSE Emitter，避免超时竞态导致的 IllegalStateException。
+     */
+    private void completeEmitter(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (IllegalStateException ignored) {
+            // emitter 已被超时处理器完成，忽略
+        }
     }
 }

@@ -651,10 +651,12 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   padding: 32px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 
@@ -735,9 +737,11 @@ onMounted(async () => {
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 
@@ -784,9 +788,11 @@ onMounted(async () => {
 .use-case-card {
   text-align: center;
   padding: 32px 20px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 
@@ -834,8 +840,10 @@ onMounted(async () => {
   padding: 56px 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: var(--surface);
+  background: var(--glass-bg);
   box-shadow: 0 8px 40px oklch(0.5 0.01 200 / 0.06);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .vision-title {
@@ -893,11 +901,13 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 16px 32px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   text-decoration: none;
   color: var(--ink);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 
@@ -933,8 +943,10 @@ onMounted(async () => {
   padding: 48px 40px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: var(--surface);
+  background: var(--glass-bg);
   box-shadow: 0 8px 40px oklch(0.5 0.01 200 / 0.06);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .cta-code {
@@ -1024,11 +1036,13 @@ onMounted(async () => {
 
 .visual-card {
   position: absolute;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 20px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   animation: floatCard 6s ease-in-out infinite;
 }
 

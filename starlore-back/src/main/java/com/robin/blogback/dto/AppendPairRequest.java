@@ -6,4 +6,5 @@ import lombok.Data;
 public class AppendPairRequest {
     private String userContent;
     private String assistantContent;
+    private String agentTrace;
 }

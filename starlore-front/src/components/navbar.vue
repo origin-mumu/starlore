@@ -9,9 +9,7 @@ const userStore = useUserStore()
 const route = useRoute()
 
 const navItems = computed(() => {
-  const items: { name: string; path: string }[] = [
-    { name: '首页', path: '/' },
-  ]
+  const items: { name: string; path: string }[] = [{ name: '首页', path: '/' }]
   if (userStore.isLoggedIn) {
     items.push({ name: '星迹', path: '/articles' })
   }
@@ -22,7 +20,7 @@ const navItems = computed(() => {
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
     { name: '灵感', path: '/diverge' },
-    { name: 'AI', path: '/echobot' },
+    { name: 'AI', path: '/echobot' }
   )
   return items
 })
@@ -81,134 +79,139 @@ const mobileMoreItems = computed(() => {
   }
   return all
 })
-
 </script>
 
 <template>
   <div>
-  <!-- ── Desktop top navbar ── -->
-  <nav class="navbar desktop-nav">
-    <div class="nav-inner">
-      <div class="nav-brand" @click="router.push('/')">
-        <span class="brand-mark"></span>
-        <span class="brand-text">Starlore</span>
+    <!-- ── Desktop top navbar ── -->
+    <nav class="navbar desktop-nav">
+      <div class="nav-inner">
+        <div class="nav-brand" @click="router.push('/')">
+          <span class="brand-mark"></span>
+          <span class="brand-text">Starlore</span>
+        </div>
+
+        <button class="mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="菜单">
+          <span :class="{ open: mobileMenuOpen }"></span>
+        </button>
+
+        <div class="nav-links" :class="{ open: mobileMenuOpen }">
+          <RouterLink
+            v-for="item in navItems"
+            :key="item.path"
+            :to="item.path"
+            class="nav-link"
+            :class="{ active: isActive(item.path) }"
+            @click="mobileMenuOpen = false"
+          >
+            {{ item.name }}
+          </RouterLink>
+
+          <span class="nav-divider"></span>
+
+          <RouterLink
+            v-if="
+              userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')
+            "
+            to="/resume"
+            class="nav-link"
+            :class="{ active: isActive('/resume') }"
+            @click="mobileMenuOpen = false"
+          >
+            简历
+          </RouterLink>
+
+          <span class="nav-divider"></span>
+
+          <div class="theme-switcher" title="切换主题">
+            <button
+              v-for="t in themes"
+              :key="t.name"
+              class="theme-dot"
+              :class="{ active: themeStore.current === t.name }"
+              :style="{ '--dot-color': t.color }"
+              @click="themeStore.setTheme(t.name)"
+              :aria-label="t.label"
+            ></button>
+          </div>
+
+          <span class="nav-divider"></span>
+
+          <div v-if="userStore.isLoggedIn" class="user-area">
+            <span class="user-name" @click="router.push('/profile')">{{ userStore.nickname }}</span>
+          </div>
+          <RouterLink v-else to="/login" class="nav-link" @click="mobileMenuOpen = false"
+            >登录</RouterLink
+          >
+        </div>
       </div>
+    </nav>
 
-      <button class="mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="菜单">
-        <span :class="{ open: mobileMenuOpen }"></span>
-      </button>
-
-      <div class="nav-links" :class="{ open: mobileMenuOpen }">
+    <!-- ── Mobile bottom bar (same pill style as desktop) ── -->
+    <nav class="navbar mobile-nav">
+      <div class="nav-inner">
         <RouterLink
-          v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
+          v-for="tab in mobileMainTabs"
+          :key="tab.path"
+          :to="tab.path"
           class="nav-link"
-          :class="{ active: isActive(item.path) }"
-          @click="mobileMenuOpen = false"
+          :class="{ active: isActive(tab.path) }"
         >
-          {{ item.name }}
+          {{ tab.name }}
         </RouterLink>
 
-        <span class="nav-divider"></span>
-
-        <RouterLink
-          v-if="userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')"
-          to="/resume"
-          class="nav-link"
-          :class="{ active: isActive('/resume') }"
-          @click="mobileMenuOpen = false"
+        <!-- "更多" button toggles dropdown -->
+        <button
+          class="nav-link more-btn"
+          :class="{ active: moreOpen }"
+          @click="moreOpen = !moreOpen"
         >
-          简历
-        </RouterLink>
+          更多
+        </button>
 
-        <span class="nav-divider"></span>
+        <!-- more dropdown -->
+        <div v-if="moreOpen" class="more-dropdown" @click.stop>
+          <RouterLink
+            v-for="item in mobileMoreItems"
+            :key="item.path"
+            :to="item.path"
+            class="nav-link drop-item"
+            :class="{ active: isActive(item.path) }"
+            @click="moreOpen = false"
+          >
+            {{ item.name }}
+          </RouterLink>
 
-        <div class="theme-switcher" title="切换主题">
-          <button
-            v-for="t in themes"
-            :key="t.name"
-            class="theme-dot"
-            :class="{ active: themeStore.current === t.name }"
-            :style="{ '--dot-color': t.color }"
-            @click="themeStore.setTheme(t.name)"
-            :aria-label="t.label"
-          ></button>
+          <span class="nav-divider drop-divider"></span>
+
+          <RouterLink
+            v-if="
+              userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')
+            "
+            to="/resume"
+            class="nav-link drop-item"
+            :class="{ active: isActive('/resume') }"
+            @click="moreOpen = false"
+          >
+            简历
+          </RouterLink>
+
+          <div v-if="userStore.isLoggedIn" class="drop-user">
+            <span
+              class="drop-user-name"
+              @click="router.push('/profile'); moreOpen = false"
+              >{{ userStore.nickname }}</span
+            >
+          </div>
+          <RouterLink v-else to="/login" class="nav-link drop-item" @click="moreOpen = false">
+            登录
+          </RouterLink>
         </div>
-
-        <span class="nav-divider"></span>
-
-        <div v-if="userStore.isLoggedIn" class="user-area">
-          <span class="user-name" @click="router.push('/profile')">{{ userStore.nickname }}</span>
-          <button class="user-logout" @click="handleLogout">退出</button>
-        </div>
-        <RouterLink v-else to="/login" class="nav-link" @click="mobileMenuOpen = false"
-          >登录</RouterLink
-        >
       </div>
-    </div>
-  </nav>
+    </nav>
 
-  <!-- ── Mobile bottom bar (same pill style as desktop) ── -->
-  <nav class="navbar mobile-nav">
-    <div class="nav-inner">
-      <RouterLink
-        v-for="tab in mobileMainTabs"
-        :key="tab.path"
-        :to="tab.path"
-        class="nav-link"
-        :class="{ active: isActive(tab.path) }"
-      >
-        {{ tab.name }}
-      </RouterLink>
-
-      <!-- "更多" button toggles dropdown -->
-      <button
-        class="nav-link more-btn"
-        :class="{ active: moreOpen }"
-        @click="moreOpen = !moreOpen"
-      >
-        更多
-      </button>
-
-      <!-- more dropdown -->
-      <div v-if="moreOpen" class="more-dropdown" @click.stop>
-        <RouterLink
-          v-for="item in mobileMoreItems"
-          :key="item.path"
-          :to="item.path"
-          class="nav-link drop-item"
-          :class="{ active: isActive(item.path) }"
-          @click="moreOpen = false"
-        >
-          {{ item.name }}
-        </RouterLink>
-
-        <span class="nav-divider drop-divider"></span>
-
-        <RouterLink
-          v-if="userStore.isLoggedIn && (userStore.role === 'member' || userStore.role === 'admin')"
-          to="/resume"
-          class="nav-link drop-item"
-          :class="{ active: isActive('/resume') }"
-          @click="moreOpen = false"
-        >
-          简历
-        </RouterLink>
-
-        <div v-if="userStore.isLoggedIn" class="drop-user">
-          <span class="drop-user-name" @click="router.push('/profile'); moreOpen = false">{{ userStore.nickname }}</span>
-          <button class="user-logout" @click="handleLogout">退出</button>
-        </div>
-        <RouterLink v-else to="/login" class="nav-link drop-item" @click="moreOpen = false">
-          登录
-        </RouterLink>
-      </div>
-    </div>
-  </nav>
-
-  <!-- click outside to close more dropdown -->
-  <div v-if="moreOpen" class="more-backdrop" @click="moreOpen = false"></div>
+    <!-- click outside to close more dropdown -->
+    <div v-if="moreOpen" class="more-backdrop" @click="moreOpen = false"></div>
   </div>
 </template>
 
@@ -216,9 +219,9 @@ const mobileMoreItems = computed(() => {
 /* ── Shared Navbar Pill Style ── */
 .navbar {
   position: fixed;
-  z-index: 100;
+  z-index: 10001;
   background: var(--nav-bg);
-  backdrop-filter: blur(30px);
+  backdrop-filter: blur(16px);
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-card);
 }
@@ -355,6 +358,7 @@ const mobileMoreItems = computed(() => {
   align-items: center;
   gap: 12px;
   margin-left: 8px;
+  margin-right: 8px;
 }
 
 .user-name {
@@ -459,7 +463,7 @@ const mobileMoreItems = computed(() => {
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
   min-width: 140px;
   white-space: nowrap;
-  z-index: 110;
+  z-index: 10002;
 }
 
 .drop-item {

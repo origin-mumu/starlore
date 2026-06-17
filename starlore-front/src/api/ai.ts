@@ -26,6 +26,7 @@ export type AiMessageRow = {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
+  agentTrace?: string
   createdAt: string
 }
 
@@ -84,15 +85,13 @@ export async function appendChatPair(
   sessionId: number,
   userContent: string,
   assistantContent: string,
+  agentTrace?: string,
 ) {
   return (await request.post(`/ai/sessions/${sessionId}/append`, {
     userContent,
     assistantContent,
+    agentTrace,
   })) as { success: boolean }
-}
-
-export function buildAgentSseUrl(model: string): string {
-  return `/api/ai/agent-sse?model=${model}`
 }
 
 export function buildMultiAgentSseUrl(model: string): string {

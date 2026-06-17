@@ -377,11 +377,13 @@ const formatDate = (dateString: string) => {
 
 /* ── 目录导航 ── */
 .toc-card {
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 2px 16px oklch(0.3 0.02 50 / 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .toc-header {
@@ -482,6 +484,13 @@ const formatDate = (dateString: string) => {
 }
 
 .detail-card-enter {
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 40px 48px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   opacity: 0;
   transform: translateY(14px);
   animation: detailCardIn 560ms ease forwards;
@@ -654,6 +663,10 @@ const formatDate = (dateString: string) => {
 
   .article-title {
     font-size: 1.75rem;
+  }
+
+  .detail-card-enter {
+    padding: 24px 20px;
   }
 }
 </style>

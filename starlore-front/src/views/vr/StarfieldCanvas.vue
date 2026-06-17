@@ -349,24 +349,29 @@ function animate() {
     nodePositions.set(node.id, node.getScreenPos())
   }
 
-  // Draw links
+  // Draw links — hover 时只显示与当前节点直接相连的线
   for (const [fromId, toId] of props.links) {
     const fromNode = knowledgeNodes.find(n => n.id === fromId)
     const toNode = knowledgeNodes.find(n => n.id === toId)
     const pos1 = nodePositions.get(fromId)
     const pos2 = nodePositions.get(toId)
     if (pos1 && pos2 && fromNode && toNode) {
+      const isConnected = hoveredNode && (hoveredNode.id === fromId || hoveredNode.id === toId)
+
+      // 有 hover 时，只画与 hover 节点相连的线，其余隐藏
+      if (hoveredNode && !isConnected) continue
+
       ctx.beginPath()
       ctx.moveTo(pos1.x, pos1.y)
       ctx.lineTo(pos2.x, pos2.y)
-      if (hoveredNode && (hoveredNode.id === fromId || hoveredNode.id === toId)) {
+      if (isConnected) {
         const grad = ctx.createLinearGradient(pos1.x, pos1.y, pos2.x, pos2.y)
         grad.addColorStop(0, fromNode.color + '99')
         grad.addColorStop(1, toNode.color + '99')
         ctx.strokeStyle = grad
         ctx.lineWidth = 1.2
         ctx.shadowBlur = 5
-        ctx.shadowColor = hoveredNode.color
+        ctx.shadowColor = hoveredNode?.color || '#ffffff'
       } else {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'
         ctx.lineWidth = 0.5

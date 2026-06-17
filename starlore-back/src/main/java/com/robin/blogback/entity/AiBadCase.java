@@ -1,6 +1,7 @@
 package com.robin.blogback.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
@@ -14,14 +15,21 @@ public class AiBadCase {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("user_id")
     private Integer userId;
     private String question;
+    @TableField("expected_answer")
     private String expectedAnswer;
+    @TableField("actual_answer")
     private String actualAnswer;
+    @TableField("agent_path")
     private String agentPath;
+    @TableField("error_message")
     private String errorMessage;
     private Integer tokens;
+    @TableField("latency_ms")
     private Long latencyMs;
+    @TableField("created_at")
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }

@@ -37,6 +37,10 @@ public class ReviewerAgent implements AgentNode {
             + "2. **准确性**：数据是否准确？是否有明显的错误？\n"
             + "3. **格式**：输出格式是否合理？是否需要调整？\n"
             + "4. **错误处理**：是否有未处理的错误或异常？\n\n"
+            + "## 重要说明\n"
+            + "- 不是所有查询都需要调用工具。简单的问候、闲聊、通用知识问答等，Executor 可以直接由模型生成回答而无需调用任何工具，这是正常且正确的。\n"
+            + "- 如果用户请求是简单的问候/自我介绍/闲聊，且执行计划合理，即使没有工具调用结果，也应判为 PASS。\n"
+            + "- 只有当执行结果中存在明确错误、数据不一致、或未能回答用户问题时，才应判为 REVISE 或 FAIL。\n\n"
             + "## 输出格式\n"
             + "请严格按以下 JSON 格式输出，不要输出其他内容：\n\n"
             + "{\n"
@@ -45,9 +49,13 @@ public class ReviewerAgent implements AgentNode {
             + "  \"suggestions\": [\"修正建议1\", \"修正建议2\"]\n"
             + "}\n\n"
             + "## 决策规则\n"
-            + "- PASS：结果完整、准确、格式合理\n"
+            + "- PASS：结果完整、准确、格式合理；或者用户请求无需工具调用（如问候、闲聊），执行流程正常\n"
             + "- REVISE：结果基本正确但有小问题（如缺少数据、格式不佳），可修正\n"
-            + "- FAIL：结果严重错误或完全无法使用";
+            + "- FAIL：结果严重错误或完全无法使用\n\n"
+            + "## 关键规则\n"
+            + "- 如果用户请求需要工具调用（查询数据、搜索文章等），且任何子任务结果以 \"ERROR:\" 开头，说明该子任务执行失败，**必须判为 REVISE 或 FAIL**，绝对不能判为 PASS。\n"
+            + "- 如果用户请求是问候/闲聊等不需要工具的场景，子任务中出现 ERROR 不影响判定，关注最终回答质量即可。\n"
+            + "- 只有当工具调用类请求的所有子任务都成功完成时，才能判为 PASS。";
 
     private final ChatClient chatClient;
     private final LangSmithTracer tracer;
@@ -117,9 +125,20 @@ public class ReviewerAgent implements AgentNode {
         sb.append(state.getPlanSummary()).append("\n\n");
 
         sb.append("## 执行结果\n");
-        for (Map.Entry<Integer, String> entry : state.getExecutionResults().entrySet()) {
-            sb.append("### 子任务 ").append(entry.getKey()).append("\n");
-            sb.append(entry.getValue()).append("\n\n");
+        if (state.getExecutionResults().isEmpty()) {
+            sb.append("（无需调用工具，由模型直接生成回答）\n\n");
+        } else {
+            for (Map.Entry<Integer, String> entry : state.getExecutionResults().entrySet()) {
+                sb.append("### 子任务 ").append(entry.getKey()).append("\n");
+                sb.append(entry.getValue()).append("\n\n");
+            }
+        }
+
+        // 包含最终回答，让 Reviewer 能评估完整输出质量
+        String finalAnswer = state.getFinalAnswer();
+        if (finalAnswer != null && !finalAnswer.isEmpty()) {
+            sb.append("## 最终回答\n");
+            sb.append(finalAnswer).append("\n\n");
         }
 
         if (state.getRetryCount() > 0) {

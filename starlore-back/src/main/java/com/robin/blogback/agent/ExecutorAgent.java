@@ -319,11 +319,29 @@ public class ExecutorAgent implements AgentNode {
         }
 
         StringBuilder merged = new StringBuilder();
-        merged.append("## 执行结果\n\n");
+        boolean hasSuccess = false;
 
         for (Map.Entry<Integer, String> entry : results.entrySet()) {
+            String value = entry.getValue();
+            // 跳过失败的子任务
+            if (value != null && value.startsWith("ERROR:")) {
+                continue;
+            }
+            if (!hasSuccess) {
+                merged.append("## 执行结果\n\n");
+                hasSuccess = true;
+            }
             merged.append("### 子任务 ").append(entry.getKey()).append("\n");
-            merged.append(entry.getValue()).append("\n\n");
+            merged.append(value).append("\n\n");
+        }
+
+        // 如果全部失败，保留所有结果让 Reviewer 判断
+        if (!hasSuccess) {
+            merged.append("## 执行结果\n\n");
+            for (Map.Entry<Integer, String> entry : results.entrySet()) {
+                merged.append("### 子任务 ").append(entry.getKey()).append("\n");
+                merged.append(entry.getValue()).append("\n\n");
+            }
         }
 
         state.setFinalAnswer(merged.toString());

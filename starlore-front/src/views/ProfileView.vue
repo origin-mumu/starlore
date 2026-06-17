@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { useRouter, useRoute } from 'vue-router'
 import { changePasswordService } from '@/api/auth'
 import { uploadImage } from '@/api/article'
 import {
@@ -16,6 +17,21 @@ import SideBar from '@/components/sideBar.vue'
 import defaultAvatar from '@/assets/avatar.jpg'
 
 const userStore = useUserStore()
+const router = useRouter()
+const route = useRoute()
+
+const guestAllowedPaths = ['/', '/about', '/categories', '/vr', '/diverge', '/echobot']
+
+const handleLogout = () => {
+  userStore.logout()
+  const path = route.path
+  const isGuestAllowed = guestAllowedPaths.some(p => path === p || path.startsWith(p + '/'))
+  if (isGuestAllowed) {
+    router.go(0)
+  } else {
+    router.push('/login')
+  }
+}
 
 // 头像上传
 const avatarUploading = ref(false)
@@ -457,6 +473,17 @@ const handleChangePassword = async () => {
               </template>
             </el-dialog>
 
+            <!-- 退出登录 -->
+            <div class="profile-card profile-card--danger fade-in-up" style="animation-delay: 180ms">
+              <div class="danger-row">
+                <div class="danger-info">
+                  <span class="danger-label">退出登录</span>
+                  <span class="danger-desc">退出当前账号，返回首页</span>
+                </div>
+                <button class="btn-logout" @click="handleLogout">退出登录</button>
+              </div>
+            </div>
+
             <!-- 我的项目 -->
             <div class="profile-card fade-in-up" style="animation-delay: 240ms">
               <div class="section-header">
@@ -561,11 +588,13 @@ const handleChangePassword = async () => {
 }
 
 .profile-card {
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 32px;
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 .section-heading {
@@ -757,6 +786,55 @@ const handleChangePassword = async () => {
   color: var(--ink-muted);
 }
 
+/* ─── Danger / Logout ─── */
+.profile-card--danger {
+  border-color: oklch(0.65 0.15 25 / 0.2);
+}
+
+.danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.danger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.danger-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.danger-desc {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.btn-logout {
+  padding: 8px 24px;
+  border: 1px solid oklch(0.65 0.15 25 / 0.3);
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #9b3a2a;
+  background: oklch(0.55 0.15 25 / 0.06);
+  transition: all var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn-logout:hover {
+  background: oklch(0.55 0.15 25 / 0.12);
+  border-color: oklch(0.55 0.15 25 / 0.5);
+  box-shadow: 0 2px 8px oklch(0.55 0.15 25 / 0.15);
+}
+
 .btn-outline {
   padding: 8px 20px;
   border: 1px solid var(--border);
@@ -856,7 +934,9 @@ const handleChangePassword = async () => {
 
 :deep(.el-dialog) {
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
 }
 
 :deep(.el-dialog__header) {

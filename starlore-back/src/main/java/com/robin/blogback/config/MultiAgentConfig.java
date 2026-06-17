@@ -3,9 +3,9 @@ package com.robin.blogback.config;
 import com.robin.blogback.agent.ExecutorAgent;
 import com.robin.blogback.agent.PlannerAgent;
 import com.robin.blogback.agent.ReviewerAgent;
+import com.robin.blogback.agent.SynthesizerAgent;
 import com.robin.blogback.entity.AiConfig;
 import com.robin.blogback.graph.AgentGraph;
-import com.robin.blogback.graph.AgentState;
 import com.robin.blogback.observability.AgentMetrics;
 import com.robin.blogback.observability.BadCaseCollector;
 import com.robin.blogback.observability.LangSmithTracer;
@@ -81,6 +81,14 @@ public class MultiAgentConfig {
         return createChatModel("reviewer", 0.2);
     }
 
+    /**
+     * Synthesizer 专用 ChatModel（中等 temperature，允许自然表达）。
+     */
+    @Bean("synthesizerChatModel")
+    public ChatModel synthesizerChatModel() {
+        return createChatModel("synthesizer", 0.4);
+    }
+
     // ========== ChatClient Beans ==========
 
     @Bean("plannerChatClient")
@@ -96,6 +104,11 @@ public class MultiAgentConfig {
     @Bean("reviewerChatClient")
     public ChatClient reviewerChatClient(ChatModel reviewerChatModel) {
         return ChatClient.builder(reviewerChatModel).build();
+    }
+
+    @Bean("synthesizerChatClient")
+    public ChatClient synthesizerChatClient(ChatModel synthesizerChatModel) {
+        return ChatClient.builder(synthesizerChatModel).build();
     }
 
     // ========== Agent Beans ==========
@@ -116,42 +129,44 @@ public class MultiAgentConfig {
         return new ReviewerAgent(reviewerChatClient, langSmithTracer, badCaseCollector);
     }
 
+    @Bean("synthesizerAgent")
+    public SynthesizerAgent synthesizerAgent(ChatClient synthesizerChatClient) {
+        return new SynthesizerAgent(synthesizerChatClient, langSmithTracer);
+    }
+
     // ========== AgentGraph Bean ==========
 
     /**
      * 编排 Multi-Agent Graph：
      * <pre>
-     * [START] -> [Planner] -> [Executor] -> [Reviewer] ─┬─ PASS -> [Synthesizer] -> [END]
+     * [START] -> [Planner] -> [Executor] -> [Reviewer] ─┬─ PASS ──────────────┐
      *                                                    ├─ REVISE & canRetry -> [Executor]
-     *                                                    └─ FAIL / retryExhausted -> [END]
+     *                                                    └─ FAIL / exhausted ──┐
+     *                                                                          ▼
+     *                                                                     [Synthesizer] -> [END]
      * </pre>
      */
     @Bean("multiAgentGraph")
     public AgentGraph multiAgentGraph(PlannerAgent plannerAgent,
                                        ExecutorAgent executorAgent,
-                                       ReviewerAgent reviewerAgent) {
+                                       ReviewerAgent reviewerAgent,
+                                       SynthesizerAgent synthesizerAgent) {
         return AgentGraph.builder()
                 .node("planner", plannerAgent)
                 .node("executor", executorAgent)
                 .node("reviewer", reviewerAgent)
-                .node("synthesizer", this::synthesizeFinalAnswer)
+                .node("synthesizer", synthesizerAgent)
                 .edge(AgentGraph.START, "planner")
                 .edge("planner", "executor")
                 .edge("executor", "reviewer")
                 .conditionalEdge("reviewer", state -> {
                     String decision = state.getReviewDecision();
-                    if ("PASS".equals(decision)) {
-                        return "synthesizer";
-                    } else if ("REVISE".equals(decision) && state.canRetry()) {
+                    if ("REVISE".equals(decision) && state.canRetry()) {
                         state.incrementRetryCount();
                         return "executor";
-                    } else {
-                        // FAIL 或重试耗尽
-                        if (state.getFinalAnswer() == null || state.getFinalAnswer().isEmpty()) {
-                            state.setFinalAnswer("执行失败：" + state.getReviewFeedback());
-                        }
-                        return AgentGraph.END;
                     }
+                    // PASS 和 FAIL 都走 Synthesizer
+                    return "synthesizer";
                 })
                 .edge("synthesizer", AgentGraph.END)
                 .onEvent((type, state, nodeId) -> {
@@ -170,24 +185,6 @@ public class MultiAgentConfig {
     }
 
     // ========== 内部方法 ==========
-
-    /**
-     * 最终答案合成节点：将 Executor 的结果和 Reviewer 的反馈整合为最终输出。
-     */
-    private AgentState synthesizeFinalAnswer(AgentState state) {
-        String answer = state.getFinalAnswer();
-        if (answer == null || answer.isEmpty()) {
-            // 从执行结果中组装答案
-            StringBuilder sb = new StringBuilder();
-            for (var entry : state.getExecutionResults().entrySet()) {
-                sb.append(entry.getValue()).append("\n\n");
-            }
-            answer = sb.toString().trim();
-        }
-        state.setFinalAnswer(answer);
-        state.addMessage("assistant", answer);
-        return state;
-    }
 
     private ChatModel createChatModel(String role, double temperature) {
         AiConfig dbConfig = aiConfigService.getConfigByKey("deepseek-v4-flash");

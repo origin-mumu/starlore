@@ -190,10 +190,10 @@ public class AgentStreamController {
                         .doOnComplete(() -> {
                             try {
                                 emitter.send(Map.of("done", "true"));
-                                emitter.complete();
                             } catch (IOException e) {
-                                emitter.complete();
+                                // 忽略
                             }
+                            completeEmitter(emitter);
                             UserContext.clear();
                             UserContext.clearCrossThread("agent-stream");
                             SseContextHolder.clear("agent-stream");
@@ -207,14 +207,14 @@ public class AgentStreamController {
                 } catch (IOException ex) {
                     // 忽略
                 }
-                emitter.completeWithError(e);
+                completeEmitter(emitter);
                 UserContext.clear();
                 UserContext.clearCrossThread("agent-stream");
                 SseContextHolder.clear("agent-stream");
             }
         });
 
-        emitter.onTimeout(emitter::complete);
+        emitter.onTimeout(() -> completeEmitter(emitter));
         return emitter;
     }
 
@@ -231,5 +231,16 @@ public class AgentStreamController {
         }
         int count = articleEmbeddingService.reindexAll(userId);
         return Map.of("success", true, "message", "已索引 " + count + " 篇文章", "count", count);
+    }
+
+    /**
+     * 安全地完成 SSE Emitter，避免超时竞态导致的 IllegalStateException。
+     */
+    private void completeEmitter(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (IllegalStateException ignored) {
+            // emitter 已被超时处理器完成，忽略
+        }
     }
 }
