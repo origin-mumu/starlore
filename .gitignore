@@ -46,6 +46,9 @@ __screenshots__/
 
 # Spring Boot 配置文件（含数据库密码、API Key 等敏感信息）
 application*.yaml
+!starlore-back/src/main/resources/application.yaml
+!starlore-back/src/main/resources/application-prod.yaml
+!starlore-back/src/main/resources/application-dev.yaml
 
 # Blog-back相关
 blog-back/.env

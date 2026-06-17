@@ -1,0 +1,68 @@
+server:
+  port: 5000
+  tomcat:
+    max-http-form-post-size: 10MB
+    max-swallow-size: 10MB
+    connection-timeout: 120s
+  max-http-request-header-size: 64KB
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  profiles:
+    active: dev
+  application:
+    name: blog-back
+  datasource:
+    username: ro-blog
+    password: "MdzhbWKFyHpNHwCk"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      keepalive-time: 30000
+      max-lifetime: 600000
+      idle-timeout: 600000
+      connection-timeout: 10000
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jackson:
+    date-format: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+    time-zone: "Asia/Shanghai"
+  mvc:
+    async:
+      request-timeout: 120000
+  ai:
+    openai:
+      api-key:
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+  type-handlers-package: com.robin.blogback.config
+
+langsmith:
+  tracing:
+    enabled: true
+  api-key: ${LANGCHAIN_API_KEY:}
+  project: starlore-java
+  endpoint: https://api.smith.langchain.com
+
+app:
+  jwt:
+    secret: ro-blog-secret-key-2024
+    expiration: 604800000
+  minio:
+    endpoint: http://47.94.128.65:9000
+    public-url: https://www.starlore.cn/minio
+    access-key: minioadmin
+    secret-key: minioadmin123456
+    bucket: my-files
