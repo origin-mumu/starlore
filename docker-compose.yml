@@ -1,69 +1,54 @@
 services:
-  # ---- 基础设施 ----
-  mysql:
-    image: mysql:8.0
+  # ---- 应用服务 ----
+  # Java 后端
+  starlore-back:
+    image: ghcr.io/origin-mumu/starlore/starlore-back:latest
     restart: unless-stopped
-    ports:
-      - "3307:3306"
+    depends_on:
+      - minio
     environment:
-      MYSQL_DATABASE: starlore
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
+      # 数据库连接：使用环境变量，指向宿主机上的宝塔 MySQL (默认网关 172.17.0.1，库名 ro-blog)
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST:-172.17.0.1}:3306/${DB_NAME:-ro-blog}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&autoReconnect=true
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      # MinIO 配置
+      - APP_MINIO_ENDPOINT=http://minio:9000
+      - APP_MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - APP_MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - APP_MINIO_BUCKET=${MINIO_BUCKET}
+      # AI 配置
+      - SPRING_AI_OPENAI_BASE_URL=${AI_API_URL}
+      - SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=${AI_MODEL}
+      # JWT 配置
+      - APP_JWT_SECRET=${JWT_SECRET}
+      # LangSmith 配置
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      # PDF 服务配置：指回宿主机的 PM2 端口 (通常是 Docker 默认网桥网关 172.17.0.1)
+      - PDF_SERVICE_URL=http://172.17.0.1:3001
 
+  # MinIO 对象存储
   minio:
     image: minio/minio
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
-    command: server /data --console-address :9001
+      - "9000:9000"  # 外部/浏览器直传使用
+      - "9001:9001"  # 控制台后台管理
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
     volumes:
-      - minio_data:/data
+      # 支持从环境文件传入原有宝塔 MinIO 的宿主机挂载目录，默认使用命名卷
+      - ${MINIO_DATA_PATH:-minio_data}:/data
+    command: server /data --console-address ":9001"
 
-  # ---- 应用服务 ----
-  starlore-back:
-    image: ghcr.io/origin-mumu/starlore/starlore-back:latest
-    restart: unless-stopped
-    ports:
-      - "8081:5000"
-    depends_on:
-      mysql:
-        condition: service_started
-      minio:
-        condition: service_started
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/starlore?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      APP_JWT_SECRET: ${JWT_SECRET}
-      APP_MINIO_ENDPOINT: http://minio:9000
-      APP_MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      APP_MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      APP_MINIO_BUCKET: ${MINIO_BUCKET}
-      SPRING_AI_OPENAI_BASE_URL: ${AI_API_URL}
-      SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL: ${AI_MODEL}
-      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
-
+  # 前端
   starlore-front:
     image: ghcr.io/origin-mumu/starlore/starlore-front:latest
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "5173:80"  # 必须暴露，用于宝塔 Nginx 做反向代理
     depends_on:
       - starlore-back
 
-  starlore-pdf:
-    image: ghcr.io/origin-mumu/starlore/starlore-pdf:latest
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-
 volumes:
-  mysql_data:
   minio_data:
