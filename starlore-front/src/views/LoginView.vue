@@ -1,6 +1,22 @@
 <template>
   <div class="auth-page">
+    <!-- 宇宙底景星云光晕 -->
+    <div class="auth-bg-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
     <div class="auth-card fade-in-up" :class="{ 'auth-card--wide': activeTab === 'register' }">
+      <!-- 品牌标志与标题 -->
+      <div class="brand-section">
+        <div class="brand-logo">
+          <Sparkles class="logo-icon" :size="28" />
+        </div>
+        <h1 class="brand-title">Starlore</h1>
+        <p class="brand-tagline">用理性的光芒照亮人文的星空</p>
+      </div>
+
       <div class="auth-header">
         <div class="auth-tabs">
           <button
@@ -19,7 +35,7 @@
           </button>
         </div>
         <p class="auth-subtitle">
-          {{ activeTab === 'login' ? '欢迎回到 Starlore' : '加入 Starlore，开启你的知识之旅' }}
+          {{ activeTab === 'login' ? '欢迎回到知识星空' : '开启您的学术与文学探索之旅' }}
         </p>
       </div>
 
@@ -27,29 +43,44 @@
       <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="auth-form">
         <div class="form-field">
           <label for="login-username">用户名</label>
-          <input
-            id="login-username"
-            v-model="loginForm.username"
-            type="text"
-            placeholder="请输入用户名"
-            autocomplete="username"
-            required
-          />
+          <div class="input-wrapper">
+            <User class="input-icon" :size="18" />
+            <input
+              id="login-username"
+              v-model="loginForm.username"
+              type="text"
+              placeholder="请输入用户名"
+              autocomplete="username"
+              required
+            />
+          </div>
         </div>
         <div class="form-field">
           <label for="login-password">密码</label>
-          <input
-            id="login-password"
-            v-model="loginForm.password"
-            type="password"
-            placeholder="请输入密码"
-            autocomplete="current-password"
-            required
-          />
+          <div class="input-wrapper">
+            <Lock class="input-icon" :size="18" />
+            <input
+              id="login-password"
+              v-model="loginForm.password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="请输入密码"
+              autocomplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              @click="showPassword = !showPassword"
+              tabindex="-1"
+            >
+              <Eye v-if="!showPassword" :size="18" />
+              <EyeOff v-else :size="18" />
+            </button>
+          </div>
         </div>
         <button type="submit" class="auth-btn" :disabled="userStore.loading">
           <span v-if="userStore.loading" class="btn-spinner"></span>
-          {{ userStore.loading ? '登录中...' : '登 录' }}
+          {{ userStore.loading ? '正在跃迁...' : '登 录' }}
         </button>
         <p v-if="errorMsg" class="auth-error">{{ errorMsg }}</p>
       </form>
@@ -62,54 +93,92 @@
       >
         <div class="form-field">
           <label for="reg-username">用户名 <span class="required">*</span></label>
-          <input
-            id="reg-username"
-            v-model="registerForm.username"
-            type="text"
-            placeholder="请输入用户名"
-            autocomplete="username"
-            required
-          />
+          <div class="input-wrapper">
+            <User class="input-icon" :size="18" />
+            <input
+              id="reg-username"
+              v-model="registerForm.username"
+              type="text"
+              placeholder="请输入用户名"
+              autocomplete="username"
+              required
+            />
+          </div>
         </div>
         <div class="form-field">
           <label for="reg-nickname">昵称</label>
-          <input
-            id="reg-nickname"
-            v-model="registerForm.nickname"
-            type="text"
-            placeholder="给自己起个昵称（选填）"
-          />
+          <div class="input-wrapper">
+            <User class="input-icon" :size="18" />
+            <input
+              id="reg-nickname"
+              v-model="registerForm.nickname"
+              type="text"
+              placeholder="给自己起个昵称"
+            />
+          </div>
         </div>
         <div class="form-field">
           <label for="reg-password">密码 <span class="required">*</span></label>
-          <input
-            id="reg-password"
-            v-model="registerForm.password"
-            type="password"
-            placeholder="至少6位密码"
-            autocomplete="new-password"
-            required
-          />
+          <div class="input-wrapper">
+            <Lock class="input-icon" :size="18" />
+            <input
+              id="reg-password"
+              v-model="registerForm.password"
+              :type="showRegPassword ? 'text' : 'password'"
+              placeholder="至少6位密码"
+              autocomplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              @click="showRegPassword = !showRegPassword"
+              tabindex="-1"
+            >
+              <Eye v-if="!showRegPassword" :size="18" />
+              <EyeOff v-else :size="18" />
+            </button>
+          </div>
         </div>
         <div class="form-field">
           <label for="reg-confirm">确认密码 <span class="required">*</span></label>
-          <input
-            id="reg-confirm"
-            v-model="confirmPassword"
-            type="password"
-            placeholder="请再次输入密码"
-            autocomplete="new-password"
-            required
-          />
+          <div class="input-wrapper">
+            <Lock class="input-icon" :size="18" />
+            <input
+              id="reg-confirm"
+              v-model="confirmPassword"
+              :type="showRegConfirmPassword ? 'text' : 'password'"
+              placeholder="请再次输入密码"
+              autocomplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              @click="showRegConfirmPassword = !showRegConfirmPassword"
+              tabindex="-1"
+            >
+              <Eye v-if="!showRegConfirmPassword" :size="18" />
+              <EyeOff v-else :size="18" />
+            </button>
+          </div>
         </div>
         <div class="form-field form-field--full">
           <button type="submit" class="auth-btn" :disabled="userStore.loading">
             <span v-if="userStore.loading" class="btn-spinner"></span>
-            {{ userStore.loading ? '注册中...' : '注 册' }}
+            {{ userStore.loading ? '正在注册...' : '注 册' }}
           </button>
         </div>
         <p v-if="errorMsg" class="auth-error form-field--full">{{ errorMsg }}</p>
       </form>
+
+      <!-- 返回首页 -->
+      <div class="auth-footer">
+        <router-link to="/" class="back-home">
+          <ArrowLeft class="back-icon" :size="16" />
+          <span>返回首页</span>
+        </router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -118,12 +187,17 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { User, Lock, Eye, EyeOff, Sparkles, ArrowLeft } from '@lucide/vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 const activeTab = ref<'login' | 'register'>('login')
 const errorMsg = ref('')
+
+const showPassword = ref(false)
+const showRegPassword = ref(false)
+const showRegConfirmPassword = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -140,6 +214,9 @@ const confirmPassword = ref('')
 const switchTab = (tab: 'login' | 'register') => {
   activeTab.value = tab
   errorMsg.value = ''
+  showPassword.value = false
+  showRegPassword.value = false
+  showRegConfirmPassword.value = false
 }
 
 const handleLogin = async () => {
@@ -194,9 +271,112 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  padding: 20px;
+  background: var(--canvas); /* Use theme background variable */
+  padding: 40px 20px;
   overflow: hidden;
+}
+
+/* ── Dynamic Nebula Orbs ── */
+.auth-bg-orbs {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.15;
+  transition: all 1s var(--ease-out-quart);
+}
+
+.orb-1 {
+  width: min(45vw, 400px);
+  height: min(45vw, 400px);
+  background: var(--orb-1, var(--accent));
+  top: -10%;
+  left: -5%;
+  animation: float1 20s infinite alternate ease-in-out;
+}
+
+.orb-2 {
+  width: min(55vw, 500px);
+  height: min(55vw, 500px);
+  background: var(--orb-2, var(--accent-hover));
+  bottom: -10%;
+  right: -5%;
+  animation: float2 25s infinite alternate ease-in-out;
+}
+
+.orb-3 {
+  width: min(35vw, 300px);
+  height: min(35vw, 300px);
+  background: var(--orb-3, var(--accent-soft));
+  top: 35%;
+  left: 60%;
+  animation: float3 18s infinite alternate ease-in-out;
+}
+
+@keyframes float1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 30px) scale(1.15); }
+}
+
+@keyframes float2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-50px, -40px) scale(1.2); }
+}
+
+@keyframes float3 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, -30px) scale(0.9); }
+}
+
+/* ── Brand Section ── */
+.brand-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.brand-logo {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 15%, transparent);
+  animation: logoPulse 4s infinite ease-in-out;
+}
+
+.brand-title {
+  font-family: 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.brand-tagline {
+  font-family: 'LXGW WenKai', serif;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 4px 0 0 0;
+  opacity: 0.8;
+}
+
+@keyframes logoPulse {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.06) rotate(15deg); }
 }
 
 /* ── Glass Card ── */
@@ -204,39 +384,40 @@ const handleRegister = async () => {
   position: relative;
   z-index: 1;
   background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
-  border-radius: 24px;
-
-  box-shadow:
-    0 12px 40px oklch(0.55 0.15 35 / 0.06),
-    0 2px 8px oklch(0.55 0.15 35 / 0.04);
-  padding: 48px 40px 40px;
+  border-radius: 28px;
+  box-shadow: var(--shadow-card);
+  padding: 40px 32px 32px;
   width: 100%;
   max-width: 420px;
-  height: 500px;
   display: flex;
   flex-direction: column;
+  transition: max-width 0.4s var(--ease-out-quart), box-shadow 0.3s;
+}
+
+.auth-card:hover {
+  box-shadow: var(--shadow-card-hover), 0 20px 48px color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .auth-card--wide {
-  max-width: 580px;
+  max-width: 540px;
 }
 
-/* ── Header ── */
+/* ── Header & Tabs ── */
 .auth-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
-/* ── Tabs (pill container) ── */
 .auth-tabs {
   display: flex;
-  gap: 0;
-  margin-bottom: 16px;
   background: var(--canvas-deep);
-
   border-radius: var(--radius-full);
   padding: 4px;
+  margin-bottom: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .auth-tab {
@@ -244,7 +425,7 @@ const handleRegister = async () => {
   padding: 10px 0;
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ink-muted);
   cursor: pointer;
@@ -257,16 +438,16 @@ const handleRegister = async () => {
   background: var(--accent);
   color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .auth-tab:hover:not(.active) {
   color: var(--ink);
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .auth-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-muted);
   margin: 0;
 }
@@ -275,11 +456,9 @@ const handleRegister = async () => {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  flex: 1;
+  gap: 16px;
 }
 
-/* 注册表单两列布局 */
 .auth-form--grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -297,22 +476,39 @@ const handleRegister = async () => {
 }
 
 .form-field label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--ink);
+  color: var(--ink-soft);
+  padding-left: 4px;
 }
 
 .required {
-  color: #c0392b;
+  color: var(--accent);
+  font-weight: bold;
 }
 
-/* ── Inputs (pill-shaped, glass background) ── */
-.form-field input {
-  padding: 12px 20px;
+/* ── Inputs (with icons) ── */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--ink-muted);
+  pointer-events: none;
+  transition: color var(--transition);
+}
+
+.input-wrapper input {
+  width: 100%;
+  padding: 12px 16px 12px 44px;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  font-size: 15px;
-  background: var(--surface);
+  font-size: 14px;
+  background: var(--canvas-deep);
   color: var(--ink);
   outline: none;
   transition: all var(--transition);
@@ -320,22 +516,47 @@ const handleRegister = async () => {
   box-sizing: border-box;
 }
 
-.form-field input::placeholder {
+.input-wrapper input::placeholder {
   color: var(--ink-muted);
 }
 
-.form-field input:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px oklch(0.55 0.15 35 / 0.12);
-  background: var(--surface-hover);
+.input-wrapper input:focus {
+  border-color: var(--border-interactive);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
+.input-wrapper input:focus + .input-icon,
+.input-wrapper input:focus ~ .input-icon {
+  color: var(--accent);
+}
+
+/* 密码切换按钮 */
+.password-toggle {
+  position: absolute;
+  right: 16px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition);
+}
+
+.password-toggle:hover {
+  color: var(--ink);
+}
+
+/* ── Button ── */
 .auth-btn {
-  margin-top: 4px;
-  padding: 14px;
+  margin-top: 8px;
+  padding: 13px;
   border: none;
   border-radius: var(--radius-full);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   color: #ffffff;
@@ -356,7 +577,6 @@ const handleRegister = async () => {
 
 .auth-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 8px 24px oklch(0.55 0.15 35 / 0.16);
 }
 
 .auth-btn:disabled {
@@ -366,8 +586,8 @@ const handleRegister = async () => {
 
 /* ── Spinner ── */
 .btn-spinner {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top: 2px solid #fff;
   border-radius: 50%;
@@ -375,40 +595,50 @@ const handleRegister = async () => {
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 /* ── Error ── */
 .auth-error {
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
   color: #c0392b;
   background: rgba(231, 76, 60, 0.08);
+  border: 1px solid rgba(231, 76, 60, 0.2);
   padding: 10px 14px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   margin: 0;
 }
 
 /* ── Footer / Back Link ── */
 .auth-footer {
-  margin-top: auto;
-  padding-top: 20px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
   text-align: center;
 }
 
 .back-home {
-  font-size: 15px;
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
   text-decoration: none;
   font-weight: 500;
   transition: color var(--transition);
 }
 
 .back-home:hover {
-  color: var(--accent-hover);
-  text-decoration: underline;
+  color: var(--accent);
+}
+
+.back-icon {
+  transition: transform var(--transition);
+}
+
+.back-home:hover .back-icon {
+  transform: translateX(-4px);
 }
 
 /* ── Responsive ── */
@@ -425,7 +655,7 @@ const handleRegister = async () => {
 .fade-in-up {
   opacity: 0;
   transform: translateY(24px);
-  animation: fadeInUp 0.7s ease-out forwards;
+  animation: fadeInUp 0.7s var(--ease-out-quart) forwards;
 }
 
 @keyframes fadeInUp {
