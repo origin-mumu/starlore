@@ -297,11 +297,13 @@ const handleCopy = async (item: ResumeData) => {
   gap: 20px;
 }
 .resume-card {
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all 0.25s;
 }
 .resume-card:hover {

@@ -77,9 +77,23 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | Vite                  | 构建工具      |
 | Pinia                 | 状态管理      |
 | Vue Router            | 路由          |
+| Element Plus          | UI 组件库     |
 | Lucide                | 图标库        |
 | Three.js              | 3D 可视化     |
+| ECharts               | 数据可视化    |
 | Marked + highlight.js | Markdown 渲染 |
+
+### 管理后台 (`starlore-admin/`)
+
+| 技术                  | 用途           |
+| --------------------- | -------------- |
+| Vue 3 + TypeScript    | 框架           |
+| Vite                  | 构建工具       |
+| Element Plus          | UI 组件库      |
+| ECharts + vue-echarts | 数据可视化     |
+| WangEditor            | 富文本编辑器   |
+| Pinia                 | 状态管理       |
+| Vue Router            | 路由           |
 
 ### Java 后端 (`starlore-back/`)
 
@@ -105,6 +119,14 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | RAGAS                 | RAG 质量评估           |
 | MCP                   | Model Context Protocol |
 
+### PDF 生成服务 (`starlore-pdf/`)
+
+| 技术      | 用途               |
+| --------- | ------------------ |
+| Express   | Web 框架           |
+| Puppeteer | 无头浏览器（PDF）  |
+| Mustache  | 模板引擎           |
+
 ### 移动端 (`starlore_app/`)
 
 | 技术    | 用途       |
@@ -119,46 +141,79 @@ starlore/
 ├── starlore-front/          # Vue 3 前端
 │   └── src/
 │       ├── api/             # API 接口
-│       ├── components/      # 公共组件
+│       ├── assets/          # 静态资源
+│       ├── components/      # 公共组件（ImmersiveMode/Navbar/SideBar 等）
 │       ├── composables/     # 组合式函数（TTS 等）
 │       ├── router/          # 路由配置
-│       ├── views/           # 页面组件
-│       └── stores/          # Pinia 状态
+│       ├── stores/          # Pinia 状态管理
+│       ├── type/            # TypeScript 类型定义
+│       ├── utils/           # 工具函数
+│       └── views/           # 页面组件（Home/Article/VR/Resume 等）
 │
 ├── starlore-back/           # Spring Boot 后端
 │   └── src/main/java/com/robin/blogback/
 │       ├── agent/           # Multi-Agent 角色（Planner/Executor/Reviewer）
 │       ├── config/          # 配置类（Agent/LangSmith/Security）
 │       ├── controller/      # REST 控制器
+│       ├── dto/             # 数据传输对象
 │       ├── entity/          # 实体类
+│       ├── exception/       # 异常处理
 │       ├── graph/           # Agent Graph 状态机引擎
 │       ├── mapper/          # MyBatis-Plus Mapper
 │       ├── observability/   # LangSmith Tracing / BadCase / Metrics
 │       ├── service/         # 业务逻辑（BlogTools / RAG / AI）
 │       └── util/            # 工具类
 │
-├── starlore-py/             # FastAPI 后端（并行实现）
+├── starlore-py/             # FastAPI 后端（LangGraph Agent）
 │   └── app/
-│       ├── routers/         # API 路由
-│       └── services/        # LangGraph Agent / LangSmith / MCP / RAGAS
+│       ├── models/          # SQLAlchemy 数据模型
+│       ├── routers/         # API 路由（articles/ai/agent/multi_agent 等）
+│       ├── schemas/         # Pydantic 请求/响应模型
+│       ├── services/        # 业务服务（LangGraph/LangSmith/MCP/RAGAS）
+│       ├── config.py        # 配置管理
+│       ├── database.py      # 数据库连接
+│       ├── dependencies.py  # FastAPI 依赖注入
+│       ├── exceptions.py    # 异常处理
+│       ├── middleware.py     # 中间件
+│       └── security.py      # JWT 认证
 │
-├── starlore_app/            # Flutter 移动端
-│   └── lib/
+├── starlore-admin/          # 管理后台（Vue 3 + Element Plus）
+│   └── src/
+│       ├── api/             # API 接口
+│       ├── assets/          # 静态资源
+│       ├── components/      # 公共组件
+│       ├── router/          # 路由配置
+│       ├── stores/          # Pinia 状态管理
+│       ├── utils/           # 工具函数
+│       └── views/           # 页面组件
 │
-└── starlore-admin/          # 管理后台
+├── starlore-pdf/            # PDF 简历生成服务
+│   ├── index.js             # Express 服务入口
+│   └── templates/           # PDF 模板（classic.html）
+│
+└── starlore_app/            # Flutter 移动端
+    └── lib/
+        ├── app.dart         # 应用入口
+        ├── main.dart        # 主函数
+        ├── data/            # 数据层
+        ├── models/          # 数据模型
+        ├── pages/           # 页面组件
+        ├── services/        # 服务层
+        ├── theme/           # 主题样式
+        └── widgets/         # 自定义组件
 ```
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-| 组件    | 版本要求        |
-| ------- | --------------- |
-| JDK     | >= 17           |
-| Node.js | >= 16.0.0       |
-| MySQL   | >= 5.7          |
-| Python  | >= 3.10（可选） |
-| Flutter | >= 3.0（可选）  |
+| 组件    | 版本要求          |
+| ------- | ----------------- |
+| JDK     | >= 17             |
+| Node.js | >= 20.19.0        |
+| MySQL   | >= 5.7            |
+| Python  | >= 3.10（可选）   |
+| Flutter | >= 3.0（可选）    |
 
 ### 后端启动 (starlore-back)
 
@@ -176,8 +231,16 @@ cd starlore-back
 
 ```bash
 cd starlore-front
-npm install
-npm run dev
+pnpm install
+pnpm dev
+```
+
+### 管理后台启动 (starlore-admin)
+
+```bash
+cd starlore-admin
+pnpm install
+pnpm dev
 ```
 
 ### Python 后端启动 (starlore-py)
@@ -188,6 +251,14 @@ pip install -r requirements.txt
 
 # 配置 .env（LANGCHAIN_API_KEY, DB_URL 等）
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### PDF 服务启动 (starlore-pdf)
+
+```bash
+cd starlore-pdf
+pnpm install
+pnpm dev
 ```
 
 ### 移动端启动 (starlore_app)
@@ -305,6 +376,8 @@ AgentGraph.builder()
 - [x] MinIO 文件存储
 - [x] Flutter 移动端
 - [x] Python 后端（LangGraph + MCP + RAGAS）
+- [x] 管理后台（数据统计/内容管理）
+- [x] PDF 简历生成服务（Puppeteer）
 
 ## 🤝 贡献指南
 

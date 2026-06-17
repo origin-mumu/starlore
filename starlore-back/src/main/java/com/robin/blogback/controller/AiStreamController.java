@@ -6,10 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.robin.blogback.entity.AiConfig;
 import com.robin.blogback.service.AiConfigService;
 import com.robin.blogback.service.AiStreamService;
+import com.robin.blogback.service.FileParseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.net.URI;
@@ -30,8 +32,27 @@ public class AiStreamController {
     @Autowired
     private AiConfigService aiConfigService;
 
+    @Autowired
+    private FileParseService fileParseService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newHttpClient();
+
+    /**
+     * 解析上传的文件，提取纯文本（支持 txt/md/docx/pdf）
+     */
+    @PostMapping("/parse-file")
+    public Map<String, Object> parseFile(@RequestParam("file") MultipartFile file) {
+        try {
+            String text = fileParseService.extractText(file);
+            String filename = file.getOriginalFilename();
+            return Map.of("success", true, "filename", filename, "text", text);
+        } catch (IllegalArgumentException e) {
+            return Map.of("success", false, "error", e.getMessage());
+        } catch (Exception e) {
+            return Map.of("success", false, "error", "文件解析失败: " + e.getMessage());
+        }
+    }
 
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(

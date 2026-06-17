@@ -155,7 +155,7 @@ public class AiServiceImpl implements AiService {
         AiMessageListResponse.SessionInfo sessionInfo = new AiMessageListResponse.SessionInfo(
                 session.getId(), session.getTitle(), session.getCharacterKey(), session.getModelId());
         List<AiMessageListResponse.MessageItem> items = messages.stream()
-                .map(m -> new AiMessageListResponse.MessageItem(m.getId(), m.getRole(), m.getContent(), m.getCreatedAt()))
+                .map(m -> new AiMessageListResponse.MessageItem(m.getId(), m.getRole(), m.getContent(), m.getAgentTrace(), m.getCreatedAt()))
                 .toList();
         return new AiMessageListResponse(true, sessionInfo, items);
     }
@@ -184,6 +184,7 @@ public class AiServiceImpl implements AiService {
         assistantMsg.setSessionId(id);
         assistantMsg.setRole("assistant");
         assistantMsg.setContent(request.getAssistantContent());
+        assistantMsg.setAgentTrace(request.getAgentTrace());
         assistantMsg.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(assistantMsg);
 

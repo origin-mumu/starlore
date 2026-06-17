@@ -86,11 +86,13 @@ onMounted(async () => {
 }
 
 .widget-card {
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 

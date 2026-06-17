@@ -50,6 +50,13 @@ public class AgentGraph {
         return this;
     }
 
+    /**
+     * 移除所有事件监听器。每次请求结束后必须调用，防止监听器泄漏。
+     */
+    public void clearEvents() {
+        this.eventListeners.clear();
+    }
+
     // ========== Builder ==========
 
     public static Builder builder() { return new Builder(); }

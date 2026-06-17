@@ -83,6 +83,7 @@ ul, ol {
   /* Surface — pure white */
   --surface: #FFFFFF;
   --surface-hover: #FFFCF7;
+  --glass-bg: rgba(255, 255, 255, 0.72);
 
   /* Borders — lighter */
   --border: #F0E6D8;
@@ -158,6 +159,7 @@ ul, ol {
 
   --surface: #FFFFFF;
   --surface-hover: #F5F5F5;
+  --glass-bg: rgba(255, 255, 255, 0.68);
 
   --border: #D4D4D4;
   --border-interactive: #BBBBBB;
@@ -195,6 +197,7 @@ ul, ol {
 
   --surface: #1A1C26;
   --surface-hover: #22242E;
+  --glass-bg: rgba(26, 28, 38, 0.55);
 
   --border: rgba(255, 255, 255, 0.3);
   --border-interactive: rgba(255, 255, 255, 0.2);
@@ -238,6 +241,7 @@ ul, ol {
 
   --surface: #F9FCF7;
   --surface-hover: #F0F7EE;
+  --glass-bg: rgba(249, 252, 247, 0.68);
 
   --border: #DCE8D8;
   --border-interactive: #C4D4BE;
@@ -275,6 +279,7 @@ ul, ol {
 
   --surface: #F7FAFC;
   --surface-hover: #EEF3F8;
+  --glass-bg: rgba(247, 250, 252, 0.68);
 
   --border: #DCE4EE;
   --border-interactive: #C4D0E0;
@@ -312,6 +317,7 @@ ul, ol {
 
   --surface: #FEFAFB;
   --surface-hover: #FDF2F6;
+  --glass-bg: rgba(254, 250, 251, 0.68);
 
   --border: #EDE0E6;
   --border-interactive: #DDCCD4;

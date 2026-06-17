@@ -386,13 +386,15 @@ const paginationButtons = computed(() => {
   padding: 10px 24px;
   font-size: 15px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--glass-bg);
   color: var(--ink);
   border-radius: var(--radius-full);
   cursor: pointer;
   font-weight: 500;
   transition: all var(--transition);
   font-family: inherit;
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
 }
 .btn-secondary:hover {
   border-color: var(--accent);
@@ -503,7 +505,7 @@ const paginationButtons = computed(() => {
   min-width: 38px;
   height: 38px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--glass-bg);
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -513,6 +515,8 @@ const paginationButtons = computed(() => {
   color: var(--ink);
   font-size: 14px;
   padding: 0 8px;
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
 }
 
 .page-btn:hover:not(.disabled) {

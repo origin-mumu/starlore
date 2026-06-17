@@ -14,13 +14,7 @@ const ICP_RECORD_NUMBER = '豫ICP备2026009410号'
 const MIIT_URL = 'https://beian.miit.gov.cn/'
 /** 公安备案号（与工信部备案可同时展示） */
 const PSB_RECORD_NUMBER = '苏公网安备32021402004612号'
-const PSB_QUERY_URL =
-  'http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=32021402004612'
-
-
-
-
-
+const PSB_QUERY_URL = 'http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=32021402004612'
 
 const makeAppReadySoon = () => {
   const start = performance.now()
@@ -34,7 +28,6 @@ const makeAppReadySoon = () => {
   })
 }
 
-
 onMounted(() => {
   makeAppReadySoon()
   // 尝试恢复登录状态
@@ -42,11 +35,13 @@ onMounted(() => {
     userStore.fetchCurrentUser()
   }
 })
-
 </script>
 
 <template>
-  <div class="app-container" :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' }">
+  <div
+    class="app-container"
+    :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' }"
+  >
     <!-- 全局背景装饰 - 模糊气泡 -->
     <BlurredBubbles />
     <div v-if="!isAppReady" class="loading-container">
@@ -55,14 +50,18 @@ onMounted(() => {
         <p>加载中</p>
       </div>
     </div>
-    <navbar v-show="route.path !== '/echobot' && route.path !== '/vr' && route.path !== '/login'" />
+    <navbar v-show="route.path !== '/vr' && route.path !== '/login'" />
     <div
       class="router-outlet"
       :class="{ 'router-outlet--echobot': route.path === '/echobot' || route.path === '/vr' }"
     >
       <RouterView />
     </div>
-    <footer v-show="route.path !== '/vr' && route.path !== '/diverge'" class="site-footer" :class="{ 'site-footer--echobot': route.path === '/echobot' }">
+    <footer
+      v-show="route.path !== '/vr' && route.path !== '/diverge'"
+      class="site-footer"
+      :class="{ 'site-footer--echobot': route.path === '/echobot' }"
+    >
       <div class="footer-beian">
         <a :href="MIIT_URL" target="_blank" rel="noopener noreferrer">
           {{ ICP_RECORD_NUMBER }}
@@ -208,5 +207,4 @@ onMounted(() => {
     padding-bottom: 70px;
   }
 }
-
 </style>

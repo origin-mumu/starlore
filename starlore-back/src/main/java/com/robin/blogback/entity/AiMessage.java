@@ -1,6 +1,7 @@
 package com.robin.blogback.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -15,5 +16,7 @@ public class AiMessage {
     private Integer sessionId;
     private String role;
     private String content;
+    @TableField("agent_trace")
+    private String agentTrace;
     private LocalDateTime createdAt;
 }

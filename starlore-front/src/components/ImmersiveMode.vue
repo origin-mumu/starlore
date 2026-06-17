@@ -1,27 +1,71 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import { buildAgentSseUrl } from '@/api/ai'
+import { buildMultiAgentSseUrl, type CharacterCard } from '@/api/ai'
 import { useTTS } from '@/composables/useTTS'
-import { Volume2, VolumeX } from '@lucide/vue'
+import {
+  Volume2,
+  VolumeX,
+  Bot,
+  Image,
+  FileText,
+  Send,
+  Trash2,
+  X,
+  ClipboardList,
+  CheckCircle,
+  RotateCcw,
+  XCircle,
+  Paperclip,
+} from '@lucide/vue'
+
+type AgentTrace = {
+  planSummary: string
+  subtasks: { id: number; desc: string; status: 'pending' | 'running' | 'done' }[]
+  reviewDecision: string
+  reviewFeedback: string
+  retryCount: number
+  metrics: { tokensIn: number; tokensOut: number; latencyMs: number } | null
+}
 
 type ChatMsg = {
   role: 'user' | 'assistant'
   content: string
   reasoningContent?: string
   imageUrl?: string
+  agentTrace?: AgentTrace
+  attachmentName?: string
+}
+
+type Session = {
+  id: number
+  title: string
+  characterKey: string
+  modelId: string
 }
 
 const props = defineProps<{
   messages: ChatMsg[]
   systemPrompt: string
-  agentMode: boolean
+  characterCards: CharacterCard[]
+  selectedCharacterKey: string
+  isSending: boolean
+  dailyRemaining: number
+  dailyExceeded: boolean
+  sessions: Session[]
+  currentSessionId: number | null
 }>()
 
 const emit = defineEmits<{
   close: []
-  send: [text: string]
+  send: [userContent: string, assistantContent: string, agentTrace?: string]
+  'update:selectedCharacterKey': [value: string]
+  imageUpload: [base64: string]
+  txtUpload: [text: string]
+  loadSession: [id: number]
+  newSession: []
+  deleteSession: [id: number]
 }>()
 
 const { ttsEnabled, toggleTTS, feedStreamChunk, flushStreamBuffer, reset: resetTTS } = useTTS()
@@ -32,8 +76,64 @@ const currentMode = ref<Mode>('idle')
 const statusText = ref('System Ready')
 const isRecording = ref(false)
 const showHint = ref(true)
-const isSending = ref(false)
+const isLocalSending = ref(false)
 const interimText = ref('')
+
+/* ─── 文字输入 ─── */
+const inputText = ref('')
+const charPickerOpen = ref(false)
+
+/* ─── 会话列表 ─── */
+const activeTab = ref<'chat' | 'sessions'>('chat')
+const showDeleteConfirm = ref<number | null>(null)
+
+/* ─── 快捷回复 ─── */
+const quickRepliesRef = ref<HTMLElement | null>(null)
+let qrDragState = { isDown: false, startX: 0, scrollLeft: 0 }
+
+function onQrMouseDown(e: MouseEvent) {
+  const el = quickRepliesRef.value
+  if (!el) return
+  qrDragState.isDown = true
+  qrDragState.startX = e.pageX - el.offsetLeft
+  qrDragState.scrollLeft = el.scrollLeft
+  el.style.cursor = 'grabbing'
+}
+function onQrMouseMove(e: MouseEvent) {
+  if (!qrDragState.isDown) return
+  const el = quickRepliesRef.value
+  if (!el) return
+  e.preventDefault()
+  const x = e.pageX - el.offsetLeft
+  el.scrollLeft = qrDragState.scrollLeft - (x - qrDragState.startX)
+}
+function onQrMouseUp() {
+  qrDragState.isDown = false
+  const el = quickRepliesRef.value
+  if (el) el.style.cursor = 'grab'
+}
+
+const quickReplies = [
+  '最近有什么新文章？',
+  '帮我总结一下星域分类',
+  '写一篇技术博客大纲',
+  '推荐几个学习方向',
+  '帮我查一下面试相关文章',
+  '介绍一下 Starlore 项目',
+  '给新文章起个标题',
+]
+
+/* ─── 图片/文件 附件 ─── */
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const isParsingFile = ref(false)
+const pendingImage = ref<string | null>(null) // base64
+const pendingImagePreview = ref<string | null>(null)
+const pendingAttachment = ref<{ name: string; text: string } | null>(null)
+
+function removeAttachment() {
+  pendingAttachment.value = null
+}
 
 /* ─── 显示用消息列表（同步父组件） ─── */
 const chatScrollRef = ref<HTMLElement | null>(null)
@@ -53,10 +153,10 @@ let recordingMimeType = 'audio/webm'
 let abortCtrl: AbortController | null = null
 
 const SILENCE_THRESHOLD = 0.008
-const SILENCE_TIMEOUT_MS = 1400
+const SILENCE_TIMEOUT_MS = 700
 
 function initSpeech() {
-  speechSupported.value = !!(navigator.mediaDevices?.getUserMedia)
+  speechSupported.value = !!navigator.mediaDevices?.getUserMedia
 }
 
 async function toggleVoice() {
@@ -97,8 +197,14 @@ async function startRecording() {
 
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop())
-      if (audioCtx) { audioCtx.close(); audioCtx = null }
-      if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+      if (audioCtx) {
+        audioCtx.close()
+        audioCtx = null
+      }
+      if (silenceTimer) {
+        clearTimeout(silenceTimer)
+        silenceTimer = null
+      }
       analyser = null
 
       if (audioChunks.length === 0) {
@@ -122,7 +228,8 @@ async function startRecording() {
 }
 
 function checkSilence() {
-  if (!analyser || !isRecording.value || !mediaRecorder || mediaRecorder.state !== 'recording') return
+  if (!analyser || !isRecording.value || !mediaRecorder || mediaRecorder.state !== 'recording')
+    return
 
   const data = new Uint8Array(analyser.fftSize)
   analyser.getByteTimeDomainData(data)
@@ -138,13 +245,19 @@ function checkSilence() {
       silenceTimer = setTimeout(() => stopRecording(), SILENCE_TIMEOUT_MS)
     }
   } else {
-    if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+    if (silenceTimer) {
+      clearTimeout(silenceTimer)
+      silenceTimer = null
+    }
   }
   setTimeout(checkSilence, 100)
 }
 
 function stopRecording() {
-  if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null }
+  if (silenceTimer) {
+    clearTimeout(silenceTimer)
+    silenceTimer = null
+  }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
@@ -157,24 +270,37 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
   try {
     const buf = await ctx.decodeAudioData(await audioBlob.arrayBuffer())
     const ch = buf.getChannelData(0)
-    const sr = buf.sampleRate, nc = 1, bps = 16
-    const br = sr * nc * bps / 8, ba = nc * bps / 8
+    const sr = buf.sampleRate,
+      nc = 1,
+      bps = 16
+    const br = (sr * nc * bps) / 8,
+      ba = (nc * bps) / 8
     const dl = ch.length * ba
     const ab = new ArrayBuffer(44 + dl)
     const v = new DataView(ab)
-    writeStr(v, 0, 'RIFF'); v.setUint32(4, 36 + dl, true); writeStr(v, 8, 'WAVE')
-    writeStr(v, 12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true)
-    v.setUint16(22, nc, true); v.setUint32(24, sr, true); v.setUint32(28, br, true)
-    v.setUint16(32, ba, true); v.setUint16(34, bps, true)
-    writeStr(v, 36, 'data'); v.setUint32(40, dl, true)
+    writeStr(v, 0, 'RIFF')
+    v.setUint32(4, 36 + dl, true)
+    writeStr(v, 8, 'WAVE')
+    writeStr(v, 12, 'fmt ')
+    v.setUint32(16, 16, true)
+    v.setUint16(20, 1, true)
+    v.setUint16(22, nc, true)
+    v.setUint32(24, sr, true)
+    v.setUint32(28, br, true)
+    v.setUint16(32, ba, true)
+    v.setUint16(34, bps, true)
+    writeStr(v, 36, 'data')
+    v.setUint32(40, dl, true)
     let off = 44
     for (let i = 0; i < ch.length; i++) {
       const s = Math.max(-1, Math.min(1, ch[i]))
-      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true)
       off += 2
     }
     return new Blob([ab], { type: 'audio/wav' })
-  } finally { ctx.close() }
+  } finally {
+    ctx.close()
+  }
 }
 
 function writeStr(v: DataView, o: number, s: string) {
@@ -206,7 +332,10 @@ async function transcribeAndSend(audioBlob: Blob) {
       body: JSON.stringify({ audio: dataUri }),
     })
 
-    if (!res.ok) { setMode('idle'); return }
+    if (!res.ok) {
+      setMode('idle')
+      return
+    }
 
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
@@ -224,7 +353,10 @@ async function transcribeAndSend(audioBlob: Blob) {
         if (!t || !t.startsWith('data:')) continue
         try {
           const d = JSON.parse(t.slice(5).trim())
-          if (d.error) { setMode('idle'); return }
+          if (d.error) {
+            setMode('idle')
+            return
+          }
           if (d.text) {
             fullText = d.text
             interimText.value = fullText
@@ -245,30 +377,200 @@ async function transcribeAndSend(audioBlob: Blob) {
   }
 }
 
-/** 构建 API 消息（与 EchobotView 逻辑一致） */
+// 用于 API 发送的完整消息（含附件原文），与显示内容分离
+let pendingApiText = ''
+// 记录最后一条用户消息在 messages 中的索引
+let lastUserMsgIndex = -1
+
+/** 构建 API 消息：最后一条用户消息用完整文本（含附件），其余用显示文本 */
 function buildApiMessages(): { role: string; content: string }[] {
   const out: { role: string; content: string }[] = []
   const sys = props.systemPrompt.trim()
   if (sys) out.push({ role: 'system', content: sys })
-  for (const m of props.messages) {
+  const msgs = props.messages
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i]
     if (m.role === 'assistant' && !m.content.trim()) continue
-    out.push({ role: m.role, content: m.content })
+    // 最后一条用户消息如果有待发送的完整文本，用它（附件内容等）
+    if (m.role === 'user' && i === lastUserMsgIndex && pendingApiText) {
+      out.push({ role: 'user', content: pendingApiText })
+    } else {
+      out.push({ role: m.role, content: m.content })
+    }
   }
   return out
 }
 
-/** 语音识别后发送文字给 AI，复用父组件的消息列表 */
-async function handleVoiceSend(text: string) {
-  if (isSending.value) return
-  isSending.value = true
+/** 文字输入发送 */
+function handleTextSend() {
+  const text = inputText.value.trim()
+  const attachment = pendingAttachment.value
+  // 需要至少有文字或附件
+  if ((!text && !attachment) || props.isSending || isLocalSending.value) return
+
+  // 显示文本：只显示用户输入的文字
+  let displayText = ''
+  // API 文本：含附件完整内容
+  let apiText = ''
+  let attachName = ''
+
+  if (attachment) {
+    attachName = attachment.name
+    displayText = text || ''
+    apiText = `[附件: ${attachment.name}]\n${attachment.text}`
+    if (text) apiText += `\n\n用户说明：${text}`
+  } else {
+    displayText = text
+    apiText = text
+  }
+
+  inputText.value = ''
+  pendingAttachment.value = null
+  pendingApiText = apiText
+  handleVoiceSend(displayText, attachName)
+}
+
+function onInputKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleTextSend()
+  }
+}
+
+function useQuickReply(text: string) {
+  if (props.isSending || isLocalSending.value) return
+  inputText.value = text
+}
+
+function pickCharacter(key: string) {
+  emit('update:selectedCharacterKey', key)
+  charPickerOpen.value = false
+}
+
+function onImageUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !file.type.startsWith('image/')) return
+  if (file.size > 10 * 1024 * 1024) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const base64 = reader.result as string
+    pendingImage.value = base64
+    pendingImagePreview.value = base64
+  }
+  reader.readAsDataURL(file)
+}
+
+function removeImage() {
+  pendingImage.value = null
+  pendingImagePreview.value = null
+}
+
+async function onFileUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  const plainTextExts = ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'yaml', 'yml']
+
+  if (plainTextExts.includes(ext)) {
+    // 纯文本文件直接读取
+    const text = await file.text()
+    if (text.trim()) {
+      pendingAttachment.value = { name: file.name, text: text.trim() }
+    }
+  } else {
+    // docx/pdf 等需要后端解析
+    isParsingFile.value = true
+    try {
+      const token = localStorage.getItem('ro_blog_token')
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/ai/parse-file', {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.success && data.text) {
+        pendingAttachment.value = { name: data.filename || file.name, text: data.text }
+      } else {
+        console.warn('文件解析失败:', data.error)
+      }
+    } catch (err) {
+      console.warn('文件解析请求失败:', err)
+    } finally {
+      isParsingFile.value = false
+    }
+  }
+}
+
+/* ── 多 Agent 节点中文映射 ── */
+const agentNodeLabelMap: Record<string, string> = {
+  planner: 'Planner 规划中：分析用户意图，拆解子任务...',
+  executor: 'Executor 执行中：调用工具完成子任务...',
+  reviewer: 'Reviewer 审查中：检查执行结果的完整性和准确性...',
+  synthesizer: 'Synthesizer 合成中：整合结果生成最终回答...',
+}
+
+const toolLabelMap: Record<string, string> = {
+  searchArticles: '正在搜索星迹...',
+  getArticleDetail: '正在获取星迹详情...',
+  getCategories: '正在获取星域列表...',
+  getBlogStats: '正在获取博客统计...',
+  getRecentArticles: '正在获取最新星迹...',
+  writeArticle: '正在创建星迹...',
+  updateArticle: '正在更新星迹...',
+  deleteArticle: '正在删除星迹...',
+  getAllTags: '正在获取光痕列表...',
+  getArticlesByCategory: '正在获取星域星迹...',
+  createCategory: '正在创建星域...',
+}
+
+const toolStatus = ref<string | null>(null)
+const hasReceivedContent = ref(false)
+
+/** 发送文字给 AI */
+async function handleVoiceSend(text: string, attachmentName?: string) {
+  if (props.isSending || isLocalSending.value) return
+  isLocalSending.value = true
+  hasReceivedContent.value = false
+
+  const imageBase64 = pendingImage.value
+  const hasImage = !!imageBase64
 
   // 往父组件的消息列表里加用户消息
-  props.messages.push({ role: 'user', content: text })
+  lastUserMsgIndex = props.messages.length
+  props.messages.push({
+    role: 'user',
+    content: text || (hasImage ? '请分析这张图片' : ''),
+    attachmentName: attachmentName || undefined,
+    imageUrl: imageBase64 || undefined,
+  })
+  pendingImage.value = null
+  pendingImagePreview.value = null
   scrollChat()
   setMode('thinking')
 
-  // 加 AI 占位消息
-  props.messages.push({ role: 'assistant', content: '', reasoningContent: '' })
+  // 加 AI 占位消息（带 agentTrace）
+  props.messages.push({
+    role: 'assistant',
+    content: '',
+    reasoningContent: '',
+    agentTrace: {
+      planSummary: '',
+      subtasks: [],
+      reviewDecision: '',
+      reviewFeedback: '',
+      retryCount: 0,
+      metrics: null,
+    },
+  })
   const aiIdx = props.messages.length - 1
 
   abortCtrl = new AbortController()
@@ -281,25 +583,59 @@ async function handleVoiceSend(text: string) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     }
 
-    const history = buildApiMessages()
-    let res: Response
-
-    if (props.agentMode) {
-      res = await fetch(buildAgentSseUrl('deepseek-v4-flash'), {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(history),
-        signal: abortCtrl.signal,
-      })
-    } else {
-      res = await fetch(
-        `/api/ai/sse?model=deepseek-v4-flash&messages=${encodeURIComponent(JSON.stringify(history))}`,
-        {
-          headers: authHeaders,
+    // 如果有图片，先用 MiMo 流式识别
+    let imageDescription = ''
+    if (hasImage && imageBase64) {
+      try {
+        toolStatus.value = '正在识别图片...'
+        const analyzeRes = await fetch('/api/ai/analyze-image/stream', {
+          method: 'POST',
+          headers: { ...authHeaders, Accept: 'text/event-stream' },
+          body: JSON.stringify({ image: imageBase64, question: text || '请描述这张图片' }),
           signal: abortCtrl.signal,
-        },
-      )
+        })
+        if (analyzeRes.ok) {
+          const reader = analyzeRes.body!.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed || !trimmed.startsWith('data:')) continue
+              try {
+                const data = JSON.parse(trimmed.slice(5).trim())
+                if (data.content) imageDescription += data.content
+              } catch { /* ignore */ }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('图片识别失败', e)
+      }
+      toolStatus.value = null
     }
+
+    const history = buildApiMessages()
+    // 如果有图片描述，把描述拼到最后一条用户消息里
+    if (imageDescription) {
+      const lastMsg = history[history.length - 1]
+      if (lastMsg && lastMsg.role === 'user') {
+        lastMsg.content = `[用户上传了一张图片，图片内容：${imageDescription}]\n\n用户问题：${lastMsg.content}`
+      }
+    }
+
+    toolStatus.value = '正在分析任务...'
+    const res = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(history),
+      signal: abortCtrl.signal,
+    })
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
@@ -330,11 +666,91 @@ async function handleVoiceSend(text: string) {
           if (data.reasoning_content) {
             props.messages[aiIdx].reasoningContent =
               (props.messages[aiIdx].reasoningContent || '') + data.reasoning_content
+            toolStatus.value = null
           }
           if (data.content) {
             props.messages[aiIdx].content += data.content
+            hasReceivedContent.value = true
+            toolStatus.value = null
             scrollChat()
             feedStreamChunk(data.content)
+          }
+          if (data.tool_start) {
+            toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
+          }
+          // ── 多 Agent 事件处理 ──
+          if (data.type === 'plan_start') {
+            toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
+          }
+          if (data.type === 'plan') {
+            const trace = props.messages[aiIdx].agentTrace
+            const count = data.subtasks || 0
+            if (trace) {
+              trace.planSummary = data.summary || ''
+              trace.subtasks = Array.from({ length: count }, (_, i) => ({
+                id: i + 1,
+                desc: '',
+                status: 'pending' as const,
+              }))
+            }
+            toolStatus.value = `规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
+          }
+          if (data.type === 'subtask_start') {
+            const trace = props.messages[aiIdx].agentTrace
+            const node = data.node || ''
+            if (trace && trace.subtasks.length > 0) {
+              const running = trace.subtasks.find((s: any) => s.status === 'pending')
+              if (running) {
+                running.status = 'running'
+                running.desc = node
+              }
+              const runningIdx = trace.subtasks.filter((s: any) => s.status === 'done').length + 1
+              toolStatus.value = `Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
+            } else {
+              toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+            }
+          }
+          if (data.type === 'subtask_result') {
+            const trace = props.messages[aiIdx].agentTrace
+            if (trace) {
+              const doneTask = trace.subtasks.find((s: any) => s.status === 'running')
+              if (doneTask) doneTask.status = 'done'
+              const doneCount = trace.subtasks.filter((s: any) => s.status === 'done').length
+              const total = trace.subtasks.length
+              if (doneCount < total) {
+                toolStatus.value = `子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
+              } else {
+                toolStatus.value = `全部 ${total} 个子任务执行完毕，进入审查阶段...`
+              }
+            }
+          }
+          if (data.type === 'review') {
+            const trace = props.messages[aiIdx].agentTrace
+            if (trace) {
+              trace.reviewDecision = data.decision || ''
+              trace.reviewFeedback = data.feedback || ''
+              trace.retryCount = data.retry_count || 0
+            }
+            if (data.decision === 'PASS') {
+              toolStatus.value = 'Reviewer 审查通过，正在生成最终回答...'
+            } else if (data.decision === 'REVISE') {
+              toolStatus.value = `Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
+            } else {
+              toolStatus.value = 'Reviewer 审查未通过，生成最终回答...'
+            }
+          }
+          if (data.type === 'metrics') {
+            const trace = props.messages[aiIdx].agentTrace
+            if (trace) {
+              trace.metrics = {
+                tokensIn: data.total_tokens_in || 0,
+                tokensOut: data.total_tokens_out || 0,
+                latencyMs: data.total_latency_ms || 0,
+              }
+            }
+          }
+          if (data.type === 'done') {
+            toolStatus.value = null
           }
         } catch {}
       }
@@ -347,7 +763,18 @@ async function handleVoiceSend(text: string) {
   }
 
   flushStreamBuffer()
-  isSending.value = false
+
+  // 持久化：通知父组件保存本轮对话
+  const aiContent = props.messages[aiIdx]?.content || ''
+  const trace = props.messages[aiIdx]?.agentTrace
+  const agentTraceStr = trace && trace.subtasks.length > 0 ? JSON.stringify(trace) : undefined
+  if (aiContent && !aiContent.startsWith('错误：')) {
+    emit('send', pendingApiText || text, aiContent, agentTraceStr)
+  }
+
+  pendingApiText = ''
+  isLocalSending.value = false
+  toolStatus.value = null
   // 回复完成后短暂停留 speaking 动画再回 idle
   setMode('speaking')
   setTimeout(() => setMode('idle'), 1500)
@@ -391,12 +818,23 @@ marked.use({ renderer })
 function fmt(s: string): string {
   if (!s) return ''
   try {
-    return (marked.parse(s.trim()) as string)
+    // 清理多余空行 + 转义单个 ~ 避免被误解为删除线
+    let cleaned = s
+      .trim()
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, '')
+      .replace(/\n{2,}/g, '\n')
+      .replace(/(?<!~)~(?!~)/g, '\\~')
+    return (marked.parse(cleaned) as string)
       .replace(/<table>/g, '<table class="chat-table">')
       .replace(/<p>\s*<\/p>/g, '')
       .trim()
   } catch {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
   }
 }
 
@@ -419,59 +857,146 @@ let targetSpeed = 1
 let curSpeed = 1
 let audioLevel = 0
 
-const modeColorMap: Record<Mode, string> = {
-  idle: '#ef4444',
-  listening: '#a78bfa',
-  thinking: '#ffcc00',
-  speaking: '#ffffff',
+/* ─── 主题感知颜色 ─── */
+function getThemeColor(varName: string, fallback: string): string {
+  const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+  return val || fallback
 }
 
-interface Star { x: number; y: number; size: number; speed: number; twinkle: number; phase: number }
+// 根据主题亮度判断是否为深色主题
+function isDarkTheme(): boolean {
+  const canvas = getThemeColor('--canvas', '#FFFCF7')
+  // 简单判断：解析 hex 颜色的亮度
+  const hex = canvas.replace('#', '')
+  if (hex.length >= 6) {
+    const r = parseInt(hex.substring(0, 2), 16)
+    const g = parseInt(hex.substring(2, 4), 16)
+    const b = parseInt(hex.substring(4, 6), 16)
+    return (r * 299 + g * 587 + b * 114) / 1000 < 128
+  }
+  return true
+}
+
+function getParticleColors() {
+  const dark = isDarkTheme()
+  return {
+    // 信号粒子：使用主题强调色
+    signal: getThemeColor('--accent', dark ? '#ff4d4d' : '#E85D2A'),
+    // 核心粒子：白色
+    core: '#ffffff',
+    // 空洞粒子：白色
+    void: '#ffffff',
+    // 背景星星
+    star: dark ? '#ffffff' : getThemeColor('--ink-muted', '#8A7A6A'),
+    // 模式颜色
+    idle: getThemeColor('--accent', '#E85D2A'),
+    listening: getThemeColor('--accent', '#a78bfa'),
+    thinking: getThemeColor('--accent', '#a78bfa'),
+    speaking: getThemeColor('--accent', '#a78bfa'),
+  }
+}
+
+let themeColors = getParticleColors()
+
+const modeColorMap = reactive<Record<Mode, string>>({
+  idle: themeColors.idle,
+  listening: themeColors.listening,
+  thinking: themeColors.thinking,
+  speaking: themeColors.speaking,
+})
+
+// 监听主题变化
+const themeObserver = new MutationObserver(() => {
+  themeColors = getParticleColors()
+  modeColorMap.idle = themeColors.idle
+  modeColorMap.listening = themeColors.listening
+  modeColorMap.thinking = themeColors.thinking
+  modeColorMap.speaking = themeColors.speaking
+})
+
+interface Star {
+  x: number
+  y: number
+  size: number
+  speed: number
+  twinkle: number
+  phase: number
+}
 let bgStars: Star[] = []
 
 class OrbP {
-  bx: number; by: number; bz: number
-  x = 0; y = 0; z = 0
+  bx: number
+  by: number
+  bz: number
+  x = 0
+  y = 0
+  z = 0
   type: 'signal' | 'core' | 'void'
   color: string
   size: number
 
   constructor() {
-    const u = Math.random(), v = Math.random()
+    const u = Math.random(),
+      v = Math.random()
     const r = Math.pow(Math.random(), 1 / 3) * SPHERE_RADIUS
-    const th = 2 * Math.PI * u, ph = Math.acos(2 * v - 1)
+    const th = 2 * Math.PI * u,
+      ph = Math.acos(2 * v - 1)
     this.bx = r * Math.sin(ph) * Math.cos(th)
     this.by = r * Math.sin(ph) * Math.sin(th)
     this.bz = r * Math.cos(ph)
     const rnd = Math.random()
-    if (rnd < 0.4) { this.type = 'signal'; this.color = '#ff4d4d' }
-    else if (rnd < 0.8) { this.type = 'core'; this.color = '#ffffff' }
-    else { this.type = 'void'; this.color = '#000000' }
+    if (rnd < 0.4) {
+      this.type = 'signal'
+      this.color = themeColors.signal
+    } else if (rnd < 0.8) {
+      this.type = 'core'
+      this.color = themeColors.core
+    } else {
+      this.type = 'void'
+      this.color = themeColors.void
+    }
     this.size = Math.random() * 1.5 + 0.5
   }
 
   update(time: number, rx: number, ry: number, mode: Mode) {
     if (this.type === 'signal') this.color = modeColorMap[mode] || '#ff4d4d'
-    const wave = Math.sin(time * 0.002 + (this.bx + this.by + this.bz) * 0.01) * (15 + audioLevel * 50)
+    const wave =
+      Math.sin(time * 0.002 + (this.bx + this.by + this.bz) * 0.01) * (15 + audioLevel * 50)
     const ru = Math.sqrt(this.bx ** 2 + this.by ** 2 + this.bz ** 2) + 0.001
     const sc = mode === 'thinking' ? 0.9 : 1
     const rf = (ru * sc + wave) / ru
-    let tx = this.bx * rf, ty = this.by * rf, tz = this.bz * rf
-    const cx = Math.cos(rx), sx = Math.sin(rx)
-    const cy = Math.cos(ry), sy = Math.sin(ry)
-    const y1 = ty * cx - tz * sx, z1 = ty * sx + tz * cx
-    this.x = tx * cy + z1 * sy; this.y = y1; this.z = -tx * sy + z1 * cy
+    let tx = this.bx * rf,
+      ty = this.by * rf,
+      tz = this.bz * rf
+    const cx = Math.cos(rx),
+      sx = Math.sin(rx)
+    const cy = Math.cos(ry),
+      sy = Math.sin(ry)
+    const y1 = ty * cx - tz * sx,
+      z1 = ty * sx + tz * cx
+    this.x = tx * cy + z1 * sy
+    this.y = y1
+    this.z = -tx * sy + z1 * cy
   }
 
   draw(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
     const p = 600 / (600 - Math.max(-300, Math.min(this.z, 590)))
-    const dx = this.x * p + cx, dy = this.y * p + cy, ds = Math.max(0, this.size * p)
+    const dx = this.x * p + cx,
+      dy = this.y * p + cy,
+      ds = Math.max(0, this.size * p)
     if (this.type === 'void') {
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 0.5
-      ctx.beginPath(); ctx.arc(dx, dy, ds, 0, Math.PI * 2); ctx.stroke()
+      // 空洞粒子：填充半透明
+      ctx.fillStyle = this.color
+      ctx.globalAlpha = Math.max(0.05, (p - 0.4) * 0.3)
+      ctx.beginPath()
+      ctx.arc(dx, dy, ds, 0, Math.PI * 2)
+      ctx.fill()
     } else {
-      ctx.fillStyle = this.color; ctx.globalAlpha = Math.max(0.1, p - 0.4)
-      ctx.beginPath(); ctx.arc(dx, dy, ds, 0, Math.PI * 2); ctx.fill()
+      ctx.fillStyle = this.color
+      ctx.globalAlpha = Math.max(0.1, p - 0.4)
+      ctx.beginPath()
+      ctx.arc(dx, dy, ds, 0, Math.PI * 2)
+      ctx.fill()
     }
   }
 }
@@ -488,23 +1013,42 @@ const waveLayers = [
   { speed: 0.01, freq: 0.01, alpha: 0.2, offset: 6, scale: 0.4 },
 ]
 
-let targetWaveW = 160, curWaveW = 160
-let targetAmp = 0, curAmp = 0
-let targetMorph = 1, curMorph = 1
+let targetWaveW = 160,
+  curWaveW = 160
+let targetAmp = 0,
+  curAmp = 0
+let targetMorph = 1,
+  curMorph = 1
 
 function renderWave(time: number) {
   const c = waveCanvasRef.value
   if (!c) return
   const ctx = c.getContext('2d')
   if (!ctx) return
-  const w = c.width, h = c.height, cy = h / 2, cx = w / 2
+  const w = c.width,
+    h = c.height,
+    cy = h / 2,
+    cx = w / 2
   ctx.clearRect(0, 0, w, h)
 
   const mode = currentMode.value
-  if (mode === 'idle') { targetWaveW = 160; targetMorph = 1; targetAmp = 0 }
-  else if (mode === 'listening') { targetWaveW = w * 0.7; targetMorph = 0; targetAmp = 0.3 + Math.sin(time * 0.005) * 0.1 }
-  else if (mode === 'thinking') { targetWaveW = w * 0.5; targetMorph = 0; targetAmp = 0.2 + Math.random() * 0.1 }
-  else if (mode === 'speaking') { targetWaveW = w * 0.9; targetMorph = 0; targetAmp = 0.2 + audioLevel * 0.8 }
+  if (mode === 'idle') {
+    targetWaveW = 160
+    targetMorph = 1
+    targetAmp = 0
+  } else if (mode === 'listening') {
+    targetWaveW = w * 0.7
+    targetMorph = 0
+    targetAmp = 0.3 + Math.sin(time * 0.005) * 0.1
+  } else if (mode === 'thinking') {
+    targetWaveW = w * 0.5
+    targetMorph = 0
+    targetAmp = 0.2 + Math.random() * 0.1
+  } else if (mode === 'speaking') {
+    targetWaveW = w * 0.9
+    targetMorph = 0
+    targetAmp = 0.2 + audioLevel * 0.8
+  }
 
   curMorph += (targetMorph - curMorph) * 0.08
   curWaveW += (targetWaveW - curWaveW) * 0.1
@@ -534,7 +1078,9 @@ function renderWave(time: number) {
       g.addColorStop(0.5, `rgba(${item.r},${item.g},${item.b},0.4)`)
       g.addColorStop(1, `rgba(${item.r},${item.g},${item.b},0)`)
       ctx.fillStyle = g
-      ctx.beginPath(); ctx.arc(0, 0, item.radius, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath()
+      ctx.arc(0, 0, item.radius, 0, Math.PI * 2)
+      ctx.fill()
       ctx.restore()
     })
     ctx.globalCompositeOperation = 'source-over'
@@ -543,7 +1089,9 @@ function renderWave(time: number) {
     cg.addColorStop(0.3, 'rgba(255,255,255,0.7)')
     cg.addColorStop(1, 'rgba(255,255,255,0)')
     ctx.fillStyle = cg
-    ctx.beginPath(); ctx.arc(0, 0, orbSize * 0.7, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath()
+    ctx.arc(0, 0, orbSize * 0.7, 0, Math.PI * 2)
+    ctx.fill()
     ctx.restore()
   }
 
@@ -556,19 +1104,25 @@ function renderWave(time: number) {
     grad.addColorStop(0.1, '#ff80b5')
     grad.addColorStop(0.5, '#a78bfa')
     grad.addColorStop(0.9, '#81e6d9')
-    const sx = cx - curWaveW / 2, ex = cx + curWaveW / 2
+    const sx = cx - curWaveW / 2,
+      ex = cx + curWaveW / 2
     waveLayers.forEach(layer => {
-      ctx.beginPath(); ctx.moveTo(sx, cy)
+      ctx.beginPath()
+      ctx.moveTo(sx, cy)
       for (let x = sx; x <= ex; x += 2) {
         const prog = (x - sx) / curWaveW
         const env = Math.pow(Math.sin(prog * Math.PI), 2.5)
-        const yOff = Math.sin(x * layer.freq + time * layer.speed + layer.offset) * (h / 2 * curAmp * layer.scale * env)
+        const yOff =
+          Math.sin(x * layer.freq + time * layer.speed + layer.offset) *
+          ((h / 2) * curAmp * layer.scale * env)
         ctx.lineTo(x, cy + yOff)
       }
       for (let x = ex; x >= sx; x -= 2) {
         const prog = (x - sx) / curWaveW
         const env = Math.pow(Math.sin(prog * Math.PI), 2.5)
-        const yOff = Math.sin(x * layer.freq + time * layer.speed + layer.offset + Math.PI) * (h / 2 * curAmp * layer.scale * env)
+        const yOff =
+          Math.sin(x * layer.freq + time * layer.speed + layer.offset + Math.PI) *
+          ((h / 2) * curAmp * layer.scale * env)
         ctx.lineTo(x, cy + yOff)
       }
       ctx.closePath()
@@ -588,11 +1142,15 @@ function resizeMain() {
   if (!c) return
   width = window.innerWidth
   height = window.innerHeight
-  c.width = width; c.height = height
+  c.width = width
+  c.height = height
   bgStars = Array.from({ length: BG_STAR_COUNT }, () => ({
-    x: Math.random() * width, y: Math.random() * height,
-    size: Math.random() * 1.5 + 0.2, speed: Math.random() * 0.3 + 0.05,
-    twinkle: Math.random() * 0.003 + 0.001, phase: Math.random() * Math.PI * 2,
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: Math.random() * 1.5 + 0.2,
+    speed: Math.random() * 0.3 + 0.05,
+    twinkle: Math.random() * 0.003 + 0.001,
+    phase: Math.random() * Math.PI * 2,
   }))
 }
 
@@ -612,24 +1170,34 @@ function animate(time: number) {
   if (!ctx) return
 
   ctx.clearRect(0, 0, width, height)
-  ctx.fillStyle = '#ffffff'
+  // 背景星星颜色跟随主题
+  ctx.fillStyle = themeColors.star
 
   bgStars.forEach(s => {
-    s.y -= s.speed; if (s.y < 0) s.y = height
+    s.y -= s.speed
+    if (s.y < 0) s.y = height
     ctx.globalAlpha = Math.max(0.05, 0.4 + Math.sin(time * s.twinkle + s.phase) * 0.4)
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath()
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2)
+    ctx.fill()
   })
   ctx.globalAlpha = 1
 
   curSpeed += (targetSpeed - curSpeed) * 0.05
 
   if (currentMode.value === 'speaking') {
-    audioLevel += (Math.max(0, Math.sin(time * 0.015) * Math.sin(time * 0.005) * Math.random()) * 1.5 - audioLevel) * 0.2
+    audioLevel +=
+      (Math.max(0, Math.sin(time * 0.015) * Math.sin(time * 0.005) * Math.random()) * 1.5 -
+        audioLevel) *
+      0.2
   } else {
     audioLevel += (0 - audioLevel) * 0.1
   }
 
-  if (!isDragging) { rotY += 0.005 * curSpeed; rotX += 0.002 * curSpeed }
+  if (!isDragging) {
+    rotY += 0.005 * curSpeed
+    rotX += 0.002 * curSpeed
+  }
 
   for (const p of orbParticles) p.update(time, rotX, rotY, currentMode.value)
   orbParticles.sort((a, b) => a.z - b.z)
@@ -644,16 +1212,21 @@ function onDown(e: MouseEvent | TouchEvent) {
   isDragging = true
   const cx = 'clientX' in e ? e.clientX : e.touches[0].clientX
   const cy = 'clientY' in e ? e.clientY : e.touches[0].clientY
-  lastMX = cx; lastMY = cy
+  lastMX = cx
+  lastMY = cy
 }
 function onMove(e: MouseEvent | TouchEvent) {
   if (!isDragging) return
   const cx = 'clientX' in e ? e.clientX : e.touches[0].clientX
   const cy = 'clientY' in e ? e.clientY : e.touches[0].clientY
-  rotY += (cx - lastMX) * 0.01; rotX -= (cy - lastMY) * 0.01
-  lastMX = cx; lastMY = cy
+  rotY += (cx - lastMX) * 0.01
+  rotX -= (cy - lastMY) * 0.01
+  lastMX = cx
+  lastMY = cy
 }
-function onUp() { isDragging = false }
+function onUp() {
+  isDragging = false
+}
 
 /* ─── 生命周期 ─── */
 function handleKeydown(e: KeyboardEvent) {
@@ -669,6 +1242,11 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   animId = requestAnimationFrame(animate)
   initSpeech()
+  // 监听主题变化
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  })
 })
 
 onBeforeUnmount(() => {
@@ -676,13 +1254,17 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeMain)
   window.removeEventListener('resize', resizeWave)
   window.removeEventListener('keydown', handleKeydown)
+  themeObserver.disconnect()
   if (silenceTimer) clearTimeout(silenceTimer)
   mediaRecorder?.stop()
   audioCtx?.close()
   abortCtrl?.abort()
 })
 
-watch(() => props.messages.length, () => scrollChat())
+watch(
+  () => props.messages.length,
+  () => scrollChat()
+)
 </script>
 
 <template>
@@ -702,8 +1284,16 @@ watch(() => props.messages.length, () => scrollChat())
     ></canvas>
 
     <button class="close-btn" title="退出沉浸模式 (Esc)" @click="emit('close')">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     </button>
 
@@ -727,16 +1317,270 @@ watch(() => props.messages.length, () => scrollChat())
     </div>
 
     <div class="chat-panel">
-      <div class="chat-header">Session Transcript //</div>
-      <div ref="chatScrollRef" class="chat-messages">
-        <div
-          v-for="(msg, i) in messages"
-          :key="i"
-          class="msg"
-          :class="msg.role"
+      <!-- 标签栏 -->
+      <div class="imm-tabs">
+        <button
+          type="button"
+          class="imm-tab"
+          :class="{ active: activeTab === 'chat' }"
+          @click="activeTab = 'chat'"
         >
-          <div class="text" v-html="fmt(msg.content)"></div>
+          对话
+        </button>
+        <button
+          type="button"
+          class="imm-tab"
+          :class="{ active: activeTab === 'sessions' }"
+          @click="activeTab = 'sessions'"
+        >
+          会话
+        </button>
+        <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
+          ＋ 新会话
+        </button>
+      </div>
+
+      <!-- 对话面板 -->
+      <div v-show="activeTab === 'chat'" class="imm-panel-chat">
+        <!-- 工具栏：角色卡 -->
+        <div class="imm-toolbar">
+          <div class="imm-char-picker" :class="{ open: charPickerOpen }">
+            <button
+              type="button"
+              class="imm-char-trigger"
+              @click.stop="charPickerOpen = !charPickerOpen"
+            >
+              <span>{{
+                characterCards.find(c => c.key === selectedCharacterKey)?.name || '角色卡'
+              }}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+              </svg>
+            </button>
+            <div v-show="charPickerOpen" class="imm-char-panel">
+              <button
+                v-for="c in characterCards"
+                :key="c.key"
+                type="button"
+                class="imm-char-opt"
+                :class="{ active: c.key === selectedCharacterKey }"
+                @click.stop="pickCharacter(c.key)"
+              >
+                <span class="imm-char-name">{{ c.name }}</span>
+                <span class="imm-char-desc">{{ c.description }}</span>
+              </button>
+            </div>
+          </div>
+          <span class="imm-agent-btn active" title="多Agent协作：Planner→Executor→Reviewer">
+            <Bot :size="13" />
+            Multi-Agent
+          </span>
         </div>
+
+        <div ref="chatScrollRef" class="chat-messages">
+          <div v-for="(msg, i) in messages" :key="i" class="msg" :class="msg.role">
+            <!-- Agent 追踪信息 -->
+            <div
+              v-if="
+                msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length)
+              "
+              class="imm-trace"
+            >
+              <div v-if="msg.agentTrace.planSummary" class="imm-trace-item">
+                <ClipboardList :size="14" class="imm-trace-icon-svg" />
+                <span>{{ msg.agentTrace.planSummary }}</span>
+              </div>
+              <div v-for="st in msg.agentTrace.subtasks" :key="st.id" class="imm-trace-item">
+                <span class="imm-trace-dot" :class="'st-' + st.status"></span>
+                <span>{{ st.desc || `子任务 ${st.id}` }}</span>
+              </div>
+              <div v-if="msg.agentTrace.reviewDecision" class="imm-trace-item">
+                <CheckCircle
+                  v-if="msg.agentTrace.reviewDecision === 'PASS'"
+                  :size="14"
+                  class="imm-trace-icon-svg pass"
+                />
+                <RotateCcw v-else :size="14" class="imm-trace-icon-svg revise" />
+                <span>审查: {{ msg.agentTrace.reviewDecision }}</span>
+              </div>
+              <div v-if="msg.agentTrace.metrics" class="imm-trace-metrics">
+                Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{
+                  msg.agentTrace.metrics.tokensOut
+                }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms
+              </div>
+            </div>
+            <!-- 附件标签 -->
+            <div v-if="msg.attachmentName" class="imm-attach-tag">
+              <Paperclip :size="12" />
+              <span>{{ msg.attachmentName }}</span>
+            </div>
+            <!-- 图片消息 -->
+            <img v-if="msg.imageUrl" :src="msg.imageUrl" class="imm-msg-image" />
+            <div class="text" v-html="fmt(msg.content)"></div>
+          </div>
+          <!-- 工具/Agent 状态 -->
+          <div v-if="toolStatus" class="msg assistant">
+            <div class="imm-tool-status">
+              <span class="imm-tool-spinner"></span>
+              <span>{{ toolStatus }}</span>
+            </div>
+          </div>
+          <!-- 加载动画 -->
+          <div v-if="isLocalSending && !toolStatus && !hasReceivedContent" class="msg assistant">
+            <div class="imm-typing">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 快捷回复 -->
+        <div
+          ref="quickRepliesRef"
+          class="imm-quick-replies"
+          @mousedown="onQrMouseDown"
+          @mousemove="onQrMouseMove"
+          @mouseup="onQrMouseUp"
+          @mouseleave="onQrMouseUp"
+        >
+          <button
+            v-for="item in quickReplies"
+            :key="item"
+            type="button"
+            class="imm-qr-btn"
+            :disabled="isSending || isLocalSending"
+            @click="useQuickReply(item)"
+          >
+            {{ item }}
+          </button>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="imm-input-area">
+          <input
+            ref="imageInputRef"
+            type="file"
+            accept="image/*"
+            class="hidden-file"
+            @change="onImageUpload"
+          />
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".txt,.md,.markdown,.csv,.json,.xml,.yaml,.yml,.docx,.pdf"
+            class="hidden-file"
+            @change="onFileUpload"
+          />
+          <!-- 附件预览 -->
+          <div v-if="pendingAttachment" class="imm-attachment">
+            <FileText :size="14" />
+            <span class="imm-attachment-name">{{ pendingAttachment.name }}</span>
+            <span v-if="isParsingFile" class="imm-attachment-status">解析中...</span>
+            <button type="button" class="imm-attachment-remove" @click="removeAttachment">
+              <X :size="12" />
+            </button>
+          </div>
+          <!-- 图片预览 -->
+          <div v-if="pendingImagePreview" class="imm-image-preview">
+            <img :src="pendingImagePreview" alt="预览" />
+            <button type="button" class="imm-image-remove" @click="removeImage">
+              <X :size="12" />
+            </button>
+          </div>
+          <textarea
+            v-model="inputText"
+            class="imm-textarea"
+            rows="2"
+            placeholder="输入消息，或点击下方语音..."
+            :disabled="isSending || isLocalSending"
+            @keydown="onInputKeydown"
+          ></textarea>
+          <div class="imm-input-actions">
+            <button
+              type="button"
+              class="imm-icon-btn"
+              title="上传图片"
+              @click="imageInputRef?.click()"
+            >
+              <Image :size="15" />
+            </button>
+            <button
+              type="button"
+              class="imm-icon-btn"
+              title="上传文件 (txt/md/docx/pdf)"
+              @click="fileInputRef?.click()"
+              :disabled="isParsingFile"
+            >
+              <FileText :size="15" />
+            </button>
+            <div class="imm-input-tip">
+              {{
+                isParsingFile
+                  ? '解析中...'
+                  : dailyExceeded
+                    ? '今日次数已用尽'
+                    : `剩余 ${dailyRemaining} 次`
+              }}
+            </div>
+            <button
+              type="button"
+              class="imm-send-btn"
+              :disabled="
+                isSending ||
+                isLocalSending ||
+                (!inputText.trim() && !pendingAttachment) ||
+                dailyExceeded
+              "
+              @click="handleTextSend"
+            >
+              <Send :size="14" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- 关闭 imm-panel-chat -->
+
+      <!-- 会话列表面板 -->
+      <div v-show="activeTab === 'sessions'" class="imm-panel-sessions">
+        <ul class="imm-sess-list">
+          <li
+            v-for="s in sessions"
+            :key="s.id"
+            class="imm-sess-item"
+            :class="{ current: s.id === currentSessionId }"
+            @click="(emit('loadSession', s.id), (activeTab = 'chat'))"
+          >
+            <div class="imm-sess-title">{{ s.title }}</div>
+            <div class="imm-sess-meta">{{ s.characterKey }}</div>
+            <!-- 确认删除 -->
+            <div v-if="showDeleteConfirm === s.id" class="imm-sess-confirm">
+              <button
+                type="button"
+                class="imm-sess-confirm-yes"
+                @click.stop="emit('deleteSession', s.id); showDeleteConfirm = null"
+              >
+                确认
+              </button>
+              <button
+                type="button"
+                class="imm-sess-confirm-no"
+                @click.stop="showDeleteConfirm = null"
+              >
+                取消
+              </button>
+            </div>
+            <button
+              v-else
+              type="button"
+              class="imm-sess-del"
+              @click.stop="showDeleteConfirm = s.id"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </li>
+        </ul>
+        <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
       </div>
     </div>
   </div>
@@ -747,12 +1591,12 @@ watch(() => props.messages.length, () => scrollChat())
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background-color: #020205;
+  background-color: var(--canvas);
   background-image:
-    radial-gradient(circle at 15% 25%, rgba(45, 20, 70, 0.25) 0%, transparent 40%),
-    radial-gradient(circle at 85% 75%, rgba(15, 45, 80, 0.25) 0%, transparent 40%);
+    radial-gradient(circle at 15% 25%, var(--orb-1) 0%, transparent 40%),
+    radial-gradient(circle at 85% 75%, var(--orb-2) 0%, transparent 40%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: #fff;
+  color: var(--ink);
   overflow: hidden;
 }
 
@@ -778,7 +1622,9 @@ watch(() => props.messages.length, () => scrollChat())
   z-index: 10;
   cursor: grab;
 }
-.main-canvas:active { cursor: grabbing; }
+.main-canvas:active {
+  cursor: grabbing;
+}
 
 .close-btn {
   position: absolute;
@@ -788,9 +1634,9 @@ watch(() => props.messages.length, () => scrollChat())
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.6);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -799,9 +1645,9 @@ watch(() => props.messages.length, () => scrollChat())
   backdrop-filter: blur(8px);
 }
 .close-btn:hover {
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  border-color: rgba(255,255,255,0.3);
+  background: var(--surface-hover);
+  color: var(--ink);
+  border-color: var(--border-interactive);
 }
 
 .tts-toggle-btn {
@@ -812,9 +1658,9 @@ watch(() => props.messages.length, () => scrollChat())
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.5);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -823,14 +1669,14 @@ watch(() => props.messages.length, () => scrollChat())
   backdrop-filter: blur(8px);
 }
 .tts-toggle-btn:hover {
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  border-color: rgba(255,255,255,0.3);
+  background: var(--surface-hover);
+  color: var(--ink);
+  border-color: var(--border-interactive);
 }
 .tts-toggle-btn.active {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: rgba(139, 92, 246, 0.5);
-  color: #a78bfa;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
 }
 
@@ -864,14 +1710,16 @@ watch(() => props.messages.length, () => scrollChat())
   pointer-events: none;
   transition: opacity 0.3s;
 }
-.wave-container:hover .wave-canvas { filter: brightness(1.3); }
+.wave-container:hover .wave-canvas {
+  filter: brightness(1.3);
+}
 
 .interaction-hint {
   position: absolute;
   bottom: 10px;
   font-size: 12px;
   letter-spacing: 2px;
-  color: rgba(255,255,255,0.6);
+  color: var(--ink-muted);
   pointer-events: none;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   animation: breathe-text 2s infinite ease-in-out;
@@ -884,33 +1732,50 @@ watch(() => props.messages.length, () => scrollChat())
   animation: none;
 }
 @keyframes breathe-text {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.9; text-shadow: 0 0 10px rgba(255,255,255,0.4); }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.9;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+  }
 }
 
 .status-text {
   font-size: 11px;
   letter-spacing: 4px;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
+  color: var(--ink-muted);
   font-weight: bold;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
   transition: color 0.3s;
 }
-.status-text.listening { color: #a78bfa; }
-.status-text.thinking { color: #ffcc00; }
-.status-text.speaking { color: #81e6d9; }
+.status-text.listening {
+  color: var(--accent);
+}
+.status-text.thinking {
+  color: var(--warm);
+}
+.status-text.speaking {
+  color: var(--accent);
+}
 
 .interim-text {
   font-size: 13px;
-  color: rgba(255,255,255,0.7);
+  color: var(--ink-soft);
   max-width: 300px;
   text-align: center;
   animation: fadeInUp 0.3s ease;
 }
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-panel {
@@ -918,23 +1783,29 @@ watch(() => props.messages.length, () => scrollChat())
   right: 0;
   top: 0;
   bottom: 0;
-  width: 400px;
-  padding: 40px 32px 120px 32px;
+  width: 420px;
+  padding: 40px 24px 32px 24px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   z-index: 20;
   pointer-events: none;
-  background: linear-gradient(to right, transparent, rgba(0,0,0,0.4) 80%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 100%);
+  background: linear-gradient(to right, transparent 0%, var(--canvas) 60%, var(--canvas) 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 6%,
+    black 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 92%, transparent 100%);
 }
 
 .chat-header {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 3px;
-  color: rgba(255,255,255,0.25);
+  color: var(--ink-muted);
   margin-bottom: 20px;
   text-align: right;
   text-transform: uppercase;
@@ -945,28 +1816,62 @@ watch(() => props.messages.length, () => scrollChat())
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 10px;
   padding-right: 8px;
   pointer-events: auto;
 }
-.chat-messages::-webkit-scrollbar { width: 0; }
+.chat-messages::-webkit-scrollbar {
+  width: 0;
+}
 
-.msg { display: flex; flex-direction: column; max-width: 100%; }
-.msg.user { align-self: flex-end; align-items: flex-end; }
+.msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+}
+.msg.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
 .msg.user .text {
-  color: rgba(255,255,255,0.6);
+  color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.6;
   text-align: right;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
-.msg.assistant { align-self: flex-start; }
+.msg.assistant {
+  align-self: flex-start;
+}
 .msg.assistant .text {
-  color: #ffffff;
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.7;
   font-weight: 300;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+}
+
+/* ── 附件标签 ── */
+.imm-attach-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  align-self: flex-end;
+}
+.imm-msg-image {
+  max-width: 240px;
+  max-height: 180px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  object-fit: cover;
+  cursor: pointer;
+  align-self: flex-end;
 }
 
 .msg .text :deep(pre) {
@@ -975,24 +1880,676 @@ watch(() => props.messages.length, () => scrollChat())
   overflow-x: auto;
   font-size: 0.78rem;
   line-height: 1.45;
-  background: rgba(255,255,255,0.06);
+  background: var(--surface);
   padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
 }
 .msg .text :deep(code) {
-  background: rgba(255,255,255,0.08);
+  background: var(--accent-soft);
   padding: 0.1rem 0.25rem;
   border-radius: 3px;
   font-size: 0.82em;
   font-family: 'Fira Code', 'Consolas', monospace;
 }
-.msg .text :deep(pre code) { background: transparent; padding: 0; }
-.msg .text :deep(p) { margin: 0.1rem 0; }
-.msg .text :deep(p:first-child) { margin-top: 0; }
-.msg .text :deep(p:last-child) { margin-bottom: 0; }
-.msg .text :deep(ul), .msg .text :deep(ol) { padding-left: 1.2rem; margin: 0.15rem 0; }
+.msg .text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+}
+.msg .text :deep(p) {
+  margin: 0.1rem 0;
+}
+.msg .text :deep(p:first-child) {
+  margin-top: 0;
+}
+.msg .text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.msg .text :deep(ul),
+.msg .text :deep(ol) {
+  padding-left: 1.2rem;
+  margin: 0.15rem 0;
+}
+
+/* ── Agent 追踪 ── */
+.imm-trace {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+.imm-trace-item {
+  display: flex;
+  align-items: center;
+  gap: 0px;
+  color: var(--ink-muted);
+}
+.imm-trace-icon {
+  font-size: 13px;
+}
+.imm-trace-icon-svg {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+.imm-trace-icon-svg.pass {
+  color: #28a745;
+}
+.imm-trace-icon-svg.revise {
+  color: var(--warm, #f5a623);
+}
+.imm-trace-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.st-pending .imm-trace-dot {
+  background: var(--border-interactive);
+}
+.st-running .imm-trace-dot {
+  background: var(--accent);
+  animation: trace-pulse 1s infinite;
+}
+.st-done .imm-trace-dot {
+  background: #28a745;
+}
+@keyframes trace-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.imm-trace-metrics {
+  font-size: 11px;
+  color: var(--ink-muted);
+  opacity: 0.7;
+  font-family: 'Fira Code', monospace;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ── 工具状态 ── */
+.imm-tool-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.imm-tool-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 打字动画 ── */
+.imm-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+}
+.imm-typing .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.4;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+.imm-typing .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.imm-typing .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* ── 工具栏 ── */
+.imm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.imm-char-picker {
+  position: relative;
+}
+
+.imm-char-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  font-family: inherit;
+}
+.imm-char-trigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-interactive);
+}
+.imm-char-picker.open .imm-char-trigger {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.imm-char-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-card-hover);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.imm-char-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.imm-char-opt:hover {
+  background: var(--surface-hover);
+}
+.imm-char-opt.active {
+  background: var(--accent-soft);
+}
+.imm-char-name {
+  font-weight: 700;
+  color: var(--ink);
+}
+.imm-char-desc {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.imm-agent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.imm-agent-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.imm-agent-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.imm-agent-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── 快捷回复 ── */
+.imm-quick-replies {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  pointer-events: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  cursor: grab;
+}
+.imm-quick-replies::-webkit-scrollbar {
+  display: none;
+}
+.imm-quick-replies:active {
+  cursor: grabbing;
+}
+
+.imm-qr-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.imm-qr-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.imm-qr-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── 输入区 ── */
+.imm-input-area {
+  flex-shrink: 0;
+  padding: 12px;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] .imm-input-area {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.hidden-file {
+  display: none;
+}
+
+/* ── 附件预览 ── */
+.imm-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+.imm-attachment-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imm-attachment-status {
+  font-size: 11px;
+  color: var(--accent);
+  animation: pulse-opacity 1.2s infinite;
+}
+@keyframes pulse-opacity {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+.imm-attachment-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-attachment-remove:hover {
+  background: rgba(231, 76, 60, 0.2);
+  color: #c44a4a;
+}
+
+/* ── 图片预览 ── */
+.imm-image-preview {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+.imm-image-preview img {
+  max-width: 160px;
+  max-height: 120px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  object-fit: cover;
+}
+.imm-image-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-image-remove:hover {
+  background: rgba(231, 76, 60, 0.8);
+}
+
+.imm-textarea {
+  width: 100%;
+  min-height: 50px;
+  max-height: 90px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+.imm-textarea::placeholder {
+  color: var(--ink-muted);
+}
+.imm-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+.imm-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.imm-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.imm-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface);
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.imm-send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: auto;
+  box-shadow: var(--shadow-button);
+}
+.imm-send-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px);
+}
+.imm-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.imm-input-tip {
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+/* ── 标签栏 ── */
+.imm-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 10px;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+.imm-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.imm-tab:hover:not(.active) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.imm-tab-action {
+  margin-left: auto;
+}
+
+/* ── 对话/会话面板 ── */
+.imm-panel-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.imm-panel-sessions {
+  flex: 1;
+  overflow-y: auto;
+  pointer-events: auto;
+  padding: 4px 0;
+}
+.imm-panel-sessions::-webkit-scrollbar {
+  width: 0;
+}
+
+/* ── 会话列表 ── */
+.imm-sess-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.imm-sess-item {
+  position: relative;
+  padding: 10px 36px 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-sess-item:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-interactive);
+}
+.imm-sess-item.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.imm-sess-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imm-sess-meta {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+.imm-sess-del {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.imm-sess-del:hover {
+  background: rgba(231, 76, 60, 0.1);
+  color: #c44a4a;
+}
+.imm-sess-confirm {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+}
+.imm-sess-confirm-yes,
+.imm-sess-confirm-no {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.imm-sess-confirm-yes {
+  background: rgba(231, 76, 60, 0.15);
+  color: #c44a4a;
+}
+.imm-sess-confirm-yes:hover {
+  background: rgba(231, 76, 60, 0.3);
+}
+.imm-sess-confirm-no {
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+.imm-sess-confirm-no:hover {
+  background: var(--border);
+}
+.imm-sess-empty {
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+  padding: 24px 0;
+}
 
 @media (max-width: 768px) {
-  .chat-panel { width: 100%; padding: 60px 20px 140px 20px; }
-  .wave-container { width: 280px; height: 120px; }
+  .chat-panel {
+    width: 100%;
+    padding: 60px 20px 140px 20px;
+  }
+  .wave-container {
+    width: 280px;
+    height: 120px;
+  }
+  .imm-toolbar {
+    flex-wrap: wrap;
+  }
 }
 </style>

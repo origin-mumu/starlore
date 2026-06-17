@@ -38,6 +38,7 @@ __screenshots__/
 # 环境变量文件
 .env
 .env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local

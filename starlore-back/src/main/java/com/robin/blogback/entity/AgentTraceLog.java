@@ -1,6 +1,7 @@
 package com.robin.blogback.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
@@ -14,15 +15,25 @@ public class AgentTraceLog {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("user_id")
     private Integer userId;
+    @TableField("trace_id")
     private String traceId;
+    @TableField("node_id")
     private String nodeId;
+    @TableField("node_name")
     private String nodeName;
+    @TableField("input_text")
     private String inputText;
+    @TableField("output_text")
     private String outputText;
+    @TableField("tokens_in")
     private Integer tokensIn;
+    @TableField("tokens_out")
     private Integer tokensOut;
+    @TableField("latency_ms")
     private Long latencyMs;
+    @TableField("created_at")
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }

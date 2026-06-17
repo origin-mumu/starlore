@@ -1,0 +1,70 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push starlore-front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./starlore-front
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/starlore-front:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push starlore-back
+        uses: docker/build-push-action@v6
+        with:
+          context: ./starlore-back
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/starlore-back:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push starlore-pdf
+        uses: docker/build-push-action@v6
+        with:
+          context: ./starlore-pdf
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/starlore-pdf:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/starlore
+            docker-compose pull
+            docker-compose down
+            docker-compose up -d
+            docker image prune -f

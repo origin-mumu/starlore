@@ -209,7 +209,7 @@ const MAX_DIMENSION = 800 // 最长边 800px
 const compressImage = (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = e => {
       const img = new Image()
       img.onload = () => {
         // 先计算缩放后的尺寸
@@ -231,8 +231,11 @@ const compressImage = (file: File): Promise<File> => {
         let quality = 0.9
         const tryCompress = () => {
           canvas.toBlob(
-            (b) => {
-              if (!b) { reject(new Error('压缩失败')); return }
+            b => {
+              if (!b) {
+                reject(new Error('压缩失败'))
+                return
+              }
               if (b.size > COMPRESS_TARGET && quality > 0.3) {
                 quality -= 0.1
                 tryCompress()
@@ -261,7 +264,10 @@ const handlePhotoUpload = async (e: Event) => {
 
   // 大文件提示
   if (file.size > MAX_FILE_SIZE) {
-    notify('图片过大', `当前图片 ${(file.size / 1024 / 1024).toFixed(1)}MB，将自动压缩至 500KB 以内`)
+    notify(
+      '图片过大',
+      `当前图片 ${(file.size / 1024 / 1024).toFixed(1)}MB，将自动压缩至 500KB 以内`
+    )
   }
 
   try {
@@ -889,7 +895,7 @@ const spacingStyle = computed(() => ({
   grid-template-columns: 2.2fr 2fr;
   gap: 16px;
   min-height: calc(100vh - 180px);
-  background: var(--canvas);
+  /*background: var(--canvas);*/
   padding: 16px;
 }
 
@@ -899,9 +905,11 @@ const spacingStyle = computed(() => ({
   border-radius: 20px;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   /* height: calc(100vh - 100px); */
   height: 100vh;
 }
@@ -1011,7 +1019,9 @@ const spacingStyle = computed(() => ({
   gap: 12px;
   padding: 10px;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   flex-shrink: 0;
 }
 .page-arrow {
@@ -1287,11 +1297,13 @@ const spacingStyle = computed(() => ({
 /* ===== Edit Panel ===== */
 .edit-panel {
   display: flex;
-  background: var(--surface);
+  background: var(--glass-bg);
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid var(--border);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   /* height: calc(100vh - 200px); */
   height: 100vh;
 }

@@ -22,6 +22,12 @@ const nodeColors = [
   '#cc99ff', '#00ffcc', '#ff6666', '#66ccff', '#ffcc66'
 ]
 
+// 简单的伪随机数生成（基于种子）
+function seededRandom(seed: number) {
+  let x = Math.sin(seed * 127.1) * 43758.5453
+  return x - Math.floor(x)
+}
+
 // Build knowledge nodes based on active nav
 const knowledgeNodes = computed(() => {
   const nodes: any[] = []
@@ -30,31 +36,48 @@ const knowledgeNodes = computed(() => {
   const centerY = 0.45
 
   if (activeNav.value === '全部') {
-    // Show category nodes in a circle
-    const radius = 0.25
+    // 中心 hub 节点
+    nodes.push({
+      id: 0,
+      label: '知识星域',
+      desc: `${cats.reduce((sum, c) => sum + c.count, 0)} 篇文章 · ${cats.length} 个分类`,
+      rx: centerX,
+      ry: centerY,
+      size: 12,
+      color: '#ffffff',
+      type: 'category' as const,
+    })
+
+    // 分类节点围绕中心，使用黄金角螺旋排列
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+
     cats.forEach((cat, i) => {
-      const angle = (i / cats.length) * Math.PI * 2 - Math.PI / 2
-      const rx = centerX + Math.cos(angle) * radius
-      const ry = centerY + Math.sin(angle) * radius
+      const radius = 0.18 + (i / cats.length) * 0.1
+      const angle = i * goldenAngle
+      const jitterR = seededRandom(i * 31) * 0.03
+      const jitterA = seededRandom(i * 47) * 0.15
+
+      const rx = centerX + Math.cos(angle + jitterA) * (radius + jitterR)
+      const ry = centerY + Math.sin(angle + jitterA) * (radius + jitterR) * 0.75
 
       nodes.push({
         id: i + 1,
         label: cat.name,
         desc: `${cat.count} 篇文章 · 最近更新 ${cat.lastUpdated}`,
-        rx,
-        ry,
-        size: Math.max(5, Math.min(8, cat.count / 2 + 3)),
+        rx: Math.max(0.08, Math.min(0.92, rx)),
+        ry: Math.max(0.1, Math.min(0.85, ry)),
+        size: Math.max(4, Math.min(9, cat.count * 0.6 + 3)),
         color: nodeColors[i % nodeColors.length],
         type: 'category' as const,
         link: `/articles?category=${encodeURIComponent(cat.name)}`,
       })
     })
   } else {
-    // Show articles under selected category (max 7)
+    // Show articles under selected category
     const articles = articlesByCategory.value.get(activeNav.value) || []
     const catIndex = cats.findIndex(c => c.name === activeNav.value)
     const catColor = nodeColors[catIndex >= 0 ? catIndex % nodeColors.length : 0]
-    const displayArticles = articles.slice(0, 7)
+    const displayArticles = articles.slice(0, 12)
 
     // Place category node at center
     nodes.push({
@@ -63,25 +86,33 @@ const knowledgeNodes = computed(() => {
       desc: `${articles.length} 篇文章`,
       rx: centerX,
       ry: centerY,
-      size: 8,
+      size: 10,
       color: catColor,
       type: 'category' as const,
     })
 
-    // Place article nodes around it
-    const radius = 0.22
+    // 花瓣/卫星布局：多层轨道 + 黄金角分散
+    const count = displayArticles.length
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+
     displayArticles.forEach((article, i) => {
-      const angle = (i / displayArticles.length) * Math.PI * 2 - Math.PI / 2
-      const rx = centerX + Math.cos(angle) * radius
-      const ry = centerY + Math.sin(angle) * radius
+      const progress = (i + 1) / count
+      // 从近到远的螺旋
+      const radius = 0.1 + progress * 0.18
+      const angle = i * goldenAngle
+      const jitterR = seededRandom(i * 13 + 7) * 0.03
+      const jitterA = seededRandom(i * 19 + 3) * 0.2
+
+      const rx = centerX + Math.cos(angle + jitterA) * (radius + jitterR)
+      const ry = centerY + Math.sin(angle + jitterA) * (radius + jitterR) * 0.75
 
       nodes.push({
         id: article.id,
         label: article.title,
         desc: article.desc || '点击查看详情',
-        rx,
-        ry,
-        size: 5,
+        rx: Math.max(0.08, Math.min(0.92, rx)),
+        ry: Math.max(0.1, Math.min(0.85, ry)),
+        size: 3 + seededRandom(i * 29) * 3,
         color: catColor,
         type: 'article' as const,
         link: `/articles/${article.id}`,
@@ -98,19 +129,17 @@ const knowledgeLinks = computed(() => {
   const nodes = knowledgeNodes.value
 
   if (activeNav.value === '全部') {
-    // Connect adjacent categories
-    for (let i = 0; i < nodes.length; i++) {
-      const next = (i + 1) % nodes.length
-      links.push([nodes[i].id, nodes[next].id])
+    // 中心节点连接到每个分类节点
+    for (const node of nodes) {
+      if (node.id !== 0) {
+        links.push([0, node.id])
+      }
     }
   } else {
-    // Connect center category to each article
-    const centerNode = nodes.find(n => n.id === 0)
-    if (centerNode) {
-      for (const node of nodes) {
-        if (node.id !== 0) {
-          links.push([0, node.id])
-        }
+    // 仅中心节点连接到每个文章节点
+    for (const node of nodes) {
+      if (node.id !== 0) {
+        links.push([0, node.id])
       }
     }
   }
@@ -252,7 +281,8 @@ function goBack() {
 
 function onNodeClick(node: any) {
   selectedNode.value = node
-  if (node.type === 'category' && activeNav.value === '全部') {
+  // 点击分类节点进入该分类（中心 hub 节点除外）
+  if (node.type === 'category' && activeNav.value === '全部' && node.id !== 0) {
     activeNav.value = node.label
   }
 }
