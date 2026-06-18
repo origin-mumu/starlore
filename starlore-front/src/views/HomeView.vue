@@ -70,8 +70,8 @@ const features = [
   {
     icon: Activity,
     title: '全链路可观测性',
-    desc: '集成 LangSmith 监控体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
-    tech: 'LangSmith · Tracing · Bad Case Mining',
+    desc: '自研 Tracing 体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
+    tech: 'Trace · Observability · Bad Case Mining',
     link: '/echobot',
   },
   {
@@ -107,7 +107,7 @@ const features = [
 const stats = [
   { value: '3-Agent', label: '多智能体协作' },
   { value: '10+', label: 'Function 工具' },
-  { value: 'LangSmith', label: '全链路追踪' },
+  { value: 'Trace', label: '全链路追踪' },
   { value: '3D', label: '知识可视化' },
 ]
 
@@ -153,7 +153,7 @@ onMounted(async () => {
                 <span class="terminal-success">✓</span> Multi-Agent Graph compiled
               </div>
               <div class="terminal-line terminal-output">
-                <span class="terminal-success">✓</span> LangSmith tracing enabled
+                <span class="terminal-success">✓</span> Trace observability enabled
               </div>
               <div class="terminal-line terminal-output">
                 <span class="terminal-success">✓</span> Vector store connected
@@ -175,7 +175,7 @@ onMounted(async () => {
             AI-Powered Personal Knowledge Universe
           </p>
           <p class="hero-desc fade-in-up" style="animation-delay: 0.4s">
-            融合 Multi-Agent 协作、LangSmith 可观测性、RAG 知识检索、3D 可视化的智能知识系统。<br />
+            融合 Multi-Agent 协作、全链路可观测性、RAG 知识检索、3D 可视化的智能知识系统。<br />
             Planner 规划 → Executor 执行 → Reviewer 审查，让 AI 真正理解你的知识。
           </p>
           <div class="hero-actions fade-in-up" style="animation-delay: 0.5s">
