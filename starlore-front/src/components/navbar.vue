@@ -9,10 +9,10 @@ const userStore = useUserStore()
 const route = useRoute()
 
 const navItems = computed(() => {
-  const items: { name: string; path: string }[] = [{ name: '首页', path: '/' }]
-  if (userStore.isLoggedIn) {
-    items.push({ name: '星迹', path: '/articles' })
-  }
+  const items: { name: string; path: string }[] = [
+    { name: '首页', path: '/' },
+    { name: '星记', path: '/articles' },
+  ]
   if (!userStore.isLoggedIn) {
     items.push({ name: '关于我', path: '/about' })
   }
@@ -44,7 +44,7 @@ const themes: {
   { name: 'pink', label: '粉色', color: '#D4638F' },
 ]
 
-const guestAllowedPaths = ['/', '/about', '/categories', '/vr', '/diverge', '/echobot']
+const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr', '/diverge', '/echobot']
 
 const handleLogout = () => {
   userStore.logout()
@@ -64,7 +64,7 @@ const moreOpen = ref(false)
 
 const mobileMainTabs = [
   { name: '首页', path: '/' },
-  { name: '星域', path: '/categories' },
+  { name: '星记', path: '/articles' },
   { name: '探索', path: '/vr' },
   { name: 'AI', path: '/echobot' },
 ]
@@ -73,10 +73,8 @@ const mobileMoreItems = computed(() => {
   const all = [
     { name: '关于我', path: '/about' },
     { name: '灵感', path: '/diverge' },
+    { name: '星域', path: '/categories' },
   ]
-  if (userStore.isLoggedIn) {
-    all.push({ name: '星迹', path: '/articles' })
-  }
   return all
 })
 </script>

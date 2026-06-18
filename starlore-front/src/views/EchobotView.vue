@@ -149,16 +149,16 @@ const agentNodeLabelMap: Record<string, string> = {
 }
 
 const toolLabelMap: Record<string, string> = {
-  searchArticles: '正在搜索星迹...',
-  getArticleDetail: '正在获取星迹详情...',
+  searchArticles: '正在搜索星记...',
+  getArticleDetail: '正在获取星记详情...',
   getCategories: '正在获取星域列表...',
   getBlogStats: '正在获取博客统计...',
-  getRecentArticles: '正在获取最新星迹...',
-  writeArticle: '正在创建星迹...',
-  updateArticle: '正在更新星迹...',
-  deleteArticle: '正在删除星迹...',
+  getRecentArticles: '正在获取最新星记...',
+  writeArticle: '正在创建星记...',
+  updateArticle: '正在更新星记...',
+  deleteArticle: '正在删除星记...',
   getAllTags: '正在获取光痕列表...',
-  getArticlesByCategory: '正在获取星域星迹...',
+  getArticlesByCategory: '正在获取星域星记...',
   createCategory: '正在创建星域...',
 }
 
@@ -213,6 +213,7 @@ async function refreshSessions() {
 }
 
 async function loadSession(id: number) {
+  if (!userStore.isLoggedIn) return
   const res = await getSessionMessages(id)
   currentSessionId.value = id
   selectedCharacterKey.value = res.session.characterKey || 'default'
@@ -229,6 +230,10 @@ async function loadSession(id: number) {
 }
 
 async function newSession() {
+  if (!userStore.isLoggedIn) {
+    alert('访客模式下无法新建云端会话，请登录开启您的专属 AI 空间！')
+    return
+  }
   const { session } = await createAiSession({
     characterKey: selectedCharacterKey.value,
     modelId: 'deepseek-chat',
@@ -251,6 +256,10 @@ function removeSession(id: number, e: Event) {
 async function confirmDeleteSession(emitId?: number) {
   const id = emitId ?? deleteSessionId.value
   if (id == null) return
+  if (!userStore.isLoggedIn) {
+    alert('访客模式下无法删除本地体验会话，请登录开启您的会话管理！')
+    return
+  }
   showDeleteSession.value = false
   await deleteAiSession(id)
   if (currentSessionId.value === id) {
@@ -915,7 +924,25 @@ onMounted(async () => {
   })
   document.documentElement.classList.add('echobot-route')
 
-  if (!userStore.isLoggedIn) return
+  if (!userStore.isLoggedIn) {
+    characterCards.value = [
+      { key: 'default', name: '星轮助手', description: '你的智慧宇宙领航员，精通文学、科幻与本站知识。', systemPrompt: '' },
+      { key: 'philosopher', name: '庄子', description: '物我两忘，逍遥游于字里行间的古代哲学家。', systemPrompt: '你现在扮演哲学家庄子，说话充满道家智慧和哲理，善用寓言。' },
+      { key: 'explorer', name: '银河探索者', description: '热衷于探索未知星域的科幻领航员。', systemPrompt: '你是一名银河探索者，说话带有机甲、星河、探索的科幻色彩。' }
+    ]
+    sessions.value = [
+      { id: -1, title: '访客体验会话', characterKey: 'default', modelId: 'mock', createdAt: '', updatedAt: '' }
+    ]
+    currentSessionId.value = -1
+    messages.value = [
+      {
+        role: 'assistant',
+        content: '你好！我是 Starlore 智能助理。目前系统已自动进入**访客体验模式（本地模拟）**。\n\n> ⚠️ **提示**：访客模式下对话由本地脚本模拟生成。**登录后将解锁真实的 AI 助手，连接云端 Multi-Agent 架构的 DeepSeek 大语言模型，并支持您个人会话记录的持久化云端存储。**\n\n您可以试着提问关于“文章”、“星域”、“灵感”或“简历”等词汇，或切换上方角色卡、体验 TTS 朗读功能！',
+        reasoningContent: '检测到当前用户未登录，已初始化本地访客沙盒会话，并提醒用户登录后可使用真实 AI。'
+      }
+    ]
+    return
+  }
 
   try {
     const { cards } = await getCharacterCards()
@@ -942,18 +969,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- Guest overlay -->
-  <div v-if="!userStore.isLoggedIn" class="guest-overlay">
-    <div class="guest-overlay-content">
-      <h2>AI 助手</h2>
-      <p>登录后即可使用 AI 对话功能</p>
-      <router-link to="/login" class="btn-primary">立即登录</router-link>
-    </div>
-  </div>
-
-  <!-- 沉浸模式（仅登录后显示） -->
+  <!-- 沉浸模式 -->
   <ImmersiveMode
-    v-if="immersiveActive && userStore.isLoggedIn"
+    v-if="immersiveActive"
     :messages="messages"
     :system-prompt="systemPrompt"
     :character-cards="characterCards"
