@@ -217,6 +217,7 @@ public class ArticleServiceImpl implements ArticleService {
         article.setTags(request.getTags() != null ? request.getTags() : new ArrayList<>());
         article.setCoverImage(request.getCoverImage());
         article.setStatus(request.getStatus() != null ? request.getStatus() : "published");
+        article.setIsPublic(request.getIsPublic() != null ? request.getIsPublic() : false);
         article.setViewCount(0);
         LocalDateTime now = LocalDateTime.now();
         article.setCreatedAt(now);
@@ -248,6 +249,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (request.getTags() != null) article.setTags(request.getTags());
         if (request.getCoverImage() != null) article.setCoverImage(request.getCoverImage());
         if (request.getStatus() != null) article.setStatus(request.getStatus());
+        if (request.getIsPublic() != null) article.setIsPublic(request.getIsPublic());
         article.setUpdatedAt(LocalDateTime.now());
         articleMapper.updateById(article);
 
@@ -317,6 +319,7 @@ public class ArticleServiceImpl implements ArticleService {
         s.setAuthorName(authorName);
         s.setTitle(a.getTitle());
         s.setStatus(a.getStatus());
+        s.setIsPublic(a.getIsPublic());
         s.setDescription(a.getDescription());
         s.setCategory(a.getCategory());
         s.setTags(a.getTags());
@@ -337,8 +340,125 @@ public class ArticleServiceImpl implements ArticleService {
         d.setCoverImage(a.getCoverImage());
         d.setViewCount(a.getViewCount());
         d.setStatus(a.getStatus());
+        d.setIsPublic(a.getIsPublic());
         d.setCreatedAt(a.getCreatedAt());
         d.setUpdatedAt(a.getUpdatedAt());
         return d;
+    }
+
+    @Override
+    public ArticleListResponse getPublicArticles(int page, int limit, String category, String search, String tag) {
+        LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Article::getStatus, "published");
+        wrapper.eq(Article::getIsPublic, true);
+
+        if (StringUtils.hasText(category) && !"全部".equals(category)) {
+            wrapper.eq(Article::getCategory, category);
+        }
+        if (StringUtils.hasText(search)) {
+            wrapper.and(w -> w.like(Article::getTitle, search)
+                    .or().like(Article::getDescription, search));
+        }
+        if (StringUtils.hasText(tag)) {
+            wrapper.apply("JSON_CONTAINS(tags, JSON_ARRAY({0}))", tag);
+        }
+
+        wrapper.orderByDesc(Article::getCreatedAt);
+        wrapper.select(Article::getId, Article::getUserId, Article::getTitle, Article::getStatus, Article::getIsPublic,
+                Article::getDescription, Article::getCategory, Article::getTags,
+                Article::getCoverImage, Article::getViewCount, Article::getCreatedAt);
+
+        Page<Article> pageObj = new Page<>(page, limit);
+        articleMapper.selectPage(pageObj, wrapper);
+
+        Set<Integer> userIds = pageObj.getRecords().stream()
+                .map(Article::getUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Integer, String> userNameMap = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            userMapper.selectBatchIds(userIds).forEach(u -> userNameMap.put(u.getId(), u.getNickname()));
+        }
+
+        List<ArticleSummary> summaries = pageObj.getRecords().stream()
+                .map(a -> toArticleSummaryWithAuthor(a, userNameMap.getOrDefault(a.getUserId(), "")))
+                .toList();
+
+        PaginationInfo pagination = new PaginationInfo(
+                (int) pageObj.getCurrent(),
+                pageObj.getTotal(),
+                (int) pageObj.getPages()
+        );
+
+        return new ArticleListResponse(summaries, pagination);
+    }
+
+    @Override
+    public ArticleDetail getPublicArticleById(Integer id) {
+        Article article = articleMapper.selectOne(
+                new LambdaQueryWrapper<Article>()
+                        .eq(Article::getId, id)
+                        .eq(Article::getStatus, "published")
+                        .eq(Article::getIsPublic, true));
+        if (article == null) {
+            throw new NotFoundException("文章不存在或非公开");
+        }
+
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getId, id)
+                .setSql("view_count = view_count + 1"));
+
+        article.setViewCount(article.getViewCount() + 1);
+        return toArticleDetail(article);
+    }
+
+    @Override
+    public BlogStatsResponse getPublicStats() {
+        LambdaQueryWrapper<Article> articleWrapper = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, "published")
+                .eq(Article::getIsPublic, true);
+
+        long totalArticles = articleMapper.selectCount(articleWrapper);
+
+        List<Category> allCategories = categoryMapper.selectList(null);
+        List<BlogStatsResponse.CategoryInfo> popularCategories = allCategories.stream()
+                .map(c -> {
+                    long count = articleMapper.selectCount(
+                            new LambdaQueryWrapper<Article>()
+                                    .eq(Article::getCategory, c.getName())
+                                    .eq(Article::getStatus, "published")
+                                    .eq(Article::getIsPublic, true));
+                    return new BlogStatsResponse.CategoryInfo(c.getId(), c.getName(), (int) count);
+                })
+                .filter(c -> c.getArticleCount() > 0)
+                .sorted((a, b) -> Integer.compare(b.getArticleCount(), a.getArticleCount()))
+                .limit(5)
+                .toList();
+
+        long totalCategories = allCategories.stream()
+                .filter(c -> articleMapper.selectCount(
+                        new LambdaQueryWrapper<Article>()
+                                .eq(Article::getCategory, c.getName())
+                                .eq(Article::getStatus, "published")
+                                .eq(Article::getIsPublic, true)) > 0)
+                .count();
+
+        long totalViews = articleMapper.selectList(
+                new LambdaQueryWrapper<Article>()
+                        .eq(Article::getStatus, "published")
+                        .eq(Article::getIsPublic, true)
+                        .select(Article::getViewCount)
+        ).stream().mapToLong(a -> a.getViewCount() != null ? a.getViewCount() : 0).sum();
+
+        LambdaQueryWrapper<Article> popularWrapper = new LambdaQueryWrapper<Article>()
+                .eq(Article::getStatus, "published")
+                .eq(Article::getIsPublic, true)
+                .orderByDesc(Article::getCreatedAt).last("LIMIT 4")
+                .select(Article::getId, Article::getUserId, Article::getTitle, Article::getDescription,
+                        Article::getCreatedAt, Article::getCategory, Article::getCoverImage, Article::getTags);
+        List<ArticleSummary> popularArticles = articleMapper.selectList(popularWrapper).stream()
+                .map(this::toArticleSummary).toList();
+
+        BlogStatsResponse.BlogStatsData data = new BlogStatsResponse.BlogStatsData(
+                totalArticles, totalCategories, totalViews, popularArticles, popularCategories);
+        return new BlogStatsResponse(data);
     }
 }

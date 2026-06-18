@@ -164,7 +164,7 @@ const deleteCategory = async (id: number) => {
           <div v-else class="table-container">
             <div class="table-header">
               <div class="header-cell">星域名称</div>
-              <div class="header-cell">星迹数</div>
+              <div class="header-cell">星记数</div>
               <div class="header-cell">创建时间</div>
               <div class="header-cell">操作</div>
             </div>

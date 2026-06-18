@@ -318,9 +318,11 @@ const githubStats = [
 
 .tech-card {
   padding: 28px 24px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   transition: all var(--transition);
 }
 
@@ -393,9 +395,11 @@ const githubStats = [
 
 .project-card {
   padding: 28px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   display: flex;
   flex-direction: column;
   transition: all var(--transition);
@@ -474,9 +478,11 @@ const githubStats = [
 
 .opensource-card {
   padding: 40px;
-  background: var(--surface);
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
   text-align: center;
 }
 

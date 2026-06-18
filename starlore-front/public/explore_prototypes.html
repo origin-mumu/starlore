@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>探索界面原型设计 - Starlore</title>
+  <style>
+    :root {
+      --canvas: #0b0d13;
+      --surface: rgba(26, 28, 38, 0.65);
+      --border: rgba(255, 255, 255, 0.12);
+      --accent-cyan: #00f2fe;
+      --accent-purple: #4facfe;
+      --accent-amber: #f5a623;
+      --ink: #f0f0f2;
+      --ink-soft: #b8b8c0;
+      --ink-muted: #6e707e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--canvas);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(168, 79, 254, 0.08) 0%, transparent 40%);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+      background: linear-gradient(120deg, var(--accent-purple), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--ink-soft);
+      font-size: 1rem;
+    }
+
+    /* Tabs System */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .tab-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      color: var(--ink-soft);
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      transform: translateY(-2px);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      color: #0b0d13;
+      border-color: transparent;
+      box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25);
+    }
+
+    .panel {
+      display: none;
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Card styling */
+    .glass-card {
+      background: var(--surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ─── PROTOTYPE 1: AI Radar ─── */
+    .radar-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .radar-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .radar-canvas-box {
+      position: relative;
+      height: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 20px;
+      border: 1px dashed rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    /* Simulated Graph representation */
+    .constellation {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+
+    .node {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 12px var(--accent-cyan);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .node:hover {
+      transform: scale(1.4);
+      box-shadow: 0 0 20px var(--accent-cyan);
+    }
+
+    .node-label {
+      position: absolute;
+      white-space: nowrap;
+      left: 20px;
+      top: -3px;
+      font-size: 11px;
+      color: var(--ink-soft);
+      pointer-events: none;
+    }
+
+    .link-line {
+      position: absolute;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(0,242,254,0.4), rgba(79,172,254,0.1));
+      transform-origin: 0 0;
+    }
+
+    .radar-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .connector-box {
+      border: 1px solid rgba(79, 172, 254, 0.2);
+      background: rgba(79, 172, 254, 0.03);
+    }
+
+    .connector-box h3 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: var(--accent-cyan);
+    }
+
+    .select-node-trigger {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--ink-soft);
+      font-size: 13px;
+      text-align: left;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+
+    .connect-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      border: none;
+      color: #0b0d13;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .connect-btn:hover {
+      transform: scale(1.02);
+    }
+
+    .insight-result {
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--ink-soft);
+      border-left: 3px solid var(--accent-purple);
+    }
+
+    /* ─── PROTOTYPE 2: Chronicle Timeline ─── */
+    .timeline-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .heatmap-section {
+      width: 100%;
+    }
+
+    .heatmap-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .heatmap-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 16px;
+      border-radius: 12px;
+    }
+
+    .heatmap-cell {
+      width: 13px;
+      height: 13px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+    }
+
+    .heatmap-cell.level-1 { background: rgba(79, 172, 254, 0.25); }
+    .heatmap-cell.level-2 { background: rgba(79, 172, 254, 0.5); }
+    .heatmap-cell.level-3 { background: rgba(79, 172, 254, 0.75); }
+    .heatmap-cell.level-4 { background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan); }
+
+    .timeline-stream {
+      position: relative;
+      padding-left: 32px;
+      margin-left: 12px;
+      border-left: 2px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 32px;
+    }
+
+    .timeline-marker {
+      position: absolute;
+      left: -40px;
+      top: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--canvas);
+      border: 3px solid var(--accent-purple);
+    }
+
+    .timeline-date {
+      font-size: 0.85rem;
+      color: var(--accent-purple);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .timeline-card {
+      background: rgba(255, 255, 255, 0.03);
+      transition: all 0.3s;
+    }
+
+    .timeline-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateX(4px);
+    }
+
+    .timeline-title {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .timeline-preview {
+      font-size: 13px;
+      color: var(--ink-soft);
+      line-height: 1.6;
+    }
+
+    /* ─── PROTOTYPE 3: Discover Hub ─── */
+    .discover-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .search-section {
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+    }
+
+    .search-bar {
+      width: 100%;
+      padding: 16px 24px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--ink);
+      font-size: 1rem;
+      outline: none;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s;
+    }
+
+    .search-bar:focus {
+      border-color: var(--accent-purple);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 20px rgba(79, 172, 254, 0.15);
+    }
+
+    .square-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 800px) {
+      .square-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .random-card-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 1px solid rgba(245, 166, 35, 0.2);
+      background: linear-gradient(135deg, rgba(245,166,35,0.02) 0%, rgba(255,255,255,0.02) 100%);
+    }
+
+    .random-header {
+      display: flex;
+      justify-content: space-between;
+      color: var(--accent-amber);
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .random-content {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      font-style: italic;
+      margin-bottom: 24px;
+    }
+
+    .random-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .random-tag {
+      background: rgba(245, 166, 35, 0.1);
+      border: 1px solid rgba(245, 166, 35, 0.25);
+      color: var(--accent-amber);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+    }
+
+    .cycle-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .cycle-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .categories-hub {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .hub-category-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .hub-category-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--accent-purple);
+      transform: translateY(-3px);
+    }
+
+    .hub-category-name {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .hub-category-count {
+      font-size: 12px;
+      color: var(--ink-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>探索模式（星库中心）</h1>
+      <p class="subtitle">点击下方页签预览 3 种全新的「探索」界面交互原型</p>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('radar')">📡 AI 灵感雷达</button>
+      <button class="tab-btn" onclick="switchTab('timeline')">📅 星历与时空轨迹</button>
+      <button class="tab-btn" onclick="switchTab('discover')">🔍 发现与广场大厅</button>
+    </div>
+
+    <!-- ─── PANEL 1: AI Radar ─── -->
+    <div id="radar" class="panel active">
+      <div class="radar-layout">
+        <div class="glass-card radar-canvas-box">
+          <!-- Constellation simulation map -->
+          <div class="constellation">
+            <!-- Simulated connecting lines -->
+            <div class="link-line" style="width: 140px; transform: rotate(25deg); left: 200px; top: 150px;"></div>
+            <div class="link-line" style="width: 120px; transform: rotate(115deg); left: 200px; top: 150px;"></div>
+            <div class="link-line" style="width: 180px; transform: rotate(-45deg); left: 340px; top: 210px;"></div>
+            
+            <!-- Simulated star nodes -->
+            <div class="node" style="left: 200px; top: 150px;" onclick="selectNode('量子纠缠物理')">
+              <span class="node-label">量子纠缠物理</span>
+            </div>
+            <div class="node" style="left: 340px; top: 210px;" onclick="selectNode('庄子哲学齐物论')">
+              <span class="node-label">庄子哲学《齐物论》</span>
+            </div>
+            <div class="node" style="left: 250px; top: 310px;" onclick="selectNode('极简主义网页设计')">
+              <span class="node-label">极简网页设计原则</span>
+            </div>
+            <div class="node" style="left: 480px; top: 120px;" onclick="selectNode('诗词中的意境美')">
+              <span class="node-label">古典诗词的意境</span>
+            </div>
+          </div>
+          <div style="position: absolute; bottom: 16px; left: 16px; font-size: 11px; color: var(--ink-muted);">
+            提示：点击节点可以选为“灵感输入源”
+          </div>
+        </div>
+
+        <div class="radar-sidebar">
+          <div class="glass-card connector-box">
+            <h3>🧠 AI 灵感碰撞桥梁</h3>
+            <p style="font-size: 12px; color: var(--ink-soft); margin-bottom: 16px;">
+              选择两个看起来毫不相关的星记知识点，让 AI 帮您连线发散出创新思考。
+            </p>
+            <label style="font-size: 12px; display: block; margin-bottom: 6px; color: var(--accent-purple);">灵感源 A</label>
+            <div class="select-node-trigger" id="src-a">选择星记节点 A...</div>
+            
+            <label style="font-size: 12px; display: block; margin-bottom: 6px; color: var(--accent-cyan);">灵感源 B</label>
+            <div class="select-node-trigger" id="src-b">选择星记节点 B...</div>
+            
+            <button class="connect-btn" onclick="generateInsight()">连线！碰撞灵感</button>
+          </div>
+
+          <div class="glass-card" style="flex: 1;">
+            <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--ink-soft);">💥 碰撞产生的思维连线：</h4>
+            <div class="insight-result" id="insight-box">
+              在侧边栏选中两篇星记后点击「连线」，AI 将实时计算它们在多维向量空间中的语义交叉，为您输出深度的跨界思考成果。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PANEL 2: Chronicle Timeline ─── -->
+    <div id="timeline" class="panel">
+      <div class="timeline-layout">
+        <div class="glass-card heatmap-section">
+          <div class="heatmap-header">
+            <h3 style="font-size: 1.1rem; color: var(--accent-cyan);">✨ 星历 (Star Heatmap)</h3>
+            <span style="color: var(--ink-soft);">今年累计算写: 142 篇星记</span>
+          </div>
+          <!-- Grid of simulated heatmap cells -->
+          <div class="heatmap-grid" id="heatmap">
+            <!-- Generated dynamically below -->
+          </div>
+        </div>
+
+        <div class="timeline-stream">
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-date">今天 - 2026年6月18日</div>
+            <div class="glass-card timeline-card">
+              <h4 class="timeline-title">💡 Starlore 探索界面的思考与重构</h4>
+              <p class="timeline-preview">
+                今天决定彻底砍掉那个繁重的 3D VR 页面。用 2D 轻量且支持语义连线的 AI 灵感雷达代替。顺便修好了输入框高宽自适应的体验细节...
+              </p>
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-date">昨天 - 2026年6月17日</div>
+            <div class="glass-card timeline-card">
+              <h4 class="timeline-title">🔐 JWT 安全机制与明文密钥防泄露处理</h4>
+              <p class="timeline-preview">
+                将 spring-boot 应用的端口及配置文件中各种硬编码明文密钥（MinIO、MySQL）改成配置占位符形式，防止提交至 Git 进行泄露...
+              </p>
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-date">2026年6月12日</div>
+            <div class="glass-card timeline-card">
+              <h4 class="timeline-title">🌌 Three.js 材质与多主题融合规范</h4>
+              <p class="timeline-preview">
+                为了实现温暖文学质感与太空深邃感的多主题自由切换，决定从基准 CSS reset 文件切入，将 3D 星球的颜色与 CSS 自定义属性变量彻底挂钩...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PANEL 3: Discover Hub ─── -->
+    <div id="discover" class="panel">
+      <div class="discover-layout">
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <input type="text" class="search-bar" placeholder="通过 AI 语义或关键字搜索所有星记...">
+          </div>
+        </div>
+
+        <div class="square-grid">
+          <div class="glass-card random-card-box">
+            <div>
+              <div class="random-header">
+                <span>🎲 星记随想漫游 (Random Walker)</span>
+                <span>分类: 随笔</span>
+              </div>
+              <div class="random-content" id="random-quote">
+                “我们坐在繁星满天的夜空下，不是在等待流星，而是在等待我们思考里的下一个灵感爆发。”
+              </div>
+            </div>
+            <div class="random-footer">
+              <span class="random-tag"># 宇宙思考</span>
+              <button class="cycle-btn" onclick="nextRandomQuote()">换一篇漫游</button>
+            </div>
+          </div>
+
+          <div class="glass-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <h3 style="font-size: 1.1rem; color: var(--accent-purple); margin-bottom: 12px;">🌟 公开星域全览 (Star Domains)</h3>
+              <p style="font-size: 12px; color: var(--ink-soft); margin-bottom: 20px;">
+                这些是当前已公开发布的星域板块。点击即可查看游客可读的公开星记内容。
+              </p>
+              <div class="categories-hub">
+                <div class="hub-category-card">
+                  <div class="hub-category-name">技术研究</div>
+                  <div class="hub-category-count">14 篇公开</div>
+                </div>
+                <div class="hub-category-card">
+                  <div class="hub-category-name">文学随笔</div>
+                  <div class="hub-category-count">8 篇公开</div>
+                </div>
+                <div class="hub-category-card">
+                  <div class="hub-category-name">宇宙沉思</div>
+                  <div class="hub-category-count">5 篇公开</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching logic
+    function switchTab(tabId) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Node selection simulation
+    let selectedA = "";
+    let selectedB = "";
+
+    function selectNode(name) {
+      if (!selectedA) {
+        selectedA = name;
+        document.getElementById('src-a').innerText = '🌟 ' + name;
+        document.getElementById('src-a').style.borderColor = 'var(--accent-purple)';
+      } else if (!selectedB && name !== selectedA) {
+        selectedB = name;
+        document.getElementById('src-b').innerText = '✨ ' + name;
+        document.getElementById('src-b').style.borderColor = 'var(--accent-cyan)';
+      } else {
+        selectedA = name;
+        selectedB = "";
+        document.getElementById('src-a').innerText = '🌟 ' + name;
+        document.getElementById('src-b').innerText = '选择星记节点 B...';
+        document.getElementById('src-b').style.borderColor = 'var(--border)';
+      }
+    }
+
+    function generateInsight() {
+      if (!selectedA || !selectedB) {
+        alert('请先在左侧星空中点击并选择两个星记节点！');
+        return;
+      }
+      
+      const box = document.getElementById('insight-box');
+      box.innerText = "正在通过 AI 解析「" + selectedA + "」与「" + selectedB + "」的隐式关系...";
+      box.style.borderLeftColor = 'var(--accent-cyan)';
+      
+      setTimeout(() => {
+        box.innerHTML = "<strong>💡 AI 联想成果：</strong><br>这二者的碰撞融合代表了<strong>「宏观规律与微观心境的对称性」</strong>。量子纠缠揭示了微观粒子超越距离的瞬间状态同步，这与《齐物论》所主张的“天地与我并生，而万物与我为一”有着异曲同工之妙。AI 认为，宇宙中的万物并非孤立存在，从信息论的角度来看，万物皆有量子关联；从心境出发，主客体的对立在极深层面上早已消融，这是一次东方古老哲学同现代前沿物理学在信息本质上的跨时空交汇。";
+      }, 1500);
+    }
+
+    // Heatmap generator
+    const heatmap = document.getElementById('heatmap');
+    for (let i = 0; i < 280; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      const r = Math.random();
+      if (r > 0.95) cell.classList.add('level-4');
+      else if (r > 0.85) cell.classList.add('level-3');
+      else if (r > 0.7) cell.classList.add('level-2');
+      else if (r > 0.4) cell.classList.add('level-1');
+      heatmap.appendChild(cell);
+    }
+
+    // Random quote list
+    const quotes = [
+      "“我们坐在繁星满天的夜空下，不是在等待流星，而是在等待我们思考里的下一个灵感爆发。”",
+      "“极简设计绝非空无一物，而是将信息密度隐藏在了完美而克制的阴影里。”",
+      "“安全不是用铁锁封死大门，而是将钥匙以环境配额的形式分发在流转的水道中。”",
+      "“当庄子梦见蝴蝶时，他在那个瞬间，是否也与遥远星系之外的微观粒子发生了缠绕？”"
+    ];
+    let quoteIndex = 0;
+    function nextRandomQuote() {
+      quoteIndex = (quoteIndex + 1) % quotes.length;
+      document.getElementById('random-quote').innerText = quotes[quoteIndex];
+    }
+  </script>
+</body>
+</html>

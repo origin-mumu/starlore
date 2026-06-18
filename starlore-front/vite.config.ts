@@ -9,7 +9,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-    // const apiTarget =  'http://47.94.128.65:5000'
+
   const apiTarget = 'http://localhost:5000'
   return {
     plugins: [

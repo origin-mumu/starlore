@@ -10,4 +10,7 @@ public interface CategoryService {
     CategoryListResponse.CategoryItem createCategory(Integer userId, CreateCategoryRequest request);
     CategoryListResponse.CategoryItem updateCategory(Integer id, UpdateCategoryRequest request);
     Map<String, Object> deleteCategory(Integer id);
+
+    CategoryListResponse getPublicCategories();
+    CategoryDetailResponse getPublicCategoryById(Integer id);
 }

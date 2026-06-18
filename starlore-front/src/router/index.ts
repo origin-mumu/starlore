@@ -38,7 +38,8 @@ const router = createRouter({
       component: () => import('../views/ArticlesView.vue'),
       meta: {
         title: '文章列表 - Starlore',
-        requiresAuth: true
+        requiresAuth: false,
+        guestAllowed: true
       }
     },
     {
@@ -47,7 +48,8 @@ const router = createRouter({
       component: () => import('../views/ArticleDetail.vue'),
       meta: {
         title: '文章详情 - Starlore',
-        requiresAuth: true
+        requiresAuth: false,
+        guestAllowed: true
       }
     },
     {

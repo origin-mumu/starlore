@@ -4,8 +4,89 @@ import { divergeWord } from '@/api/diverge'
 import { getAiQuota } from '@/api/ai'
 import { useThemeStore } from '@/stores/theme'
 import { useUserStore } from '@/stores/user'
+import { 
+  History, 
+  Menu, 
+  ZoomIn, 
+  ZoomOut, 
+  Maximize, 
+  Trash2, 
+  Send, 
+  Plus, 
+  Minus, 
+  X, 
+  Sparkles, 
+  HelpCircle 
+} from '@lucide/vue'
 
 const userStore = useUserStore()
+
+// ─── Mock Diverge Pairs for Guest Mode ────────────────
+function getMockDivergePairs(word: string) {
+  const lowercaseWord = word.toLowerCase().trim()
+  const dict: Record<string, { zh: string; en: string }[]> = {
+    'starlore': [
+      { zh: '星域', en: 'Aether' },
+      { zh: '星轨', en: 'Star Orbit' },
+      { zh: '深空', en: 'Deep Space' },
+      { zh: '文学', en: 'Literature' },
+      { zh: '科幻', en: 'Sci-Fi' },
+      { zh: '量子', en: 'Quantum' },
+    ],
+    '星域': [
+      { zh: '尘埃', en: 'Stardust' },
+      { zh: '维度', en: 'Dimension' },
+      { zh: '星轨', en: 'Star Orbit' },
+      { zh: '黑洞', en: 'Black Hole' },
+    ],
+    '星记': [
+      { zh: '记忆', en: 'Memory' },
+      { zh: '光痕', en: 'Light Trace' },
+      { zh: '编年史', en: 'Chronicle' },
+      { zh: '思考', en: 'Reflection' },
+    ],
+    'ai': [
+      { zh: '灵感', en: 'Inspiration' },
+      { zh: '神经网络', en: 'Neural Net' },
+      { zh: '智能', en: 'Intelligence' },
+      { zh: '大模型', en: 'LLM' },
+    ],
+    '宇宙': [
+      { zh: '星云', en: 'Nebula' },
+      { zh: '引力', en: 'Gravity' },
+      { zh: '黑洞', en: 'Black Hole' },
+      { zh: '超新星', en: 'Supernova' },
+    ],
+    '灵感': [
+      { zh: '脑暴', en: 'Brainstorm' },
+      { zh: '顿悟', en: 'Epiphany' },
+      { zh: '创意', en: 'Creativity' },
+      { zh: '流光', en: 'Streamer' },
+    ]
+  }
+  
+  const fallbacks = [
+    { zh: '尘埃', en: 'Stardust' },
+    { zh: '维度', en: 'Dimension' },
+    { zh: '流光', en: 'Streamer' },
+    { zh: '对称', en: 'Symmetry' },
+    { zh: '虚无', en: 'Void' },
+    { zh: '共鸣', en: 'Resonance' },
+    { zh: '意识', en: 'Consciousness' },
+    { zh: '探索', en: 'Discovery' },
+    { zh: '节点', en: 'Nexus' },
+    { zh: '光年', en: 'Light Year' }
+  ]
+  
+  for (const key of Object.keys(dict)) {
+    if (lowercaseWord.includes(key) || key.includes(lowercaseWord)) {
+      return dict[key]
+    }
+  }
+  
+  const shuffled = [...fallbacks].sort(() => 0.5 - Math.random())
+  return shuffled.slice(0, 4 + Math.floor(Math.random() * 3))
+}
 
 // ─── Types ────────────────────────────────────────────
 interface GraphNode {
@@ -315,18 +396,21 @@ const expandNode = async (nodeId: string) => {
     return
   }
 
-  if (!userStore.isLoggedIn) {
-    quotaError.value = '请先登录后使用 AI 创意发散功能'
-    return
-  }
-
   loading.value = true
   loadingNodeId.value = nodeId
   selectedNodeId.value = null
+  quotaError.value = '' // Clear error state
 
   try {
-    const res = await divergeWord(node.wordEn || node.word)
-    const pairs = res.pairs
+    let pairs: { zh: string; en: string }[] = []
+    if (userStore.isLoggedIn) {
+      const res = await divergeWord(node.wordEn || node.word)
+      pairs = res.pairs
+    } else {
+      // Simulate network response latency for visitor mode
+      await new Promise(resolve => setTimeout(resolve, 600))
+      pairs = getMockDivergePairs(node.word)
+    }
 
     const positions = layoutChildren(nodeId, pairs.length)!
     const newChildIds: string[] = []
@@ -373,7 +457,7 @@ const expandNode = async (nodeId: string) => {
     if (err?.message?.includes('401') || err?.response?.status === 401) {
       quotaError.value = '登录已过期，请重新登录'
     } else {
-      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : '网络连接失败，请稍后重试'
     }
     refreshDivergeQuota()
   } finally {
@@ -423,16 +507,22 @@ const undo = () => {
 
 // ─── Search / Input ───────────────────────────────────
 const handleSearch = async () => {
-  if (!userStore.isLoggedIn) return
   const word = inputWord.value.trim()
   if (!word || loading.value) return
 
   clearCanvas()
   loading.value = true
+  quotaError.value = ''
 
   try {
-    const res = await divergeWord(word)
-    const pairs = res.pairs
+    let pairs: { zh: string; en: string }[] = []
+    if (userStore.isLoggedIn) {
+      const res = await divergeWord(word)
+      pairs = res.pairs
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 800))
+      pairs = getMockDivergePairs(word)
+    }
 
     const centerX = window.innerWidth / 2
     const centerY = window.innerHeight / 2
@@ -476,7 +566,7 @@ const handleSearch = async () => {
     if (err?.message?.includes('401') || err?.response?.status === 401) {
       quotaError.value = '登录已过期，请重新登录'
     } else {
-      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : ''
+      quotaError.value = err?.message?.includes('次数已用尽') ? '今日 AI 创意发散次数已用尽' : '网络连接失败，请稍后重试'
     }
     refreshDivergeQuota()
   } finally {
@@ -715,138 +805,159 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="diverge-root">
-    <!-- History toggle -->
-    <button class="history-toggle" @click="historyDrawerOpen = !historyDrawerOpen">
-      <span>&#9776;</span>
-    </button>
+  <div class="page-container diverge-page">
+    <div class="diverge-root">
+      <!-- History toggle -->
+      <button class="history-toggle" @click="historyDrawerOpen = !historyDrawerOpen" title="历史记录">
+        <History class="drawer-toggle-icon" />
+      </button>
 
-    <!-- Welcome state -->
-    <div v-if="!hasNodes" class="welcome">
-      <div class="welcome-icon">&#10024;</div>
-      <h2>创意发散</h2>
-      <p v-if="userStore.isLoggedIn">输入一个词，开始发散联想</p>
-      <p v-else>
-        <router-link to="/login" class="guest-login-link">登录</router-link>后使用 AI 创意发散功能
-      </p>
-    </div>
+      <!-- Welcome state -->
+      <div v-if="!hasNodes" class="welcome">
+        <Sparkles class="welcome-icon-svg" />
+        <h2>创意发散</h2>
+        <p v-if="userStore.isLoggedIn">输入一个词，在AI的星云中开始联想发散...</p>
+        <p v-else>已开启访客体验模式，输入词汇即可进行发散</p>
+      </div>
 
-    <!-- Canvas -->
-    <div
-      ref="canvasRef"
-      class="canvas"
-      :style="{
-        transform: `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`,
-        transformOrigin: '0 0',
-      }"
-    >
-      <!-- Nodes -->
+      <!-- Canvas -->
       <div
-        v-for="node in nodeList"
-        :key="node.id"
-        :data-node-id="node.id"
-        class="graph-node"
-        :class="{
-          'graph-node--root': node.isRoot,
-          'graph-node--selected': selectedNodeId === node.id,
-          'graph-node--loading': loadingNodeId === node.id,
-        }"
+        ref="canvasRef"
+        class="canvas"
         :style="{
-          left: node.x + 'px',
-          top: node.y + 'px',
-          transform: `translate(-50%, -50%) scale(${node.scale})`,
-          opacity: node.opacity,
+          transform: `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`,
+          transformOrigin: '0 0',
         }"
       >
-        <div class="node-content">
-          <span class="node-zh">{{ node.word }}</span>
-          <span class="node-en">{{ node.wordEn }}</span>
-        </div>
-
-        <!-- Child count badge -->
-        <span v-if="node.children.length > 0 && !node.expanded" class="node-badge">
-          {{ node.children.length }}
-        </span>
-
-        <!-- Expand button -->
-        <button
-          v-if="selectedNodeId === node.id"
-          class="node-expand-btn"
-          @click.stop="expandNode(node.id)"
-          :disabled="loading"
-        >
-          <span v-if="loadingNodeId === node.id" class="spinner-sm"></span>
-          <span v-else>{{ node.expanded ? '&#8722;' : '&#43;' }}</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- SVG connections (screen coords, outside canvas) -->
-    <svg class="connections-svg">
-      <path
-        v-for="conn in connections"
-        :key="conn.id"
-        :d="bezierPath(conn.x1, conn.y1, conn.x2, conn.y2)"
-        fill="none"
-        :stroke="'var(--accent)'"
-        stroke-width="2"
-        stroke-opacity="0.8"
-      />
-    </svg>
-
-    <!-- Input area -->
-    <div class="input-area" :class="{ 'input-area--docked': inputState === 'docked' }">
-      <form @submit.prevent="handleSearch" class="input-form">
-        <input
-          v-model="inputWord"
-          type="text"
-          :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '请先登录'"
-          class="search-input"
-          :disabled="loading || !userStore.isLoggedIn"
-        />
-        <button type="submit" class="search-btn" :disabled="loading || !inputWord.trim()">
-          <span v-if="loading" class="spinner-sm"></span>
-          <span v-else>&#10140;</span>
-        </button>
-      </form>
-      <div v-if="quotaError" class="quota-error">
-        {{ quotaError }}
-        <router-link v-if="quotaError.includes('登录')" to="/login" class="quota-login-link">去登录</router-link>
-      </div>
-      <div v-else class="quota-tip">
-        {{ aiQuotaExceeded ? '今日 AI 次数已用尽' : `今日剩余 ${aiQuotaRemaining} 次` }}
-      </div>
-    </div>
-
-    <!-- Canvas controls -->
-    <div class="canvas-controls">
-      <button @click="zoomIn" title="放大">+</button>
-      <span class="scale-display">{{ scalePercent }}%</span>
-      <button @click="zoomOut" title="缩小">&#8722;</button>
-      <button @click="fitView" title="适应视图">&#9634;</button>
-      <button @click="clearCanvas" title="清空画布">&#10005;</button>
-    </div>
-
-    <!-- History drawer overlay -->
-    <div v-if="historyDrawerOpen" class="history-overlay" @click="historyDrawerOpen = false"></div>
-
-    <!-- History drawer -->
-    <div class="history-drawer" :class="{ open: historyDrawerOpen }">
-      <div class="drawer-header">
-        <h3>历史记录</h3>
-        <button @click="historyDrawerOpen = false" class="drawer-close">&times;</button>
-      </div>
-      <div class="drawer-body">
-        <div v-if="history.length === 0" class="drawer-empty">暂无历史记录</div>
+        <!-- Nodes -->
         <div
-          v-for="(entry, i) in history"
-          :key="entry.timestamp"
-          class="history-item"
-          @click="restoreHistory(entry)"
+          v-for="node in nodeList"
+          :key="node.id"
+          :data-node-id="node.id"
+          class="graph-node"
+          :class="{
+            'graph-node--root': node.isRoot,
+            'graph-node--selected': selectedNodeId === node.id,
+            'graph-node--loading': loadingNodeId === node.id,
+            'graph-node--floating': !isDragging && dragTarget !== node.id && !node.isRoot
+          }"
+          :style="{
+            left: node.x + 'px',
+            top: node.y + 'px',
+            transform: `translate(-50%, -50%) scale(${node.scale})`,
+            opacity: node.opacity,
+          }"
         >
-          <div class="history-word">{{ entry.word }}</div>
-          <div class="history-time">{{ new Date(entry.timestamp).toLocaleString('zh-CN') }}</div>
-          <button class="history-delete" @click.stop="deleteHistory(i)">&times;</button>
+          <div class="node-content">
+            <span class="node-zh">{{ node.word }}</span>
+            <span class="node-en">{{ node.wordEn }}</span>
+          </div>
+
+          <!-- Child count badge -->
+          <span v-if="node.children.length > 0 && !node.expanded" class="node-badge">
+            {{ node.children.length }}
+          </span>
+
+          <!-- Expand button -->
+          <button
+            v-if="selectedNodeId === node.id"
+            class="node-expand-btn"
+            @click.stop="expandNode(node.id)"
+            :disabled="loading"
+          >
+            <span v-if="loadingNodeId === node.id" class="spinner-sm"></span>
+            <span v-else>
+              <Minus v-if="node.expanded" class="node-expand-icon" />
+              <Plus v-else class="node-expand-icon" />
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SVG connections (screen coords, outside canvas) -->
+      <svg class="connections-svg">
+        <path
+          v-for="conn in connections"
+          :key="conn.id"
+          :d="bezierPath(conn.x1, conn.y1, conn.x2, conn.y2)"
+          fill="none"
+          :stroke="'var(--accent)'"
+          stroke-width="2"
+          stroke-opacity="0.8"
+        />
+      </svg>
+
+      <!-- Input area -->
+      <div class="input-area" :class="{ 'input-area--docked': inputState === 'docked' }">
+        <form @submit.prevent="handleSearch" class="input-form">
+          <input
+            v-model="inputWord"
+            type="text"
+            :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '访客体验模式，输入词汇发散...'"
+            class="search-input"
+            :disabled="loading"
+          />
+          <button type="submit" class="search-btn" :disabled="loading || !inputWord.trim()">
+            <span v-if="loading" class="spinner-sm"></span>
+            <Send v-else class="search-btn-icon" />
+          </button>
+        </form>
+        <div v-if="quotaError" class="quota-error">
+          {{ quotaError }}
+          <router-link v-if="quotaError.includes('登录')" to="/login" class="quota-login-link">去登录</router-link>
+        </div>
+        <div v-else class="quota-tip">
+          <span v-if="userStore.isLoggedIn">
+            {{ aiQuotaExceeded ? '今日 AI 次数已用尽' : `今日剩余 ${aiQuotaRemaining} 次` }}
+          </span>
+          <span v-else class="guest-quota-badge">
+            游客免登录体验模式 (本地模拟)
+          </span>
+        </div>
+      </div>
+
+      <!-- Canvas controls -->
+      <div class="canvas-controls">
+        <button @click="zoomIn" title="放大">
+          <ZoomIn class="control-icon" />
+        </button>
+        <span class="scale-display">{{ scalePercent }}%</span>
+        <button @click="zoomOut" title="缩小">
+          <ZoomOut class="control-icon" />
+        </button>
+        <button @click="fitView" title="适应视图">
+          <Maximize class="control-icon" />
+        </button>
+        <button @click="clearCanvas" title="清空画布">
+          <Trash2 class="control-icon" />
+        </button>
+      </div>
+
+      <!-- History drawer overlay -->
+      <div v-if="historyDrawerOpen" class="history-overlay" @click="historyDrawerOpen = false"></div>
+
+      <!-- History drawer -->
+      <div class="history-drawer" :class="{ open: historyDrawerOpen }">
+        <div class="drawer-header">
+          <h3>历史记录</h3>
+          <button @click="historyDrawerOpen = false" class="drawer-close" title="关闭">
+            <X class="drawer-close-icon" />
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div v-if="history.length === 0" class="drawer-empty">暂无历史记录</div>
+          <div
+            v-for="(entry, i) in history"
+            :key="entry.timestamp"
+            class="history-item"
+            @click="restoreHistory(entry)"
+          >
+            <div class="history-word">{{ entry.word }}</div>
+            <div class="history-time">{{ new Date(entry.timestamp).toLocaleString('zh-CN') }}</div>
+            <button class="history-delete" @click.stop="deleteHistory(i)" title="删除">
+              <Trash2 class="history-delete-icon" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -854,14 +965,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* ─── Root ──────────────────────────────────────────── */
+/* ─── Page Container & Root ─────────────────────────── */
+.diverge-page {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
 .diverge-root {
   position: fixed;
   inset: 0;
   top: 60px;
-  /* background: var(--canvas); */
   overflow: hidden;
-  font-family: 'LXGW WenKai', 'Source Serif 4', serif;
+  font-family: 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
   color: var(--ink);
   user-select: none;
 }
@@ -885,65 +1002,92 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
+/* Constellation connection lines */
+.connections-svg path {
+  stroke: var(--accent);
+  stroke-width: 1.5px;
+  stroke-opacity: 0.38;
+  filter: drop-shadow(0 0 1px var(--accent));
+  stroke-dasharray: 4 2;
+  animation: strokeMove 40s linear infinite;
+}
+@keyframes strokeMove {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
 /* ─── Nodes ────────────────────────────────────────── */
 .graph-node {
   position: absolute;
   cursor: grab;
   transition:
     box-shadow 0.25s ease,
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  animation: nodeFloat 6s ease-in-out infinite;
-  animation-delay: calc(var(--float-offset, 0) * 1s);
+    transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 10;
 }
-
 .graph-node:active {
   cursor: grabbing;
 }
 
-@keyframes nodeFloat {
-  0%,
-  100% {
-    translate: 0 0;
-  }
-  50% {
-    translate: 0 -4px;
-  }
+/* Floating animation only when static and not dragged */
+.graph-node--floating {
+  animation: nodeFloat 6s ease-in-out infinite;
+}
+.graph-node--floating:nth-child(2n) {
+  animation-delay: -1.5s;
+}
+.graph-node--floating:nth-child(3n) {
+  animation-delay: -3s;
 }
 
+@keyframes nodeFloat {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-5px); }
+}
+
+/* Premium glass circular node */
 .node-content {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: var(--surface);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border: 1px solid var(--border);
   border-radius: 50%;
-  width: 90px;
-  height: 90px;
+  width: 96px;
+  height: 96px;
   justify-content: center;
   padding: 12px;
   box-shadow: var(--shadow-card);
-  transition: all 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .graph-node:hover .node-content {
   box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-interactive);
+  border-color: var(--accent);
+  transform: scale(1.05);
 }
 
+/* Root node styling */
 .graph-node--root .node-content {
-  width: 110px;
-  height: 110px;
+  width: 116px;
+  height: 116px;
   background: var(--accent-soft);
   border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(var(--accent-rgb, 232, 93, 42), 0.12);
+}
+.graph-node--root:hover .node-content {
+  box-shadow: 0 12px 32px rgba(var(--accent-rgb, 232, 93, 42), 0.2);
 }
 
+/* Selected node styling */
 .graph-node--selected .node-content {
   border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px var(--accent-soft),
+  box-shadow: 
+    0 0 0 4px var(--accent-soft),
     var(--shadow-card-hover);
 }
 
@@ -952,20 +1096,15 @@ onBeforeUnmount(() => {
 }
 
 @keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .node-zh {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--ink);
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: center;
 }
 
@@ -974,24 +1113,24 @@ onBeforeUnmount(() => {
   color: var(--ink-muted);
   line-height: 1.2;
   text-align: center;
-  max-width: 70px;
+  max-width: 76px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .graph-node--root .node-zh {
-  font-size: 1rem;
+  font-size: 0.98rem;
 }
 
-/* Badge */
+/* Child node count badge */
 .node-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -2px;
+  right: -2px;
   background: var(--accent);
-  color: #fdfbf5;
-  font-size: 0.6rem;
+  color: #ffffff;
+  font-size: 0.65rem;
   font-weight: 700;
   width: 20px;
   height: 20px;
@@ -1000,60 +1139,63 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  box-shadow: var(--shadow-sm);
+  z-index: 11;
 }
 
-/* Expand button */
+/* Expand button styling */
 .node-expand-btn {
   position: absolute;
-  bottom: -12px;
+  bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fdfbf5;
+  color: #ffffff;
   border: 2px solid var(--surface);
-  font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   box-shadow: var(--shadow-button);
-  transition: all 0.2s ease;
-  z-index: 10;
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 15;
 }
-
 .node-expand-btn:hover {
   transform: translateX(-50%) scale(1.15);
+  box-shadow: var(--shadow-button-hover);
+  background: var(--accent-hover);
 }
-
 .node-expand-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-.spinner-sm {
+.node-expand-icon {
   width: 14px;
   height: 14px;
-  border: 2px solid oklch(1 0 0 / 0.3);
-  border-top-color: #fdfbf5;
+}
+
+.spinner-sm {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Input Area ───────────────────────────────────── */
 .input-area {
   position: fixed;
   z-index: 50;
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -1061,7 +1203,7 @@ onBeforeUnmount(() => {
 
 .input-area--docked {
   top: auto;
-  bottom: 24px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -1069,27 +1211,32 @@ onBeforeUnmount(() => {
 .input-form {
   display: flex;
   gap: 8px;
-  background: var(--canvas);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-interactive);
-  border-radius: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border);
+  border-radius: 18px;
   padding: 6px 6px 6px 20px;
-  box-shadow: var(--shadow-card);
-  min-width: 360px;
+  box-shadow: var(--shadow-card-hover);
+  min-width: 380px;
+  align-items: center;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.input-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-card-hover);
 }
 
 .search-input {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--ink);
   outline: none;
   font-family: inherit;
   min-width: 0;
 }
-
 .search-input::placeholder {
   color: var(--ink-muted);
 }
@@ -1099,9 +1246,8 @@ onBeforeUnmount(() => {
   height: 40px;
   border-radius: 12px;
   background: var(--accent);
-  color: #fdfbf5;
+  color: #ffffff;
   border: none;
-  font-size: 1.1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1109,27 +1255,40 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
-
 .search-btn:hover:not(:disabled) {
-  opacity: 0.85;
+  background: var(--accent-hover);
+  transform: translateY(-1px);
 }
-
 .search-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.search-btn-icon {
+  width: 16px;
+  height: 16px;
+}
 
 .quota-tip {
   text-align: center;
-  font-size: 0.75rem;
-  color: var(--ink-muted, #999);
-  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  margin-top: 8px;
+}
+.guest-quota-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
 }
 .quota-error {
   text-align: center;
   font-size: 0.8rem;
   color: #e74c3c;
-  margin-top: 6px;
+  margin-top: 8px;
+  background: rgba(231, 76, 60, 0.08);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
 }
 .quota-login-link {
   color: var(--accent);
@@ -1141,18 +1300,18 @@ onBeforeUnmount(() => {
 /* ─── Canvas Controls ──────────────────────────────── */
 .canvas-controls {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
+  bottom: 28px;
+  left: 28px;
   z-index: 50;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: var(--canvas);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 6px;
   box-shadow: var(--shadow-card);
 }
@@ -1164,40 +1323,43 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--ink-soft);
   border: none;
-  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
 }
-
 .canvas-controls button:hover {
   background: var(--accent-soft);
   color: var(--accent);
+  transform: scale(1.05);
+}
+.control-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .scale-display {
   font-size: 0.65rem;
   color: var(--ink-muted);
   padding: 2px 0;
+  font-weight: 600;
 }
 
 /* ─── History Toggle ───────────────────────────────── */
 .history-toggle {
   position: fixed;
-  top: 68px;
-  right: 16px;
+  top: 76px;
+  right: 20px;
   z-index: 50;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--canvas);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   color: var(--ink-soft);
-  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1205,10 +1367,14 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-card);
   transition: all 0.2s ease;
 }
-
 .history-toggle:hover {
   background: var(--accent-soft);
   color: var(--accent);
+  transform: scale(1.05);
+}
+.drawer-toggle-icon {
+  width: 18px;
+  height: 18px;
 }
 
 /* ─── History Drawer ───────────────────────────────── */
@@ -1216,7 +1382,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: oklch(0 0 0 / 0.3);
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(2px);
 }
 
 .history-drawer {
@@ -1226,14 +1393,15 @@ onBeforeUnmount(() => {
   bottom: 0;
   width: 320px;
   z-index: 70;
-  background: var(--surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-left: 1px solid var(--border);
   transform: translateX(100%);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   display: flex;
   flex-direction: column;
 }
-
 .history-drawer.open {
   transform: translateX(0);
 }
@@ -1242,24 +1410,32 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border);
 }
-
 .drawer-header h3 {
   font-size: 1rem;
   font-weight: 700;
   color: var(--ink);
   margin: 0;
 }
-
 .drawer-close {
   background: none;
   border: none;
-  font-size: 1.3rem;
-  color: var(--ink-muted);
   cursor: pointer;
   padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drawer-close-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-muted);
+  transition: color var(--transition);
+}
+.drawer-close:hover .drawer-close-icon {
+  color: var(--accent);
 }
 
 .drawer-body {
@@ -1267,7 +1443,6 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 12px;
 }
-
 .drawer-empty {
   text-align: center;
   color: var(--ink-muted);
@@ -1277,25 +1452,26 @@ onBeforeUnmount(() => {
 
 .history-item {
   position: relative;
-  padding: 12px 36px 12px 16px;
-  border-radius: 10px;
+  padding: 12px 42px 12px 16px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s ease;
-  margin-bottom: 4px;
+  transition: background 0.2s ease, transform 0.2s ease;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.2);
 }
-
 .history-item:hover {
   background: var(--accent-soft);
+  border-color: rgba(var(--accent-rgb, 232, 93, 42), 0.1);
+  transform: translateY(-1px);
 }
-
 .history-word {
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink);
 }
-
 .history-time {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--ink-muted);
   margin-top: 2px;
 }
@@ -1303,23 +1479,28 @@ onBeforeUnmount(() => {
 .history-delete {
   position: absolute;
   top: 50%;
-  right: 10px;
+  right: 12px;
   transform: translateY(-50%);
   background: none;
   border: none;
-  font-size: 1.1rem;
-  color: var(--ink-muted);
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   opacity: 0;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-
 .history-item:hover .history-delete {
   opacity: 1;
 }
-
-.history-delete:hover {
+.history-delete-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-muted);
+  transition: color var(--transition);
+}
+.history-delete:hover .history-delete-icon {
   color: #c0392b;
 }
 
@@ -1331,29 +1512,33 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
-
-.welcome-icon {
-  font-size: 3rem;
-  margin-bottom: 16px;
+.welcome-icon-svg {
+  width: 48px;
+  height: 48px;
+  color: var(--accent);
+  animation: logoPulse 4s infinite ease-in-out;
+}
+@keyframes logoPulse {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.08) rotate(15deg); }
 }
 
 .welcome h2 {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--ink);
-  margin-bottom: 8px;
+  margin: 0;
+  letter-spacing: -0.02em;
 }
-
 .welcome p {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   color: var(--ink-muted);
-}
-.guest-login-link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  margin: 0;
 }
 
 /* ─── Responsive ───────────────────────────────────── */
@@ -1362,18 +1547,15 @@ onBeforeUnmount(() => {
     min-width: 280px;
     padding: 5px 5px 5px 14px;
   }
-
   .search-input {
     font-size: 0.9rem;
   }
-
   .input-area {
     left: 16px;
     right: 16px;
     transform: none;
     width: auto;
   }
-
   .input-area--docked {
     bottom: 16px;
     left: 16px;
@@ -1382,39 +1564,29 @@ onBeforeUnmount(() => {
   }
 
   .node-content {
-    width: 72px;
-    height: 72px;
+    width: 78px;
+    height: 78px;
     padding: 8px;
   }
-
   .graph-node--root .node-content {
-    width: 90px;
-    height: 90px;
+    width: 96px;
+    height: 96px;
   }
-
   .node-zh {
     font-size: 0.75rem;
   }
-
   .node-en {
     font-size: 0.58rem;
   }
 
   .canvas-controls {
-    bottom: 80px;
-    left: 12px;
+    bottom: 90px;
+    left: 16px;
   }
-
-  .dark-toggle {
-    top: 62px;
-    left: 8px;
-  }
-
   .history-toggle {
-    top: 62px;
-    right: 8px;
+    top: 68px;
+    right: 12px;
   }
-
   .history-drawer {
     width: 280px;
   }

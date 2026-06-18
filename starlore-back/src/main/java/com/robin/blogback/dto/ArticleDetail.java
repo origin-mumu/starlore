@@ -20,6 +20,8 @@ public class ArticleDetail {
     @JsonProperty("view_count")
     private Integer viewCount;
     private String status;
+    @JsonProperty("is_public")
+    private Boolean isPublic;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private LocalDateTime createdAt;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")

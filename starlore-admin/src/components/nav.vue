@@ -17,7 +17,7 @@
       <li class="nav-item">
         <router-link to="/admin/articles" class="nav-link" active-class="active">
           <span class="nav-icon">📝</span>
-          <span class="nav-text">星迹管理</span>
+          <span class="nav-text">星记管理</span>
         </router-link>
       </li>
 
