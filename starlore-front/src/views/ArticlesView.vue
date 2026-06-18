@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { getAllArticlesService, getCategoriesService, deleteArticleService } from '@/api/article'
+import { getAllArticlesService, getPublicArticlesService, getCategoriesService, getPublicCategoriesService, deleteArticleService } from '@/api/article'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import SideBar from '@/components/sideBar.vue'
@@ -55,7 +55,9 @@ const fetchArticles = async (page = currentPage.value, category?: string) => {
       params.category = category
     }
 
-    const res = (await getAllArticlesService(params)) as any
+    const res = userStore.isLoggedIn
+      ? ((await getAllArticlesService(params)) as any)
+      : ((await getPublicArticlesService(params)) as any)
 
     articles.value = res.data
     filteredArticles.value = articles.value
@@ -80,12 +82,19 @@ const categories = ref<Category[]>([])
 onMounted(async () => {
   const initialCategory = (route.query.category as string) || '全部'
   activeCategory.value = initialCategory
-  await Promise.all([
-    fetchArticles(1, initialCategory === '全部' ? undefined : initialCategory),
-    getCategoriesService().then((res: any) => {
-      categories.value = res.data
-    }),
-  ])
+  try {
+    const fetchCats = userStore.isLoggedIn
+      ? getCategoriesService()
+      : getPublicCategoriesService()
+    const [resCats] = await Promise.all([
+      fetchCats,
+      fetchArticles(1, initialCategory === '全部' ? undefined : initialCategory),
+    ])
+    const res: any = resCats
+    categories.value = res.data?.data || res.data || []
+  } catch (err) {
+    console.error('加载星记或分类失败:', err)
+  }
 })
 
 watch(
@@ -119,7 +128,7 @@ const confirmDeleteArticle = async () => {
   try {
     await deleteArticleService(deleteArticleId.value)
     await fetchArticles()
-  } catch { notify('删除失败', '删除星迹失败，请重试') }
+  } catch { notify('删除失败', '删除星记失败，请重试') }
 }
 
 const goToPage = (page: number) => {
@@ -163,8 +172,8 @@ const paginationButtons = computed(() => {
   <div class="page-container">
     <section class="page-header">
       <div class="container header-bar">
-        <h1>ARTICLES</h1>
-        <router-link to="/articles/edit" class="btn-primary btn-write">+ 写星迹</router-link>
+        <h1>{{ userStore.isLoggedIn ? '星记管理' : '公开星记 (访客只读)' }}</h1>
+        <router-link v-if="userStore.isLoggedIn" to="/articles/edit" class="btn-primary btn-write">+ 写星记</router-link>
       </div>
     </section>
 
@@ -194,7 +203,7 @@ const paginationButtons = computed(() => {
             <div class="article-items">
               <div v-if="isLoading" class="loading-state ink-glass-card">
                 <span class="loading-spinner"></span>
-                <p class="loading-text">正在加载星迹...</p>
+                <p class="loading-text">正在加载星记...</p>
               </div>
               <div
                 v-else-if="hasArticles"
@@ -207,21 +216,23 @@ const paginationButtons = computed(() => {
                   <DummyCard v-bind="article" />
                 </div>
                 <button
+                  v-if="userStore.isLoggedIn"
                   class="btn-edit-card"
                   @click.stop="router.push(`/articles/edit/${article.id}`)"
-                  title="编辑星迹"
+                  title="编辑星记"
                 >&#9998;</button>
                 <button
+                  v-if="userStore.isLoggedIn"
                   class="btn-delete-card"
                   @click="handleDelete(article.id, $event)"
-                  title="删除星迹"
+                  title="删除星记"
                 >&times;</button>
               </div>
               <div v-else class="empty-state ink-glass-card">
-                <p class="empty-title">{{ activeCategory === '全部' ? '还没有星迹' : '当前星域暂无星迹' }}</p>
-                <p class="empty-desc">开始写一篇星迹，与大家分享你的想法吧</p>
+                <p class="empty-title">{{ activeCategory === '全部' ? '还没有星记' : '当前星域暂无星记' }}</p>
+                <p class="empty-desc">{{ userStore.isLoggedIn ? '开始写一篇星记，与大家分享你的想法吧' : '暂无公开星记' }}</p>
                 <div class="empty-actions">
-                  <router-link to="/articles/edit" class="btn-primary empty-action">写星迹</router-link>
+                  <router-link v-if="userStore.isLoggedIn" to="/articles/edit" class="btn-primary empty-action">写星记</router-link>
                   <button v-if="activeCategory !== '全部'" class="btn-secondary empty-action" @click="filterCategory('全部')">查看全部</button>
                 </div>
               </div>
@@ -264,7 +275,7 @@ const paginationButtons = computed(() => {
               </button>
 
               <div class="page-info">
-                第 {{ currentPage }} 页，共 {{ totalPages }} 页（{{ totalArticles }} 篇星迹）
+                第 {{ currentPage }} 页，共 {{ totalPages }} 页（{{ totalArticles }} 篇星记）
               </div>
             </div>
           </main>
@@ -280,7 +291,7 @@ const paginationButtons = computed(() => {
   <ConfirmModal
     :show="showDeleteArticle"
     title="确认删除"
-    message="确定删除该星迹？此操作不可撤销。"
+    message="确定删除该星记？此操作不可撤销。"
     confirm-text="删除"
     @confirm="confirmDeleteArticle"
     @cancel="showDeleteArticle = false"

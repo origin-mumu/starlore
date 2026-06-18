@@ -4,6 +4,7 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import { buildMultiAgentSseUrl, type CharacterCard } from '@/api/ai'
 import { useTTS } from '@/composables/useTTS'
+import { useUserStore } from '@/stores/user'
 import {
   Volume2,
   VolumeX,
@@ -19,6 +20,8 @@ import {
   XCircle,
   Paperclip,
 } from '@lucide/vue'
+
+const userStore = useUserStore()
 
 type AgentTrace = {
   planSummary: string
@@ -81,7 +84,17 @@ const interimText = ref('')
 
 /* ─── 文字输入 ─── */
 const inputText = ref('')
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const charPickerOpen = ref(false)
+
+watch(inputText, () => {
+  nextTick(() => {
+    const el = textareaRef.value
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  })
+})
 
 /* ─── 会话列表 ─── */
 const activeTab = ref<'chat' | 'sessions'>('chat')
@@ -316,6 +329,17 @@ function arrayBufToB64(buf: ArrayBuffer): string {
 
 /** 转录 + 发送给 AI 对话 */
 async function transcribeAndSend(audioBlob: Blob) {
+  if (!userStore.isLoggedIn) {
+    // 模拟语音转录进度并预设查询
+    setMode('thinking')
+    interimText.value = '正在模拟转录中...'
+    setTimeout(() => {
+      interimText.value = ''
+      handleVoiceSend('介绍一下星域分类')
+    }, 1200)
+    return
+  }
+
   try {
     const wav = await convertToWav(audioBlob)
     const b64 = arrayBufToB64(await wav.arrayBuffer())
@@ -453,6 +477,12 @@ function onImageUpload(e: Event) {
   input.value = ''
   if (!file || !file.type.startsWith('image/')) return
   if (file.size > 10 * 1024 * 1024) return
+
+  if (!userStore.isLoggedIn) {
+    alert('访客模式暂不支持图片分析，请登录以体验云端真实的 DeepSeek 视觉大模型！')
+    return
+  }
+
   const reader = new FileReader()
   reader.onload = () => {
     const base64 = reader.result as string
@@ -472,6 +502,11 @@ async function onFileUpload(e: Event) {
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
+
+  if (!userStore.isLoggedIn) {
+    alert('访客模式暂不支持文档解析，请登录以体验云端真实的智能文档分析！')
+    return
+  }
 
   const ext = file.name.split('.').pop()?.toLowerCase() || ''
   const plainTextExts = ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'yaml', 'yml']
@@ -519,16 +554,16 @@ const agentNodeLabelMap: Record<string, string> = {
 }
 
 const toolLabelMap: Record<string, string> = {
-  searchArticles: '正在搜索星迹...',
-  getArticleDetail: '正在获取星迹详情...',
+  searchArticles: '正在搜索星记...',
+  getArticleDetail: '正在获取星记详情...',
   getCategories: '正在获取星域列表...',
   getBlogStats: '正在获取博客统计...',
-  getRecentArticles: '正在获取最新星迹...',
-  writeArticle: '正在创建星迹...',
-  updateArticle: '正在更新星迹...',
-  deleteArticle: '正在删除星迹...',
+  getRecentArticles: '正在获取最新星记...',
+  writeArticle: '正在创建星记...',
+  updateArticle: '正在更新星记...',
+  deleteArticle: '正在删除星记...',
   getAllTags: '正在获取光痕列表...',
-  getArticlesByCategory: '正在获取星域星迹...',
+  getArticlesByCategory: '正在获取星域星记...',
   createCategory: '正在创建星域...',
 }
 
@@ -572,6 +607,81 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
     },
   })
   const aiIdx = props.messages.length - 1
+
+  if (!userStore.isLoggedIn) {
+    // 游客本地 mock 问答逻辑
+    setTimeout(() => {
+      // 1. 设置思考链
+      const trace = props.messages[aiIdx].agentTrace
+      if (trace) {
+        trace.planSummary = '分析用户输入，正在本地知识库中匹配相关回答...'
+        trace.subtasks = [
+          { id: 1, desc: 'Planner: 拆解访客请求', status: 'done' },
+          { id: 2, desc: 'Executor: 检索本地模拟数据', status: 'running' }
+        ]
+      }
+      toolStatus.value = '正在检索本地数据...'
+
+      setTimeout(() => {
+        if (trace) {
+          trace.subtasks[1].status = 'done'
+          trace.subtasks.push({ id: 3, desc: 'Reviewer: 进行合规性与非公开过滤', status: 'running' })
+        }
+        toolStatus.value = '正在进行合规审查...'
+
+        setTimeout(() => {
+          if (trace) {
+            trace.subtasks[2].status = 'done'
+            trace.reviewDecision = 'PASS'
+            trace.metrics = { tokensIn: 120, tokensOut: 256, latencyMs: 380 }
+          }
+          toolStatus.value = null
+
+          // 2. 生成本地模拟回答，并说明登录后的是真实的
+          const lowercaseText = text.toLowerCase()
+          let reply = '你好！我是你的 Starlore 智能助理。目前系统处于**访客体验模式（本地模拟）**，对话由本地预设逻辑回答。\n\n> 💡 **解锁真实 AI**：您可以点击左上角的登录，登录后即可激活真正的云端 AI 助手，连接基于 Multi-Agent 架构的 **DeepSeek 大语言模型**，获得实时的智能问答与工具调用，并支持您的个人会话云端保存。'
+          if (lowercaseText.includes('文章') || lowercaseText.includes('星记')) {
+            reply = '我为你找到了以下几篇精选的公开星记：\n1. **Vue 3 组合式 API 实践** - 深入组合式函数设计。\n2. **CSS Grid 布局指南** - 掌握现代 CSS 布局技术。\n3. **Starlore 项目总结** - 本站个人知识库系统的构建。\n您可以点击导航栏的「星记」查看完整列表！\n\n*(提示：登录后真实的 AI 助手可以帮您直接在后台检索、总结或撰写新的星记文章)*'
+          } else if (lowercaseText.includes('星域') || lowercaseText.includes('分类')) {
+            reply = '当前系统的公开星域分类包括：\n- **前端开发** (5 篇)\n- **后端技术** (3 篇)\n- **AI 研究** (4 篇)\n- **设计思考** (2 篇)\n- **项目实践** (6 篇)\n点击导航栏的「星域」即可查看分类详情！\n\n*(提示：登录后真实的 AI 助手可以调用工具帮您直接新建、分类或管理这些星域)*'
+          } else if (lowercaseText.includes('灵感')) {
+            reply = '「灵感」页面是我们的核心特色！输入任意词汇，AI 就会为您发散出 2D 物理关联图谱，支持拖拽和物理碰撞。非常推荐您点击顶部的「灵感」链接亲自体验！\n\n*(提示：登录后真实的 AI 助手可以将发散出的新灵感直接一键保存或生成对应的星记草稿)*'
+          } else if (lowercaseText.includes('简历')) {
+            reply = '在登录并获得相应权限后，您可以通过导航栏的「简历」入口管理或生成您的专属简历。当前访客模式暂不支持此操作，登录后方可体验真实的个人简历智能解析。'
+          } else {
+            // 根据不同角色给以不同风格的默认回答
+            const key = props.selectedCharacterKey
+            if (key === 'philosopher') {
+              reply = '昔者庄周梦为胡蝶，栩栩然胡蝶也，自喻适志与！今日你我于此星河中相遇，亦不过是天地一指、万物一马。\n\n目前你我处于庄周梦境般的**模拟模式**中。*若要追求真实的大道与智慧，请先登录，即可以云端真气接入真真实实的 DeepSeek 乾坤法阵。*'
+            } else if (key === 'explorer') {
+              reply = '哔哔……飞船传感器提示：当前正处于离线模拟轨道中，外部深空云端连接已离线。\n\n*请启动登录推进器以连接至真正的 DeepSeek 云端 AI 星盘，我们将开启全功率星轨引擎。目前您仍可以使用离线雷达探索基础星轨。*'
+            }
+          }
+
+          // 3. 模拟流式打字输出
+          let currentLen = 0
+          const interval = setInterval(() => {
+            if (currentLen >= reply.length) {
+              clearInterval(interval)
+              props.messages[aiIdx].content = reply
+              flushStreamBuffer()
+              isLocalSending.value = false
+              setMode('speaking')
+              setTimeout(() => setMode('idle'), 1500)
+            } else {
+              const chunk = reply.substring(currentLen, currentLen + 2)
+              props.messages[aiIdx].content += chunk
+              feedStreamChunk(chunk)
+              scrollChat()
+              currentLen += 2
+            }
+          }, 30)
+
+        }, 300)
+      }, 300)
+    }, 400)
+    return
+  }
 
   abortCtrl = new AbortController()
   resetTTS()
@@ -1489,6 +1599,7 @@ watch(
             </button>
           </div>
           <textarea
+            ref="textareaRef"
             v-model="inputText"
             class="imm-textarea"
             rows="2"
@@ -1783,7 +1894,7 @@ watch(
   right: 0;
   top: 0;
   bottom: 0;
-  width: 420px;
+  width: 480px;
   padding: 40px 24px 32px 24px;
   box-sizing: border-box;
   display: flex;
@@ -1834,19 +1945,34 @@ watch(
   align-items: flex-end;
 }
 .msg.user .text {
-  color: var(--ink-soft);
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.6;
-  text-align: right;
+  text-align: left;
+  background: var(--accent-soft);
+  border: 1px solid var(--border-interactive);
+  padding: 10px 14px;
+  border-radius: 16px 16px 2px 16px;
+  max-width: 85%;
+  word-break: break-word;
+  box-shadow: var(--shadow-sm);
 }
 .msg.assistant {
   align-self: flex-start;
+  align-items: flex-start;
 }
 .msg.assistant .text {
   color: var(--ink);
   font-size: 14px;
   line-height: 1.7;
   font-weight: 300;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  border-radius: 16px 16px 16px 2px;
+  max-width: 85%;
+  word-break: break-word;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── 附件标签 ── */
@@ -2198,15 +2324,15 @@ watch(
 /* ── 输入区 ── */
 .imm-input-area {
   flex-shrink: 0;
-  padding: 12px;
+  padding: 16px;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
@@ -2306,9 +2432,9 @@ watch(
 
 .imm-textarea {
   width: 100%;
-  min-height: 50px;
-  max-height: 90px;
-  padding: 10px 14px;
+  min-height: 80px;
+  max-height: 300px;
+  padding: 12px 16px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.08);
@@ -2316,7 +2442,7 @@ watch(
   font-size: 14px;
   font-family: inherit;
   resize: none;
-  transition: all 0.2s;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
 }
 .imm-textarea::placeholder {

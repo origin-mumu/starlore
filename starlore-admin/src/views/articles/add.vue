@@ -64,11 +64,11 @@ const createArticle = async () => {
       description: description.value,
       status: status.value,
     })
-    alert('星迹创建成功')
+    alert('星记创建成功')
     router.push({ name: 'articles' })
   } catch (error) {
     console.error('创建文章失败:', error)
-    alert('创建星迹失败')
+    alert('创建星记失败')
   }
 }
 </script>
@@ -82,18 +82,18 @@ const createArticle = async () => {
       <div class="content-box">
         <div class="top">
           <div class="back" @click="router.push({ name: 'articles' })">⬅</div>
-          <div class="page-title">新增星迹</div>
+          <div class="page-title">新增星记</div>
           <div class="save" @click="createArticle">保存</div>
         </div>
 
         <div class="article-form">
           <label class="form-label">
             标题
-            <input class="form-input" type="text" v-model="title" placeholder="请输入星迹标题" />
+            <input class="form-input" type="text" v-model="title" placeholder="请输入星记标题" />
           </label>
           <label class="form-label">
             描述
-            <input class="form-input" type="text" v-model="description" placeholder="请输入星迹描述" />
+            <input class="form-input" type="text" v-model="description" placeholder="请输入星记描述" />
           </label>
           <label class="form-label">
             星域

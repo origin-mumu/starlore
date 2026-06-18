@@ -28,6 +28,7 @@ import {
   Terminal,
   Code2,
   FileArchive,
+  Rocket,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -36,7 +37,7 @@ const demoArticles: Article[] = [
   {
     id: -1,
     title: '欢迎来到 Starlore',
-    summary: '这是一个演示星迹，登录后可以查看真实内容',
+    summary: '这是一个演示星记，登录后可以查看真实内容',
     category: '演示',
     createdAt: new Date().toISOString(),
     coverImage: '',
@@ -70,14 +71,14 @@ const features = [
   {
     icon: Activity,
     title: '全链路可观测性',
-    desc: '集成 LangSmith 监控体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
-    tech: 'LangSmith · Tracing · Bad Case Mining',
+    desc: '搭建 Tracing 体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
+    tech: 'Trace · Observability · Bad Case Mining',
     link: '/echobot',
   },
   {
     icon: Database,
     title: 'RAG 知识检索',
-    desc: '向量化知识库，语义检索你的所有星迹，AI 基于你的知识回答问题。',
+    desc: '向量化知识库，语义检索你的所有星记，AI 基于你的知识回答问题。',
     tech: 'Embedding · Vector Store · Semantic Search',
     link: '/articles',
   },
@@ -102,12 +103,19 @@ const features = [
     tech: 'Graph Layout · AI Generation · Real-time',
     link: '/diverge',
   },
+  {
+    icon: Rocket,
+    title: 'CI/CD 自动部署',
+    desc: 'GitHub Actions 驱动，push 到 main 自动构建 Docker 镜像并部署到服务器，零停机更新。',
+    tech: 'GitHub Actions · Docker · GHCR',
+    link: '',
+  },
 ]
 
 const stats = [
   { value: '3-Agent', label: '多智能体协作' },
   { value: '10+', label: 'Function 工具' },
-  { value: 'LangSmith', label: '全链路追踪' },
+  { value: 'Trace', label: '全链路追踪' },
   { value: '3D', label: '知识可视化' },
 ]
 
@@ -153,7 +161,7 @@ onMounted(async () => {
                 <span class="terminal-success">✓</span> Multi-Agent Graph compiled
               </div>
               <div class="terminal-line terminal-output">
-                <span class="terminal-success">✓</span> LangSmith tracing enabled
+                <span class="terminal-success">✓</span> Trace observability enabled
               </div>
               <div class="terminal-line terminal-output">
                 <span class="terminal-success">✓</span> Vector store connected
@@ -175,7 +183,7 @@ onMounted(async () => {
             AI-Powered Personal Knowledge Universe
           </p>
           <p class="hero-desc fade-in-up" style="animation-delay: 0.4s">
-            融合 Multi-Agent 协作、LangSmith 可观测性、RAG 知识检索、3D 可视化的智能知识系统。<br />
+            融合 Multi-Agent 协作、全链路可观测性、RAG 知识检索、3D 可视化的智能知识系统。<br />
             Planner 规划 → Executor 执行 → Reviewer 审查，让 AI 真正理解你的知识。
           </p>
           <div class="hero-actions fade-in-up" style="animation-delay: 0.5s">
@@ -222,7 +230,7 @@ onMounted(async () => {
               </div>
               <h3 class="feature-title">{{ feature.title }}</h3>
               <p class="feature-desc">{{ feature.desc }}</p>
-              <router-link :to="feature.link" class="feature-link">
+              <router-link v-if="feature.link" :to="feature.link" class="feature-link">
                 探索 <ArrowRight :size="14" />
               </router-link>
             </div>
@@ -345,7 +353,7 @@ onMounted(async () => {
             <h1 class="hero-title-user">记录创造的<br />每一刻</h1>
             <p class="hero-desc-user">代码、设计、思考。在这里分享我的学习旅程和项目实践。</p>
             <div class="hero-actions">
-              <router-link to="/articles" class="btn-primary">阅读星迹</router-link>
+              <router-link to="/articles" class="btn-primary">阅读星记</router-link>
             </div>
           </div>
 
@@ -412,7 +420,7 @@ onMounted(async () => {
       <section class="section-parchment">
         <div class="container">
           <div class="section-header-logged fade-in-up" style="animation-delay: 0.25s">
-            <h2 class="section-heading">最新星迹</h2>
+            <h2 class="section-heading">最新星记</h2>
             <router-link to="/articles" class="see-all">查看全部 <span>→</span></router-link>
           </div>
           <div class="content-layout">
@@ -427,9 +435,9 @@ onMounted(async () => {
                 <DummyCard v-bind="article" />
               </div>
               <div v-else class="empty-state fade-in-up" style="animation-delay: 0.3s">
-                <p class="empty-title">还没有星迹</p>
-                <p class="empty-desc">开始写你的第一篇星迹吧</p>
-                <router-link to="/articles/edit" class="btn-primary">写星迹</router-link>
+                <p class="empty-title">还没有星记</p>
+                <p class="empty-desc">开始写你的第一篇星记吧</p>
+                <router-link to="/articles/edit" class="btn-primary">写星记</router-link>
               </div>
             </main>
             <SideBar />

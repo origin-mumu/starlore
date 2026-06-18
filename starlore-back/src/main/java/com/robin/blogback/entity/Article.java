@@ -28,6 +28,8 @@ public class Article {
     @TableField("view_count")
     private Integer viewCount;
     private String status;
+    @TableField("is_public")
+    private Boolean isPublic;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

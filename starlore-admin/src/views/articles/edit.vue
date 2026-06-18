@@ -67,11 +67,11 @@ const createArticle = async () => {
       category: category.value,
       status: status.value,
     })
-    alert('星迹编辑成功')
+    alert('星记编辑成功')
     router.push({ name: 'articles' })
   } catch (error) {
     console.error('编辑文章失败:', error)
-    alert('编辑星迹失败')
+    alert('编辑星记失败')
   }
 }
 
@@ -85,7 +85,7 @@ const loadArticle = async () => {
     status.value = article.status
   } catch (error) {
     console.error('加载文章失败:', error)
-    alert('加载星迹失败')
+    alert('加载星记失败')
   }
 }
 
@@ -103,14 +103,14 @@ onMounted(() => {
       <div class="content-box">
         <div class="top">
           <div class="back" @click="router.push({ name: 'articles' })">⬅</div>
-          <div class="page-title">编辑星迹</div>
+          <div class="page-title">编辑星记</div>
           <div class="save" @click="createArticle">保存</div>
         </div>
 
         <div class="article-form">
           <label class="form-label">
             标题
-            <input class="form-input" type="text" v-model="title" placeholder="请输入星迹标题" />
+            <input class="form-input" type="text" v-model="title" placeholder="请输入星记标题" />
           </label>
           <label class="form-label">
             星域

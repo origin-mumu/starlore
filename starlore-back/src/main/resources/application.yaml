@@ -12,12 +12,12 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
   profiles:
-    active: dev
+    active: dev,local
   application:
     name: blog-back
   datasource:
-    username: ro-blog
-    password: "MdzhbWKFyHpNHwCk"
+    username: ${SPRING_DATASOURCE_USERNAME:your_db_username}
+    password: ${SPRING_DATASOURCE_PASSWORD:your_db_password}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       keepalive-time: 30000
@@ -58,11 +58,11 @@ langsmith:
 
 app:
   jwt:
-    secret: ro-blog-secret-key-2024
+    secret: ${APP_JWT_SECRET:your_jwt_secret}
     expiration: 604800000
   minio:
-    endpoint: http://47.94.128.65:9000
-    public-url: https://www.starlore.cn/minio
-    access-key: minioadmin
-    secret-key: minioadmin123456
-    bucket: my-files
+    endpoint: ${APP_MINIO_ENDPOINT:http://your_minio_host:9000}
+    public-url: ${APP_MINIO_PUBLIC_URL:https://your_minio_domain/minio}
+    access-key: ${APP_MINIO_ACCESS_KEY:your_minio_access_key}
+    secret-key: ${APP_MINIO_SECRET_KEY:your_minio_secret_key}
+    bucket: ${APP_MINIO_BUCKET:your_minio_bucket}

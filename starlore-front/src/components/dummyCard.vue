@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import router from '@/router'
 import { Article } from '@/type/Article'
+import { useUserStore } from '@/stores/user'
+import { Lock, Unlock } from '@lucide/vue'
+
 const props = defineProps<Article>()
+const userStore = useUserStore()
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString)
@@ -25,6 +29,12 @@ const formatDate = (dateString: string) => {
     </div>
     <div class="card-body">
       <div class="tags-row">
+        <!-- 可见性标识：仅登录后在管理界面展示 -->
+        <span v-if="userStore.isLoggedIn" class="visibility-badge" :class="props.is_public ? 'public-badge' : 'private-badge'">
+          <Unlock v-if="props.is_public" :size="12" />
+          <Lock v-else :size="12" />
+          {{ props.is_public ? '公开' : '私密' }}
+        </span>
         <span v-for="tag in props.tags?.slice(0, 3)" :key="tag" class="card-tag">{{ tag }}</span>
       </div>
       <h3 class="card-title">{{ props.title }}</h3>
@@ -150,5 +160,29 @@ const formatDate = (dateString: string) => {
   .card-body {
     padding: 20px;
   }
+}
+
+/* ── 可见性徽章样式 ── */
+.visibility-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  letter-spacing: 0.02em;
+}
+
+.public-badge {
+  background: rgba(74, 140, 92, 0.08);
+  color: #4A8C5C;
+  border: 1px solid rgba(74, 140, 92, 0.15);
+}
+
+.private-badge {
+  background: rgba(184, 92, 56, 0.08);
+  color: #B85C38;
+  border: 1px solid rgba(184, 92, 56, 0.15);
 }
 </style>

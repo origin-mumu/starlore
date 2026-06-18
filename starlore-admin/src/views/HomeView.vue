@@ -43,7 +43,7 @@ const initChart = () => {
 
     const option = {
       title: {
-        text: '星迹星域分布',
+        text: '星记星域分布',
         left: 'center',
         textStyle: {
           color: '#2A2118',
@@ -67,7 +67,7 @@ const initChart = () => {
       },
       series: [
         {
-          name: '星迹数量',
+          name: '星记数量',
           type: 'pie',
           radius: ['40%', '70%'],
           center: ['60%', '50%'],
@@ -170,7 +170,7 @@ const handleManageCategories = () => {
               <div class="stat-icon">📊</div>
               <div class="stat-info">
                 <div class="stat-number">{{ blogStats?.totalArticles || 0 }}</div>
-                <div class="stat-label">星迹总数</div>
+                <div class="stat-label">星记总数</div>
               </div>
             </div>
 
@@ -197,7 +197,7 @@ const handleManageCategories = () => {
             v-if="blogStats?.popularCategories && blogStats.popularCategories.length > 0"
           >
             <div class="chart-card">
-              <h3 class="chart-title">📈 星迹星域分布</h3>
+              <h3 class="chart-title">📈 星记星域分布</h3>
               <div ref="chartRef" class="chart-container"></div>
             </div>
           </div>
@@ -205,7 +205,7 @@ const handleManageCategories = () => {
           <div class="quick-actions">
             <h3>快速操作</h3>
             <div class="action-buttons">
-              <button class="action-btn primary" @click="handleCreateArticle">新建星迹</button>
+              <button class="action-btn primary" @click="handleCreateArticle">新建星记</button>
               <button class="action-btn secondary" @click="handleManageCategories">管理星域</button>
             </div>
           </div>

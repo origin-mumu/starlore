@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, reactive, onMounted } from 'vue'
-import { getCategoriesService, createCategoryService, deleteCategoryService } from '@/api/article'
+import { getCategoriesService, getPublicCategoriesService, createCategoryService, deleteCategoryService } from '@/api/article'
 import router from '@/router'
 import SideBar from '@/components/sideBar.vue'
 import { useUserStore } from '@/stores/user'
@@ -35,19 +35,17 @@ const newName = ref('')
 const adding = ref(false)
 
 const load = async () => {
-  if (!userStore.isLoggedIn) {
-    categories.value = demoCategories
-    loading.value = false
-    return
-  }
   loading.value = true
   try {
-    const res: any = await getCategoriesService()
+    const res: any = userStore.isLoggedIn
+      ? await getCategoriesService()
+      : await getPublicCategoriesService()
     categories.value = res.data?.data || res.data || []
   } catch { /* ignore */ } finally {
     loading.value = false
   }
 }
+
 
 onMounted(load)
 
@@ -92,7 +90,7 @@ const confirmDeleteCat = async () => {
   <div class="page-container">
     <section class="page-header">
       <div class="container">
-        <h1>星域管理</h1>
+        <h1>{{ userStore.isLoggedIn ? '星域管理' : '公开星域' }}</h1>
       </div>
     </section>
 
@@ -129,7 +127,7 @@ const confirmDeleteCat = async () => {
                   </div>
                 </div>
                 <div v-if="categories.length === 0 && !loading" class="empty-row">
-                  还没有星域，点击上方按钮添加
+                  {{ userStore.isLoggedIn ? '还没有星域，点击上方按钮添加' : '暂无公开星域' }}
                 </div>
               </div>
             </div>
@@ -146,7 +144,7 @@ const confirmDeleteCat = async () => {
   <ConfirmModal
     :show="showDeleteCat"
     title="确认删除"
-    :message="`确认删除星域「${deleteCatName}」？关联的星迹将变为未分类`"
+    :message="`确认删除星域「${deleteCatName}」？关联的星记将变为未分类`"
     confirm-text="删除"
     @confirm="confirmDeleteCat"
     @cancel="showDeleteCat = false"

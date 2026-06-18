@@ -158,4 +158,59 @@ public class CategoryServiceImpl implements CategoryService {
                 c.getId(), c.getUserId(), c.getName(), c.getDescription(),
                 c.getColor(), c.getArticleCount(), c.getCreatedAt(), c.getUpdatedAt());
     }
+
+    @Override
+    public CategoryListResponse getPublicCategories() {
+        List<Category> allCategories = categoryMapper.selectList(null);
+        List<CategoryListResponse.CategoryItem> items = allCategories.stream()
+                .map(c -> {
+                    long publicCount = articleMapper.selectCount(
+                            new LambdaQueryWrapper<Article>()
+                                    .eq(Article::getCategory, c.getName())
+                                    .eq(Article::getStatus, "published")
+                                    .eq(Article::getIsPublic, true));
+                    CategoryListResponse.CategoryItem item = toCategoryItem(c);
+                    item.setArticleCount((int) publicCount);
+                    return item;
+                })
+                .filter(item -> item.getArticleCount() > 0)
+                .sorted((a, b) -> Integer.compare(b.getArticleCount(), a.getArticleCount()))
+                .toList();
+        return new CategoryListResponse(items);
+    }
+
+    @Override
+    public CategoryDetailResponse getPublicCategoryById(Integer id) {
+        Category category = categoryMapper.selectById(id);
+        if (category == null) {
+            throw new NotFoundException("分类不存在");
+        }
+
+        List<Article> articles = articleMapper.selectList(
+                new LambdaQueryWrapper<Article>()
+                        .eq(Article::getCategory, category.getName())
+                        .eq(Article::getStatus, "published")
+                        .eq(Article::getIsPublic, true)
+                        .orderByDesc(Article::getCreatedAt)
+                        .select(Article::getId, Article::getTitle, Article::getDescription,
+                                Article::getCoverImage, Article::getViewCount, Article::getCreatedAt, Article::getIsPublic));
+
+        List<ArticleSummary> articleSummaries = articles.stream().map(a -> {
+            ArticleSummary s = new ArticleSummary();
+            s.setId(a.getId());
+            s.setTitle(a.getTitle());
+            s.setDescription(a.getDescription());
+            s.setCoverImage(a.getCoverImage());
+            s.setViewCount(a.getViewCount());
+            s.setCreatedAt(a.getCreatedAt());
+            s.setIsPublic(a.getIsPublic());
+            return s;
+        }).toList();
+
+        CategoryDetailResponse.CategoryDetailData data = new CategoryDetailResponse.CategoryDetailData(
+                category.getId(), category.getName(), category.getDescription(),
+                category.getColor(), articleSummaries.size(),
+                category.getCreatedAt(), category.getUpdatedAt(), articleSummaries);
+        return new CategoryDetailResponse(data);
+    }
 }

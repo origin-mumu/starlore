@@ -13,4 +13,8 @@ public interface ArticleService {
     ArticleDetail createArticle(Integer userId, CreateArticleRequest request);
     ArticleDetail updateArticle(Integer id, UpdateArticleRequest request);
     Map<String, Object> deleteArticle(Integer id);
+
+    ArticleListResponse getPublicArticles(int page, int limit, String category, String search, String tag);
+    ArticleDetail getPublicArticleById(Integer id);
+    BlogStatsResponse getPublicStats();
 }

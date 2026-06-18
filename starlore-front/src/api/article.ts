@@ -6,6 +6,11 @@ export function getCategoriesService() {
   return request.get('/categories')
 }
 
+export function getPublicCategoriesService() {
+  return request.get('/public/categories')
+}
+
+
 export function createCategoryService(data: { name: string; description?: string; color?: string }) {
   return request.post('/categories', data)
 }
@@ -24,9 +29,18 @@ export function getAllArticlesService(params = {}) {
   return request.get('/articles', { params })
 }
 
+export function getPublicArticlesService(params = {}) {
+  return request.get('/public/articles', { params })
+}
+
 export function getArticleByIdService(id: number) {
   return request.get(`/articles/${id}`)
 }
+
+export function getPublicArticleByIdService(id: number) {
+  return request.get(`/public/articles/${id}`)
+}
+
 
 export interface CreateArticleData {
   title: string
@@ -36,6 +50,7 @@ export interface CreateArticleData {
   tags?: string[]
   coverImage?: string
   status?: string
+  is_public?: boolean
 }
 
 export function createArticleService(data: CreateArticleData) {
@@ -53,6 +68,11 @@ export function deleteArticleService(id: number) {
 export function getBlogStatsService() {
   return request.get('/articles/stats/summary')
 }
+
+export function getPublicBlogStatsService() {
+  return request.get('/public/stats')
+}
+
 
 export function uploadImage(file: File) {
   const form = new FormData()
