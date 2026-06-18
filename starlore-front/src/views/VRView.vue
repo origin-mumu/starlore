@@ -10,11 +10,22 @@ const userStore = useUserStore()
 const showUI = ref(false)
 const sidebarOpen = ref(false)
 
+const allArticles = ref<any[]>([])
 const categories = ref<{ name: string; count: number; lastUpdated: string }[]>([])
 const articlesByCategory = ref<Map<string, { id: number; title: string; desc: string }[]>>(new Map())
 const navItems = ref<string[]>(['全部'])
 const activeNav = ref('全部')
 const selectedNode = ref<any>(null)
+
+// Search & Filter state
+const searchQuery = ref('')
+const showCategories = ref(true)
+const showArticles = ref(true)
+const showLinks = ref(true)
+
+// Side panel details drawer state
+const selectedArticle = ref<any>(null)
+const drawerOpen = ref(false)
 
 // Node colors
 const nodeColors = [
@@ -22,124 +33,193 @@ const nodeColors = [
   '#cc99ff', '#00ffcc', '#ff6666', '#66ccff', '#ffcc66'
 ]
 
-// 简单的伪随机数生成（基于种子）
+// Seeded random helper
 function seededRandom(seed: number) {
   let x = Math.sin(seed * 127.1) * 43758.5453
   return x - Math.floor(x)
 }
 
-// Build knowledge nodes based on active nav
+// Build knowledge nodes list
 const knowledgeNodes = computed(() => {
   const nodes: any[] = []
   const cats = categories.value
-  const centerX = 0.5
-  const centerY = 0.45
+  const articles = allArticles.value
+  const cx = 0.5
+  const cy = 0.5
 
   if (activeNav.value === '全部') {
-    // 中心 hub 节点
-    nodes.push({
-      id: 0,
-      label: '知识星域',
-      desc: `${cats.reduce((sum, c) => sum + c.count, 0)} 篇文章 · ${cats.length} 个分类`,
-      rx: centerX,
-      ry: centerY,
-      size: 12,
-      color: '#ffffff',
-      type: 'category' as const,
-    })
-
-    // 分类节点围绕中心，使用黄金角螺旋排列
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-
-    cats.forEach((cat, i) => {
-      const radius = 0.18 + (i / cats.length) * 0.1
-      const angle = i * goldenAngle
-      const jitterR = seededRandom(i * 31) * 0.03
-      const jitterA = seededRandom(i * 47) * 0.15
-
-      const rx = centerX + Math.cos(angle + jitterA) * (radius + jitterR)
-      const ry = centerY + Math.sin(angle + jitterA) * (radius + jitterR) * 0.75
-
+    // 1. Center hub node
+    if (showCategories.value) {
       nodes.push({
-        id: i + 1,
+        id: 0,
+        label: '知识星系',
+        desc: `${articles.length} 篇文章 · ${cats.length} 个分类`,
+        rx: cx,
+        ry: cy,
+        size: 15,
+        color: '#ffffff',
+        type: 'category' as const,
+      })
+    }
+
+    // 2. Category nodes
+    cats.forEach((cat, i) => {
+      if (!showCategories.value) return
+      const angle = (i / cats.length) * Math.PI * 2
+      const rx = cx + Math.cos(angle) * 0.15
+      const ry = cy + Math.sin(angle) * 0.15
+      nodes.push({
+        id: 100000 + i,
         label: cat.name,
-        desc: `${cat.count} 篇文章 · 最近更新 ${cat.lastUpdated}`,
-        rx: Math.max(0.08, Math.min(0.92, rx)),
-        ry: Math.max(0.1, Math.min(0.85, ry)),
-        size: Math.max(4, Math.min(9, cat.count * 0.6 + 3)),
+        desc: `${cat.count} 篇文章 · 更新于 ${cat.lastUpdated}`,
+        rx,
+        ry,
+        size: 10,
         color: nodeColors[i % nodeColors.length],
         type: 'category' as const,
-        link: `/articles?category=${encodeURIComponent(cat.name)}`,
       })
     })
-  } else {
-    // Show articles under selected category
-    const articles = articlesByCategory.value.get(activeNav.value) || []
-    const catIndex = cats.findIndex(c => c.name === activeNav.value)
-    const catColor = nodeColors[catIndex >= 0 ? catIndex % nodeColors.length : 0]
-    const displayArticles = articles.slice(0, 12)
 
-    // Place category node at center
+    // 3. Article nodes
+    if (showArticles.value) {
+      articles.forEach((art, i) => {
+        const catIndex = cats.findIndex(c => c.name === art.category)
+        const catColor = catIndex >= 0 ? nodeColors[catIndex % nodeColors.length] : '#ffffff'
+        const angle = (i / articles.length) * Math.PI * 2 + seededRandom(i * 17) * 0.2
+        const rx = cx + Math.cos(angle) * 0.35
+        const ry = cy + Math.sin(angle) * 0.35
+        nodes.push({
+          id: art.id,
+          label: art.title,
+          desc: art.description || art.title,
+          rx,
+          ry,
+          size: 5,
+          color: catColor,
+          type: 'article' as const,
+          link: `/articles/${art.id}`,
+          tags: art.tags || [],
+          createdAt: art.createdAt,
+          updatedAt: art.updatedAt,
+        })
+      })
+    }
+  } else {
+    // Specific category is active
+    const catIndex = cats.findIndex(c => c.name === activeNav.value)
+    const catColor = catIndex >= 0 ? nodeColors[catIndex % nodeColors.length] : '#ffffff'
+    const filteredArticles = articles.filter(art => art.category === activeNav.value)
+
+    // 1. Center Category Node
     nodes.push({
       id: 0,
       label: activeNav.value,
-      desc: `${articles.length} 篇文章`,
-      rx: centerX,
-      ry: centerY,
-      size: 10,
+      desc: `${filteredArticles.length} 篇文章`,
+      rx: cx,
+      ry: cy,
+      size: 12,
       color: catColor,
       type: 'category' as const,
     })
 
-    // 花瓣/卫星布局：多层轨道 + 黄金角分散
-    const count = displayArticles.length
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-
-    displayArticles.forEach((article, i) => {
-      const progress = (i + 1) / count
-      // 从近到远的螺旋
-      const radius = 0.1 + progress * 0.18
-      const angle = i * goldenAngle
-      const jitterR = seededRandom(i * 13 + 7) * 0.03
-      const jitterA = seededRandom(i * 19 + 3) * 0.2
-
-      const rx = centerX + Math.cos(angle + jitterA) * (radius + jitterR)
-      const ry = centerY + Math.sin(angle + jitterA) * (radius + jitterR) * 0.75
-
-      nodes.push({
-        id: article.id,
-        label: article.title,
-        desc: article.desc || '点击查看详情',
-        rx: Math.max(0.08, Math.min(0.92, rx)),
-        ry: Math.max(0.1, Math.min(0.85, ry)),
-        size: 3 + seededRandom(i * 29) * 3,
-        color: catColor,
-        type: 'article' as const,
-        link: `/articles/${article.id}`,
+    // 2. Article Nodes
+    if (showArticles.value) {
+      filteredArticles.forEach((art, i) => {
+        const angle = (i / filteredArticles.length) * Math.PI * 2
+        const rx = cx + Math.cos(angle) * 0.28
+        const ry = cy + Math.sin(angle) * 0.28
+        nodes.push({
+          id: art.id,
+          label: art.title,
+          desc: art.description || art.title,
+          rx,
+          ry,
+          size: 5,
+          color: catColor,
+          type: 'article' as const,
+          link: `/articles/${art.id}`,
+          tags: art.tags || [],
+          createdAt: art.createdAt,
+          updatedAt: art.updatedAt,
+        })
       })
-    })
+    }
   }
 
   return nodes
 })
 
-// Links between nodes
+// Build connections between nodes
 const knowledgeLinks = computed(() => {
   const links: [number, number][] = []
-  const nodes = knowledgeNodes.value
+  if (!showLinks.value) return links
+
+  const cats = categories.value
+  const articles = allArticles.value
 
   if (activeNav.value === '全部') {
-    // 中心节点连接到每个分类节点
-    for (const node of nodes) {
-      if (node.id !== 0) {
-        links.push([0, node.id])
+    // 1. Center node connected to Category nodes
+    if (showCategories.value) {
+      cats.forEach((_, i) => {
+        links.push([0, 100000 + i])
+      })
+    }
+
+    // 2. Articles connected to their Categories
+    if (showArticles.value && showCategories.value) {
+      articles.forEach((art) => {
+        const catIndex = cats.findIndex(c => c.name === art.category)
+        if (catIndex >= 0) {
+          links.push([100000 + catIndex, art.id])
+        }
+      })
+    }
+
+    // 3. Articles connected to each other if they share tags
+    if (showArticles.value) {
+      const len = articles.length
+      for (let i = 0; i < len; i++) {
+        const art1 = articles[i]
+        const tags1 = art1.tags || []
+        if (tags1.length === 0) continue
+
+        for (let j = i + 1; j < len; j++) {
+          const art2 = articles[j]
+          const tags2 = art2.tags || []
+          const shared = tags1.filter((t: string) => tags2.includes(t))
+          if (shared.length >= 1) {
+            links.push([art1.id, art2.id])
+          }
+        }
       }
     }
   } else {
-    // 仅中心节点连接到每个文章节点
-    for (const node of nodes) {
-      if (node.id !== 0) {
-        links.push([0, node.id])
+    // Specific category active
+    const filteredArticles = articles.filter(art => art.category === activeNav.value)
+    
+    // 1. Center Category connected to Articles
+    if (showArticles.value) {
+      filteredArticles.forEach((art) => {
+        links.push([0, art.id])
+      })
+    }
+
+    // 2. Articles connected to each other if they share tags
+    if (showArticles.value) {
+      const len = filteredArticles.length
+      for (let i = 0; i < len; i++) {
+        const art1 = filteredArticles[i]
+        const tags1 = art1.tags || []
+        if (tags1.length === 0) continue
+
+        for (let j = i + 1; j < len; j++) {
+          const art2 = filteredArticles[j]
+          const tags2 = art2.tags || []
+          const shared = tags1.filter((t: string) => tags2.includes(t))
+          if (shared.length >= 1) {
+            links.push([art1.id, art2.id])
+          }
+        }
       }
     }
   }
@@ -147,12 +227,29 @@ const knowledgeLinks = computed(() => {
   return links
 })
 
-// Stats
+// Highlight nodes computed based on search query
+const highlightedNodes = computed(() => {
+  const highlights: number[] = []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return highlights
+
+  knowledgeNodes.value.forEach(node => {
+    const labelMatch = node.label.toLowerCase().includes(q)
+    const descMatch = node.desc.toLowerCase().includes(q)
+    const tagsMatch = node.tags && node.tags.some((t: string) => t.toLowerCase().includes(q))
+    if (labelMatch || descMatch || tagsMatch) {
+      highlights.push(node.id)
+    }
+  })
+  return highlights
+})
+
+// Stats computation
 const stats = computed(() => ({
   planets: activeNav.value === '全部' ? categories.value.length : 1,
   articles: activeNav.value === '全部'
     ? categories.value.reduce((sum, c) => sum + c.count, 0)
-    : (articlesByCategory.value.get(activeNav.value) || []).length,
+    : (allArticles.value.filter(art => art.category === activeNav.value)).length,
 }))
 
 // Current time
@@ -162,48 +259,6 @@ function updateTime() {
   currentTime.value = now.toLocaleTimeString('zh-CN', { hour12: false })
   requestAnimationFrame(updateTime)
 }
-
-// Demo data for guests
-const demoCategories = [
-  { name: '前端开发', count: 5, lastUpdated: '2026-05-20' },
-  { name: '后端技术', count: 3, lastUpdated: '2026-05-18' },
-  { name: '设计思考', count: 2, lastUpdated: '2026-05-15' },
-  { name: 'AI 研究', count: 4, lastUpdated: '2026-05-22' },
-  { name: '项目实践', count: 6, lastUpdated: '2026-05-25' },
-]
-
-const demoArticlesByCategory = new Map([
-  ['前端开发', [
-    { id: 101, title: 'Vue 3 组合式 API 实践', desc: '深入理解 Composition API 的设计理念' },
-    { id: 102, title: 'CSS Grid 布局指南', desc: '掌握现代 CSS 布局技术' },
-    { id: 103, title: 'TypeScript 高级类型', desc: '类型体操的艺术' },
-    { id: 104, title: 'Vite 构建优化', desc: '提升前端构建性能' },
-    { id: 105, title: '前端性能监控', desc: 'Web Vitals 实践' },
-  ]],
-  ['后端技术', [
-    { id: 201, title: 'Spring Boot 微服务', desc: '构建可扩展的后端服务' },
-    { id: 202, title: 'MySQL 索引优化', desc: '数据库性能调优' },
-    { id: 203, title: 'Redis 缓存策略', desc: '分布式缓存设计' },
-  ]],
-  ['设计思考', [
-    { id: 301, title: 'UI 设计原则', desc: '打造优秀的用户体验' },
-    { id: 302, title: '色彩搭配指南', desc: '设计中的色彩心理学' },
-  ]],
-  ['AI 研究', [
-    { id: 401, title: 'RAG 检索增强生成', desc: '结合检索与生成的 AI 架构' },
-    { id: 402, title: 'Prompt Engineering', desc: '提示词工程最佳实践' },
-    { id: 403, title: '向量数据库入门', desc: 'Embedding 与相似度搜索' },
-    { id: 404, title: 'LLM 微调技术', desc: '大模型定制化训练' },
-  ]],
-  ['项目实践', [
-    { id: 501, title: 'Starlore 项目总结', desc: '个人知识管理系统的构建' },
-    { id: 502, title: 'AI Agent 开发笔记', desc: '智能代理系统设计' },
-    { id: 503, title: 'Three.js 可视化', desc: '3D 知识图谱展示' },
-    { id: 504, title: 'SSE 流式传输', desc: '实时 AI 对话实现' },
-    { id: 505, title: 'JWT 认证方案', desc: '安全的身份验证' },
-    { id: 506, title: 'Docker 部署实践', desc: '容器化部署流程' },
-  ]],
-])
 
 onMounted(async () => {
   updateTime()
@@ -222,6 +277,7 @@ onMounted(async () => {
 
     const apiCategories: { id: number; name: string; article_count: number }[] = catsRes?.data || []
     const articles: any[] = articlesRes?.data || []
+    allArticles.value = articles
 
     // Build article stats and group by category
     const articleStats = new Map<string, { count: number; lastUpdated: string }>()
@@ -272,6 +328,8 @@ onMounted(async () => {
 
 function onNavClick(name: string) {
   activeNav.value = name
+  drawerOpen.value = false
+  selectedArticle.value = null
 }
 
 function goBack() {
@@ -280,10 +338,27 @@ function goBack() {
 
 function onNodeClick(node: any) {
   selectedNode.value = node
-  // 点击分类节点进入该分类（中心 hub 节点除外）
-  if (node.type === 'category' && activeNav.value === '全部' && node.id !== 0) {
+  if (node.type === 'article') {
+    selectedArticle.value = allArticles.value.find(art => art.id === node.id)
+    drawerOpen.value = true
+  } else if (node.type === 'category' && activeNav.value === '全部' && node.id !== 0) {
     activeNav.value = node.label
   }
+}
+
+function getRelatedArticles(art: any) {
+  if (!art || !art.tags) return []
+  return allArticles.value
+    .filter(a => a.id !== art.id && a.tags && a.tags.some((t: string) => art.tags.includes(t)))
+    .slice(0, 4)
+}
+
+function selectRelArticle(rel: any) {
+  selectedArticle.value = rel
+}
+
+function readFullArticle(id: number) {
+  router.push(`/articles/${id}`)
 }
 </script>
 
@@ -293,6 +368,7 @@ function onNodeClick(node: any) {
     <StarfieldCanvas
       :nodes="knowledgeNodes"
       :links="knowledgeLinks"
+      :highlightedNodes="highlightedNodes"
       @node-click="onNodeClick"
     />
 
@@ -311,12 +387,20 @@ function onNodeClick(node: any) {
           <div class="vr-topbar__center">
             <h1 class="vr-topbar__title">
               <span class="vr-topbar__title-icon">&#9670;</span>
-              知识星域
+              知识图谱
             </h1>
-            <p class="vr-topbar__subtitle">STARLORE</p>
+            <p class="vr-topbar__subtitle">STARLORE GRAPH</p>
           </div>
 
           <div class="vr-topbar__right">
+            <div class="vr-search-box">
+              <input
+                v-model="searchQuery"
+                class="vr-search-input"
+                placeholder="搜索文档/标签..."
+              />
+              <span class="vr-search-icon">&#128269;</span>
+            </div>
             <span class="vr-topbar__time">{{ currentTime }}</span>
           </div>
         </header>
@@ -344,25 +428,87 @@ function onNodeClick(node: any) {
 
         <!-- BOTTOM CONSOLE -->
         <footer class="vr-console">
-          <div class="vr-console__stats">
-            <div class="vr-console__stat">
-              <div>
-                <span class="vr-console__stat-value">{{ stats.planets }}</span>
-                <span class="vr-console__stat-label">星域</span>
+          <div class="vr-console__stats-group">
+            <div class="vr-console__stats">
+              <div class="vr-console__stat">
+                <div>
+                  <span class="vr-console__stat-value">{{ stats.planets }}</span>
+                  <span class="vr-console__stat-label">分类</span>
+                </div>
+              </div>
+              <div class="vr-console__divider"></div>
+              <div class="vr-console__stat">
+                <div>
+                  <span class="vr-console__stat-value">{{ stats.articles }}</span>
+                  <span class="vr-console__stat-label">星记</span>
+                </div>
               </div>
             </div>
-            <div class="vr-console__divider"></div>
-            <div class="vr-console__stat">
-              <div>
-                <span class="vr-console__stat-value">{{ stats.articles }}</span>
-                <span class="vr-console__stat-label">星记</span>
-              </div>
+
+            <!-- Graph filter settings -->
+            <div class="vr-console__filters">
+              <label class="vr-filter-label">
+                <input type="checkbox" v-model="showCategories" />
+                <span>分类</span>
+              </label>
+              <label class="vr-filter-label">
+                <input type="checkbox" v-model="showArticles" />
+                <span>文章</span>
+              </label>
+              <label class="vr-filter-label">
+                <input type="checkbox" v-model="showLinks" />
+                <span>关系线</span>
+              </label>
             </div>
           </div>
+
           <div class="vr-console__hint">
-            {{ activeNav === '全部' ? '悬浮查看 · 点击分类进入' : '悬浮查看 · 点击文章查看详情' }}
+            {{ activeNav === '全部' ? '悬浮查看 · 拖拽节点 · 点击文章查看详情' : '悬浮查看 · 拖拽节点 · 点击文章查看详情' }}
           </div>
         </footer>
+
+        <!-- SIDE DRAWER PANEL -->
+        <Transition name="panel-fade">
+          <div v-if="drawerOpen && selectedArticle" class="vr-drawer glass-card">
+            <button class="vr-drawer__close" @click="drawerOpen = false">&times;</button>
+            <div class="vr-drawer__content">
+              <span class="vr-drawer__category">{{ selectedArticle.category || '未分类' }}</span>
+              <h2 class="vr-drawer__title">{{ selectedArticle.title }}</h2>
+              <div class="vr-drawer__meta">
+                <span>📅 更新时间：{{ selectedArticle.updatedAt?.slice(0, 10) || selectedArticle.createdAt?.slice(0, 10) || '-' }}</span>
+              </div>
+              <p class="vr-drawer__desc">{{ selectedArticle.description || '暂无描述' }}</p>
+              
+              <div v-if="selectedArticle.tags && selectedArticle.tags.length" class="vr-drawer__tags">
+                <span v-for="tag in selectedArticle.tags" :key="tag" class="vr-drawer__tag">
+                  # {{ tag }}
+                </span>
+              </div>
+              
+              <div class="vr-drawer__relations">
+                <h3>关联文档 (通过共有标签)</h3>
+                <div class="vr-drawer__rel-list">
+                  <div
+                    v-for="rel in getRelatedArticles(selectedArticle)"
+                    :key="rel.id"
+                    class="vr-drawer__rel-item"
+                    @click="selectRelArticle(rel)"
+                  >
+                    <span class="vr-drawer__rel-title">{{ rel.title }}</span>
+                    <span class="vr-drawer__rel-cat">{{ rel.category }}</span>
+                  </div>
+                  <div v-if="!getRelatedArticles(selectedArticle).length" class="vr-drawer__rel-empty">
+                    暂无关联节点
+                  </div>
+                </div>
+              </div>
+              
+              <button class="vr-drawer__btn" @click="readFullArticle(selectedArticle.id)">
+                阅读全文 &rarr;
+              </button>
+            </div>
+          </div>
+        </Transition>
       </div>
     </Transition>
 
@@ -582,6 +728,13 @@ function onNodeClick(node: any) {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(100, 200, 255, 0.05);
 }
 
+.vr-console__stats-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
 .vr-console__stat {
   display: flex;
   align-items: center;
@@ -613,6 +766,220 @@ function onNodeClick(node: any) {
   color: #ffffff;
   letter-spacing: 0.5px;
   text-shadow: 0 0 10px rgba(183, 178, 255, 0.6);
+}
+
+/* FILTERS */
+.vr-console__filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 18px;
+  background: rgba(18, 14, 30, 0.85);
+  border: 1px solid rgba(100, 200, 255, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+.vr-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.vr-filter-label input {
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* SEARCH BOX */
+.vr-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+  margin-right: 15px;
+}
+.vr-search-input {
+  width: 150px;
+  padding: 6px 32px 6px 14px;
+  background: rgba(18, 14, 30, 0.6);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+.vr-search-input:focus {
+  border-color: rgba(100, 200, 255, 0.6);
+  width: 220px;
+  box-shadow: 0 0 10px rgba(100, 200, 255, 0.2);
+}
+.vr-search-icon {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* SIDE DRAWER */
+.vr-drawer {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  bottom: 80px;
+  width: 360px;
+  background: rgba(18, 14, 30, 0.92) !important;
+  border: 1px solid rgba(100, 200, 255, 0.3) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(20px);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  pointer-events: auto;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.vr-drawer__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24px;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.2s;
+}
+.vr-drawer__close:hover {
+  color: #fff;
+}
+.vr-drawer__content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.vr-drawer__category {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+}
+.vr-drawer__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.4;
+  margin: 0 0 8px 0;
+}
+.vr-drawer__meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 16px;
+}
+.vr-drawer__desc {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.vr-drawer__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.vr-drawer__tag {
+  font-size: 11px;
+  color: #00ccff;
+  background: rgba(0, 200, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 99px;
+  border: 1px solid rgba(0, 200, 255, 0.15);
+}
+.vr-drawer__relations {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
+  margin-bottom: 20px;
+}
+.vr-drawer__relations h3 {
+  font-size: 12.5px;
+  color: #fff;
+  margin: 0 0 10px 0;
+  font-weight: 600;
+}
+.vr-drawer__rel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vr-drawer__rel-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.vr-drawer__rel-item:hover {
+  background: rgba(100, 200, 255, 0.08);
+  border-color: rgba(100, 200, 255, 0.2);
+}
+.vr-drawer__rel-title {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.vr-drawer__rel-cat {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+.vr-drawer__rel-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 12px;
+}
+.vr-drawer__btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.vr-drawer__btn:hover {
+  background: var(--accent-hover);
+}
+
+/* DRAWER PANEL TRANSITION */
+.panel-fade-enter-active,
+.panel-fade-leave-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.panel-fade-enter-from,
+.panel-fade-leave-to {
+  transform: translateX(400px);
+  opacity: 0;
 }
 
 /* LOADING SCREEN */
@@ -711,6 +1078,10 @@ function onNodeClick(node: any) {
   .vr-topbar__subtitle { display: none; }
   .vr-topbar__right { gap: 10px; }
   .vr-topbar__time { font-size: 11px; }
+  .vr-search-box { margin-right: 5px; }
+  .vr-search-input { width: 100px; padding: 4px 24px 4px 10px; font-size: 11px; }
+  .vr-search-input:focus { width: 140px; }
+  .vr-search-icon { right: 8px; font-size: 10px; }
   .vr-sidebar { left: 8px; }
   .vr-sidebar__toggle { display: flex; }
   .vr-sidebar__items { display: none; }
@@ -725,10 +1096,23 @@ function onNodeClick(node: any) {
     flex-direction: column;
     gap: 8px;
   }
+  .vr-console__stats-group {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    align-items: center;
+  }
   .vr-console__stats { gap: 12px; padding: 6px 14px; }
+  .vr-console__filters { gap: 10px; padding: 6px 12px; }
   .vr-console__stat-value { font-size: 15px; }
   .vr-console__hint { font-size: 10.5px; }
   .vr-btn--back { padding: 6px 12px; font-size: 12px; }
   .vr-btn--back span { display: none; }
+  .vr-drawer {
+    left: 20px;
+    width: auto;
+    bottom: 120px;
+    top: 80px;
+  }
 }
 </style>

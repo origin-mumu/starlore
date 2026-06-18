@@ -15,7 +15,7 @@ const props = defineProps<{
     link?: string
   }>
   links: Array<[number, number]>
-  highlightedCategory?: string
+  highlightedNodes?: Array<number>
 }>()
 
 const emit = defineEmits<{
@@ -33,6 +33,14 @@ const modalTitle = ref('')
 const modalDesc = ref('')
 const modalLink = ref('')
 
+const zoom = ref(1.0)
+const panX = ref(0)
+const panY = ref(0)
+let draggingNode: KnowledgeNode | null = null
+let isPanning = false
+let lastMouseX = 0
+let lastMouseY = 0
+
 let width = 0
 let height = 0
 let stars: Star[] = []
@@ -41,6 +49,7 @@ let knowledgeNodes: KnowledgeNode[] = []
 let hoveredNode: KnowledgeNode | null = null
 let time = 0
 let animationId = 0
+let currentDamping = 0.1
 
 // Mouse state
 let mouseX = 0
@@ -49,6 +58,7 @@ let targetMouseX = 0
 let targetMouseY = 0
 let realMouseX = 0
 let realMouseY = 0
+let lastTouchTime = 0
 
 const starColors = ['#ffffff', '#ffe9c4', '#d4fbff', '#f4f5f0']
 
@@ -172,6 +182,15 @@ class KnowledgeNode {
   highlighted: boolean
   dimmed: boolean
 
+  // Physics properties
+  x = 0
+  y = 0
+  vx = 0
+  vy = 0
+  fx = 0
+  fy = 0
+  isDragging = false
+
   constructor(data: any) {
     this.id = data.id
     this.label = data.label
@@ -188,23 +207,17 @@ class KnowledgeNode {
   }
 
   getScreenPos() {
-    const baseX = this.rx * width
-    const baseY = this.ry * height
-    const parallaxFactor = 0.4
-    const offsetX = mouseX * 50 * parallaxFactor
-    const offsetY = mouseY * 50 * parallaxFactor
-    return { x: baseX + offsetX, y: baseY + offsetY }
+    return { x: this.x, y: this.y }
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    const pos = this.getScreenPos()
     const isHovered = this === hoveredNode
     const isActive = isHovered || this.highlighted
     const alpha = this.dimmed ? 0.2 : 1
 
     ctx.save()
     ctx.globalAlpha = alpha
-    ctx.translate(pos.x, pos.y)
+    ctx.translate(this.x, this.y)
 
     // 1. Glow
     const glowRadius = isActive ? this.size * 6 : this.size * 3
@@ -263,13 +276,12 @@ class KnowledgeNode {
     ctx.textAlign = 'center'
     ctx.shadowBlur = 6
     ctx.shadowColor = '#000000'
-    ctx.fillText(this.label, pos.x, pos.y + this.size * 3 + 12)
+    ctx.fillText(this.label, this.x, this.y + this.size * 3 + 12)
     ctx.shadowBlur = 0
   }
 
-  checkHover() {
-    const pos = this.getScreenPos()
-    const dist = Math.hypot(realMouseX - pos.x, realMouseY - pos.y)
+  checkHover(mx: number, my: number) {
+    const dist = Math.hypot(mx - this.x, my - this.y)
     return dist < this.size * 4
   }
 }
@@ -289,19 +301,123 @@ function initStars() {
 }
 
 function initNodes() {
-  knowledgeNodes = props.nodes.map(d => new KnowledgeNode(d))
+  currentDamping = 0.2
+  const oldMap = new Map<number | string, { x: number; y: number; vx: number; vy: number }>()
+  for (const n of knowledgeNodes) {
+    oldMap.set(n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy })
+  }
+
+  knowledgeNodes = props.nodes.map(d => {
+    const node = new KnowledgeNode(d)
+    const old = oldMap.get(d.id)
+    if (old) {
+      node.x = old.x
+      node.y = old.y
+      node.vx = old.vx
+      node.vy = old.vy
+    } else {
+      node.x = d.rx * (width || window.innerWidth)
+      node.y = d.ry * (height || window.innerHeight)
+      node.vx = 0
+      node.vy = 0
+    }
+    return node
+  })
   updateHighlightState()
 }
 
-function updateHighlightState() {
-  const highlighted = props.highlightedCategory
+function updatePhysics() {
+  // 1. Reset forces
   for (const node of knowledgeNodes) {
-    if (!highlighted) {
+    node.fx = 0
+    node.fy = 0
+  }
+
+  // 2. Repulsion (between all nodes)
+  const repulsionStrength = 2200
+  const len = knowledgeNodes.length
+  for (let i = 0; i < len; i++) {
+    const n1 = knowledgeNodes[i]
+    for (let j = i + 1; j < len; j++) {
+      const n2 = knowledgeNodes[j]
+      const dx = n2.x - n1.x
+      const dy = n2.y - n1.y
+      const distSq = dx * dx + dy * dy + 1500
+      const dist = Math.sqrt(distSq)
+      if (dist < 350) {
+        const force = (repulsionStrength * (n1.size + n2.size)) / distSq
+        const fx = (dx / dist) * force
+        const fy = (dy / dist) * force
+        n1.fx -= fx
+        n1.fy -= fy
+        n2.fx += fx
+        n2.fy += fy
+      }
+    }
+  }
+
+  // 3. Attraction (along links)
+  const springStrength = 0.04
+  const linkDistance = 130
+  for (const [fromId, toId] of props.links) {
+    const n1 = knowledgeNodes.find(n => n.id === fromId)
+    const n2 = knowledgeNodes.find(n => n.id === toId)
+    if (n1 && n2) {
+      const dx = n2.x - n1.x
+      const dy = n2.y - n1.y
+      const dist = Math.hypot(dx, dy) + 0.1
+      const force = (dist - linkDistance) * springStrength
+      const fx = (dx / dist) * force
+      const fy = (dy / dist) * force
+      n1.fx += fx
+      n1.fy += fy
+      n2.fx -= fx
+      n2.fy -= fy
+    }
+  }
+
+  // 4. Centering Force (gravity)
+  const gravityStrength = 0.012
+  const cx = width / 2
+  const cy = height / 2
+  for (const node of knowledgeNodes) {
+    const dx = cx - node.x
+    const dy = cy - node.y
+    node.fx += dx * gravityStrength
+    node.fy += dy * gravityStrength
+  }
+
+  // 5. Integrate positions
+  const targetDamping = 0.85
+  if (currentDamping < targetDamping) {
+    currentDamping += 0.012
+  }
+  for (const node of knowledgeNodes) {
+    if (node.isDragging) continue
+    node.vx = (node.vx + node.fx) * currentDamping
+    node.vy = (node.vy + node.fy) * currentDamping
+    node.x += node.vx
+    node.y += node.vy
+
+    // Restrict to viewport boundaries
+    const pad = 40
+    if (node.x < pad) { node.x = pad; node.vx = 0 }
+    if (node.x > width - pad) { node.x = width - pad; node.vx = 0 }
+    if (node.y < pad) { node.y = pad; node.vy = 0 }
+    if (node.y > height - pad) { node.y = height - pad; node.vy = 0 }
+  }
+}
+
+function updateHighlightState() {
+  const highlights = props.highlightedNodes
+  const hasHighlights = highlights && highlights.length > 0
+  for (const node of knowledgeNodes) {
+    if (!hasHighlights) {
       node.highlighted = false
       node.dimmed = false
     } else {
-      node.highlighted = node.label === highlighted
-      node.dimmed = node.label !== highlighted
+      node.highlighted = highlights.includes(node.id)
+      node.dimmed = !highlights.includes(node.id)
     }
   }
 }
@@ -318,11 +434,23 @@ function resize() {
 
 // ==================== Animation ====================
 
+// Get mapped coordinates in graph space from screen coordinates
+function getGraphCoords(mx: number, my: number) {
+  const parallaxX = mouseX * 25
+  const parallaxY = mouseY * 25
+  const gx = (mx - (width / 2 + panX.value + parallaxX)) / zoom.value + width / 2
+  const gy = (my - (height / 2 + panY.value + parallaxY)) / zoom.value + height / 2
+  return { x: gx, y: gy }
+}
+
 function animate() {
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   if (!ctx) return
+
+  // 1. Run physics step
+  updatePhysics()
 
   ctx.clearRect(0, 0, width, height)
   time += 16
@@ -343,7 +471,15 @@ function animate() {
     meteor.draw(ctx)
   }
 
-  // Knowledge node positions
+  // 2. Save context and apply zoom/pan matrix
+  ctx.save()
+  const parallaxX = mouseX * 25
+  const parallaxY = mouseY * 25
+  ctx.translate(width / 2 + panX.value + parallaxX, height / 2 + panY.value + parallaxY)
+  ctx.scale(zoom.value, zoom.value)
+  ctx.translate(-width / 2, -height / 2)
+
+  // Knowledge node positions in graph space
   const nodePositions = new Map<number, { x: number; y: number }>()
   for (const node of knowledgeNodes) {
     nodePositions.set(node.id, node.getScreenPos())
@@ -382,10 +518,11 @@ function animate() {
     }
   }
 
-  // Check hover
+  // Check hover (using transformed graph coordinates)
   hoveredNode = null
+  const graphMouse = getGraphCoords(realMouseX, realMouseY)
   for (let i = knowledgeNodes.length - 1; i >= 0; i--) {
-    if (knowledgeNodes[i].checkHover()) {
+    if (knowledgeNodes[i].checkHover(graphMouse.x, graphMouse.y)) {
       hoveredNode = knowledgeNodes[i]
       break
     }
@@ -396,7 +533,10 @@ function animate() {
     node.draw(ctx)
   }
 
-  // Update tooltip
+  // 3. Restore context
+  ctx.restore()
+
+  // Update tooltip (drawn in screen space)
   if (hoveredNode && !modalVisible.value) {
     tooltipText.value = '点击查看: ' + hoveredNode.label
     tooltipX.value = realMouseX
@@ -413,29 +553,171 @@ function animate() {
 
 // ==================== Events ====================
 
+// ==================== Events ====================
+
 function onMouseMove(e: MouseEvent) {
   targetMouseX = (e.clientX / width) * 2 - 1
   targetMouseY = (e.clientY / height) * 2 - 1
+  
+  const dx = e.clientX - lastMouseX
+  const dy = e.clientY - lastMouseY
+  lastMouseX = e.clientX
+  lastMouseY = e.clientY
+
   realMouseX = e.clientX
   realMouseY = e.clientY
+
+  const graphCoords = getGraphCoords(e.clientX, e.clientY)
+
+  if (draggingNode) {
+    draggingNode.x = graphCoords.x
+    draggingNode.y = graphCoords.y
+    draggingNode.vx = 0
+    draggingNode.vy = 0
+  } else if (isPanning) {
+    panX.value += dx
+    panY.value += dy
+  }
 }
 
 function onTouchMove(e: TouchEvent) {
   if (e.touches.length > 0) {
-    targetMouseX = (e.touches[0].clientX / width) * 2 - 1
-    targetMouseY = (e.touches[0].clientY / height) * 2 - 1
-    realMouseX = e.touches[0].clientX
-    realMouseY = e.touches[0].clientY
+    const t = e.touches[0]
+    targetMouseX = (t.clientX / width) * 2 - 1
+    targetMouseY = (t.clientY / height) * 2 - 1
+
+    const dx = t.clientX - lastMouseX
+    const dy = t.clientY - lastMouseY
+    lastMouseX = t.clientX
+    lastMouseY = t.clientY
+
+    realMouseX = t.clientX
+    realMouseY = t.clientY
+
+    const graphCoords = getGraphCoords(t.clientX, t.clientY)
+
+    if (draggingNode) {
+      draggingNode.x = graphCoords.x
+      draggingNode.y = graphCoords.y
+      draggingNode.vx = 0
+      draggingNode.vy = 0
+    } else if (isPanning) {
+      panX.value += dx
+      panY.value += dy
+    }
   }
 }
 
-function onClick() {
-  if (hoveredNode) {
-    modalTitle.value = hoveredNode.label
-    modalDesc.value = hoveredNode.desc
-    modalLink.value = hoveredNode.link || ''
+function onMouseDown(e: MouseEvent) {
+  lastMouseX = e.clientX
+  lastMouseY = e.clientY
+
+  const graphCoords = getGraphCoords(e.clientX, e.clientY)
+  
+  let hitNode: KnowledgeNode | null = null
+  for (let i = knowledgeNodes.length - 1; i >= 0; i--) {
+    if (knowledgeNodes[i].checkHover(graphCoords.x, graphCoords.y)) {
+      hitNode = knowledgeNodes[i]
+      break
+    }
+  }
+
+  if (hitNode) {
+    draggingNode = hitNode
+    draggingNode.isDragging = true
+  } else {
+    isPanning = true
+  }
+}
+
+function onMouseUp() {
+  if (draggingNode) {
+    draggingNode.isDragging = false
+    draggingNode = null
+  }
+  isPanning = false
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length > 0) {
+    const t = e.touches[0]
+    lastMouseX = t.clientX
+    lastMouseY = t.clientY
+    realMouseX = t.clientX
+    realMouseY = t.clientY
+
+    const graphCoords = getGraphCoords(t.clientX, t.clientY)
+
+    let hitNode: KnowledgeNode | null = null
+    for (let i = knowledgeNodes.length - 1; i >= 0; i--) {
+      if (knowledgeNodes[i].checkHover(graphCoords.x, graphCoords.y)) {
+        hitNode = knowledgeNodes[i]
+        break
+      }
+    }
+
+    if (hitNode) {
+      draggingNode = hitNode
+      draggingNode.isDragging = true
+    } else {
+      isPanning = true
+    }
+
+    const now = Date.now()
+    if (now - lastTouchTime < 350) {
+      onDblClick({ clientX: t.clientX, clientY: t.clientY } as MouseEvent)
+    }
+    lastTouchTime = now
+  }
+}
+
+function onTouchEnd() {
+  if (draggingNode) {
+    draggingNode.isDragging = false
+    draggingNode = null
+  }
+  isPanning = false
+}
+
+function onWheel(e: WheelEvent) {
+  e.preventDefault()
+  const zoomFactor = 1.08
+  const nextZoom = e.deltaY < 0 ? zoom.value * zoomFactor : zoom.value / zoomFactor
+  zoom.value = Math.max(0.3, Math.min(3.0, nextZoom))
+}
+
+function onDblClick(e: MouseEvent) {
+  const graphCoords = getGraphCoords(e.clientX, e.clientY)
+  let hitNode = false
+  for (const node of knowledgeNodes) {
+    if (node.checkHover(graphCoords.x, graphCoords.y)) {
+      hitNode = true
+      break
+    }
+  }
+  if (!hitNode) {
+    zoom.value = 1.0
+    panX.value = 0
+    panY.value = 0
+  }
+}
+
+function onClick(e: MouseEvent) {
+  const graphCoords = getGraphCoords(e.clientX, e.clientY)
+  let hitNode: KnowledgeNode | null = null
+  for (let i = knowledgeNodes.length - 1; i >= 0; i--) {
+    if (knowledgeNodes[i].checkHover(graphCoords.x, graphCoords.y)) {
+      hitNode = knowledgeNodes[i]
+      break
+    }
+  }
+
+  if (hitNode) {
+    modalTitle.value = hitNode.label
+    modalDesc.value = hitNode.desc
+    modalLink.value = hitNode.link || ''
     modalVisible.value = true
-    emit('node-click', hoveredNode)
+    emit('node-click', hitNode)
   } else if (modalVisible.value) {
     closeModal()
   }
@@ -458,9 +740,9 @@ watch(() => props.nodes, () => {
   initNodes()
 }, { deep: true })
 
-watch(() => props.highlightedCategory, () => {
+watch(() => props.highlightedNodes, () => {
   updateHighlightState()
-})
+}, { deep: true })
 
 onMounted(() => {
   resize()
@@ -468,6 +750,14 @@ onMounted(() => {
   window.addEventListener('resize', resize)
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('touchmove', onTouchMove)
+  window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('touchend', onTouchEnd)
+  
+  const canvas = canvasRef.value
+  if (canvas) {
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+  }
+  
   animationId = requestAnimationFrame(animate)
 })
 
@@ -476,6 +766,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('touchmove', onTouchMove)
+  window.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('touchend', onTouchEnd)
+  
+  const canvas = canvasRef.value
+  if (canvas) {
+    canvas.removeEventListener('wheel', onWheel)
+  }
+  
   for (const meteor of meteors) {
     clearTimeout(meteor.resetTimer)
   }
@@ -484,7 +782,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="starfield-container">
-    <canvas ref="canvasRef" class="starfield-canvas" @click="onClick"></canvas>
+    <canvas
+      ref="canvasRef"
+      class="starfield-canvas"
+      @mousedown="onMouseDown"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
+      @dblclick="onDblClick"
+      @click="onClick"
+    ></canvas>
 
     <!-- Tooltip -->
     <div
