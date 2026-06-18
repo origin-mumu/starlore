@@ -1,5 +1,6 @@
 package com.robin.blogback.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -21,4 +22,7 @@ public class CreateArticleRequest {
     private List<String> tags;
     private String coverImage;
     private String status;
+
+    @JsonProperty("is_public")
+    private Boolean isPublic;
 }

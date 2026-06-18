@@ -356,7 +356,7 @@ function onNodeClick(node: any) {
             <div class="vr-console__stat">
               <div>
                 <span class="vr-console__stat-value">{{ stats.articles }}</span>
-                <span class="vr-console__stat-label">星迹</span>
+                <span class="vr-console__stat-label">星记</span>
               </div>
             </div>
           </div>

@@ -36,7 +36,7 @@ const demoArticles: Article[] = [
   {
     id: -1,
     title: '欢迎来到 Starlore',
-    summary: '这是一个演示星迹，登录后可以查看真实内容',
+    summary: '这是一个演示星记，登录后可以查看真实内容',
     category: '演示',
     createdAt: new Date().toISOString(),
     coverImage: '',
@@ -77,7 +77,7 @@ const features = [
   {
     icon: Database,
     title: 'RAG 知识检索',
-    desc: '向量化知识库，语义检索你的所有星迹，AI 基于你的知识回答问题。',
+    desc: '向量化知识库，语义检索你的所有星记，AI 基于你的知识回答问题。',
     tech: 'Embedding · Vector Store · Semantic Search',
     link: '/articles',
   },
@@ -345,7 +345,7 @@ onMounted(async () => {
             <h1 class="hero-title-user">记录创造的<br />每一刻</h1>
             <p class="hero-desc-user">代码、设计、思考。在这里分享我的学习旅程和项目实践。</p>
             <div class="hero-actions">
-              <router-link to="/articles" class="btn-primary">阅读星迹</router-link>
+              <router-link to="/articles" class="btn-primary">阅读星记</router-link>
             </div>
           </div>
 
@@ -412,7 +412,7 @@ onMounted(async () => {
       <section class="section-parchment">
         <div class="container">
           <div class="section-header-logged fade-in-up" style="animation-delay: 0.25s">
-            <h2 class="section-heading">最新星迹</h2>
+            <h2 class="section-heading">最新星记</h2>
             <router-link to="/articles" class="see-all">查看全部 <span>→</span></router-link>
           </div>
           <div class="content-layout">
@@ -427,9 +427,9 @@ onMounted(async () => {
                 <DummyCard v-bind="article" />
               </div>
               <div v-else class="empty-state fade-in-up" style="animation-delay: 0.3s">
-                <p class="empty-title">还没有星迹</p>
-                <p class="empty-desc">开始写你的第一篇星迹吧</p>
-                <router-link to="/articles/edit" class="btn-primary">写星迹</router-link>
+                <p class="empty-title">还没有星记</p>
+                <p class="empty-desc">开始写你的第一篇星记吧</p>
+                <router-link to="/articles/edit" class="btn-primary">写星记</router-link>
               </div>
             </main>
             <SideBar />

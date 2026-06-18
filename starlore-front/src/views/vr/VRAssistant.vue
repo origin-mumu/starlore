@@ -11,7 +11,7 @@ const expanded = ref(false)
       <div v-if="expanded" class="assistant__panel">
         <p class="assistant__hint">拖拽 - 旋转</p>
         <p class="assistant__hint">滚轮 - 缩放</p>
-        <p class="assistant__hint">点星球 - 看星迹</p>
+        <p class="assistant__hint">点星球 - 看星记</p>
       </div>
     </Transition>
   </div>

@@ -6,4 +6,6 @@ export interface Article {
   category: string
   cover_image?: string
   tags?: string[]
+  is_public?: boolean
+  status?: string
 }

@@ -1,10 +1,13 @@
 <script lang="ts" setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { getArticleByIdService } from '@/api/article'
+import { getArticleByIdService, getPublicArticleByIdService } from '@/api/article'
 import { useRoute } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { List, Hash } from '@lucide/vue'
+
+const userStore = useUserStore()
 
 interface Article {
   id: number
@@ -124,7 +127,7 @@ onMounted(async () => {
   const id = Number(route.params.id)
 
   if (isNaN(id)) {
-    error.value = '星迹ID格式错误'
+    error.value = '星记ID格式错误'
     isLoading.value = false
     return
   }
@@ -133,17 +136,19 @@ onMounted(async () => {
     isLoading.value = true
     error.value = null
 
-    const res = (await getArticleByIdService(id)) as any
+    const res = userStore.isLoggedIn
+      ? ((await getArticleByIdService(id)) as any)
+      : ((await getPublicArticleByIdService(id)) as any)
 
     if (res.data) {
       article.value = res.data
       document.title = `${res.data.title} - Starlore`
     } else {
-      error.value = '星迹不存在'
+      error.value = '星记不存在'
     }
   } catch (err) {
     console.error('获取文章失败:', err)
-    error.value = '获取星迹失败，请稍后重试'
+    error.value = '获取星记失败，请稍后重试'
   } finally {
     isLoading.value = false
     highlightCode()
@@ -166,7 +171,7 @@ const formatDate = (dateString: string) => {
     <div v-if="isLoading" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>
-        <p>星迹加载中...</p>
+        <p>星记加载中...</p>
       </div>
     </div>
 
@@ -188,6 +193,10 @@ const formatDate = (dateString: string) => {
               <span>{{ formatDate(article?.createdAt || '未知日期') }}</span>
               <span class="meta-dot"></span>
               <span>{{ article?.view_count || 0 }} 阅读</span>
+              <template v-if="userStore.isLoggedIn">
+                <span class="meta-dot"></span>
+                <router-link :to="`/articles/edit/${article?.id}`" class="edit-link">编辑星记</router-link>
+              </template>
             </div>
           </div>
         </div>
@@ -199,10 +208,10 @@ const formatDate = (dateString: string) => {
             <main class="main-content">
               <div class="detail-card-enter">
                 <div class="typography">
-                  <div v-html="article?.content || '星迹内容为空'"></div>
+                  <div v-html="article?.content || '星记内容为空'"></div>
                 </div>
                 <div class="back-action">
-                  <button @click="$router.back()" class="btn-primary">返回星迹列表</button>
+                  <button @click="$router.back()" class="btn-primary">返回星记列表</button>
                 </div>
               </div>
             </main>
@@ -356,6 +365,16 @@ const formatDate = (dateString: string) => {
   height: 4px;
   border-radius: 50%;
   background: var(--border-interactive);
+}
+
+.edit-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity var(--transition);
+}
+.edit-link:hover {
+  opacity: 0.8;
 }
 
 .detail-layout {

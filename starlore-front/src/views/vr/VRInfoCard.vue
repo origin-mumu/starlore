@@ -16,7 +16,7 @@ defineProps<{
     <div class="info-card__meta">
       <span class="info-card__meta-item">
         <span class="info-card__meta-icon">&#9679;</span>
-        {{ planet.count }} 篇星迹
+        {{ planet.count }} 篇星记
       </span>
       <span class="info-card__meta-divider"></span>
       <span class="info-card__meta-item">

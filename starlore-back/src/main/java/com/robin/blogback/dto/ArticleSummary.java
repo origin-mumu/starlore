@@ -14,6 +14,8 @@ public class ArticleSummary {
     private String authorName;
     private String title;
     private String status;
+    @JsonProperty("is_public")
+    private Boolean isPublic;
     private String description;
     private String category;
     private List<String> tags;

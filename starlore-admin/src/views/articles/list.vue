@@ -126,7 +126,7 @@ const goToPage = (page: number) => {
 }
 
 const deleteArticle = async (id: number) => {
-  if (confirm('确定要删除这篇星迹吗？')) {
+  if (confirm('确定要删除这篇星记吗？')) {
     try {
       await deleteArticleService(id)
       fetchArticles()
@@ -170,10 +170,10 @@ const editArticle = (id: number) => {
     <div class="content-container">
       <div class="content-box">
         <div class="page-header">
-          <h1 class="page-title">星迹管理</h1>
+          <h1 class="page-title">星记管理</h1>
           <button class="add-btn" @click="addNewArticle">
             <span class="btn-icon">➕</span>
-            新建星迹
+            新建星记
           </button>
         </div>
 
@@ -183,7 +183,7 @@ const editArticle = (id: number) => {
             <input
               v-model="searchKeyword"
               type="text"
-              placeholder="搜索星迹标题或描述..."
+              placeholder="搜索星记标题或描述..."
               class="search-input"
             />
             <span class="search-icon">🔍</span>
@@ -220,12 +220,12 @@ const editArticle = (id: number) => {
 
           <div v-else-if="articles.length === 0" class="empty-state">
             <div class="empty-icon">📝</div>
-            <p>没有找到符合条件的星迹</p>
+            <p>没有找到符合条件的星记</p>
           </div>
 
           <div v-else class="table-container">
             <div class="table-header">
-              <div class="header-cell title-cell">星迹标题</div>
+              <div class="header-cell title-cell">星记标题</div>
               <div class="header-cell">作者</div>
               <div class="header-cell">星域</div>
               <div class="header-cell">光痕</div>

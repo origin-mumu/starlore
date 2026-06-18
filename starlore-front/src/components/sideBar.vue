@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, onMounted, computed } from 'vue'
-import { getBlogStatsService } from '@/api/article'
+import { getBlogStatsService, getPublicBlogStatsService } from '@/api/article'
 import { useUserStore } from '@/stores/user'
 import defaultAvatar from '@/assets/avatar.jpg'
 
@@ -20,12 +20,15 @@ const avatarSrc = computed(() => {
   return userStore.user?.avatar || defaultAvatar
 })
 const displayName = computed(() => {
-  return userStore.user?.nickname || userStore.user?.username || 'robin'
+  if (!userStore.isLoggedIn) return '访客'
+  return userStore.user?.nickname || userStore.user?.username || '访客'
 })
 
 onMounted(async () => {
   try {
-    const res = await getBlogStatsService()
+    const res = userStore.isLoggedIn
+      ? await getBlogStatsService()
+      : await getPublicBlogStatsService()
     // 后端返回 { data: BlogStatsData } 嵌套结构，解一层
     const stats = res.data?.data ?? res.data
     data.value = stats
@@ -46,7 +49,7 @@ onMounted(async () => {
       <div class="stats">
         <div class="stat-item">
           <span class="stat-num">{{ totalArticles }}</span>
-          <span class="stat-label">星迹</span>
+          <span class="stat-label">星记</span>
         </div>
         <div class="stat-item">
           <span class="stat-num">{{ totalCategories }}</span>
