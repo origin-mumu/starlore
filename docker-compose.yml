@@ -4,6 +4,8 @@ services:
   starlore-back:
     image: ghcr.io/origin-mumu/starlore/starlore-back:latest
     restart: unless-stopped
+    ports:
+      - "5000:5000"  # 暴露后端端口，方便本地开发调试
     depends_on:
       - minio
     environment:
