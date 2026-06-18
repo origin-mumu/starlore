@@ -17,7 +17,7 @@ import {
 const projects = [
   {
     name: 'Starlore',
-    desc: 'AI 驱动的个人知识宇宙。融合 Multi-Agent 协作、LangSmith 可观测性、RAG 语义检索、3D 可视化的智能知识管理系统。',
+    desc: 'AI 驱动的个人知识宇宙。融合 Multi-Agent 协作、全链路可观测性、RAG 语义检索、3D 可视化的智能知识管理系统。',
     tech: ['Vue 3', 'Spring Boot', 'LangGraph', 'Three.js', 'Flutter'],
     url: 'https://github.com/origin-mumu/starlore',
   },
@@ -73,7 +73,7 @@ const techStack = [
     category: 'AI 集成',
     items: [
       'Multi-Agent 协作（Planner-Executor-Reviewer）',
-      'LangSmith 全链路可观测性',
+      '全链路可观测性追踪',
       'RAG 语义检索 + 向量存储',
       '多模态对话（文本 / 图片 / 语音）',
     ],
