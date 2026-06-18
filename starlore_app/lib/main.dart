@@ -3,17 +3,24 @@ import 'package:flutter/services.dart';
 import 'theme/app_theme.dart';
 import 'pages/splash_page.dart';
 
+/// 全局主题状态 — Profile 页面的 ThemePicker 需要访问
 final themeNotifier = ThemeNotifier();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 加载持久化的主题
   await themeNotifier.load();
+
+  // 透明状态栏
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
     systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarIconBrightness: Brightness.light,
   ));
+
+  // Edge-to-edge
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   runApp(const StarloreApp());
 }
 
@@ -22,15 +29,15 @@ class StarloreApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StarloreTheme(
+    return StarloreThemeProvider(
       notifier: themeNotifier,
       child: Builder(
         builder: (context) {
-          final p = paletteOf(context);
+          final palette = paletteOf(context);
           return MaterialApp(
-            title: 'STARLORE',
+            title: 'Starlore',
             debugShowCheckedModeBanner: false,
-            theme: buildAppTheme(p),
+            theme: buildThemeData(palette),
             home: const SplashPage(),
           );
         },
