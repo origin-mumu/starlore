@@ -9,6 +9,7 @@ class Article {
   final DateTime createdAt;
   final int viewCount;
   final List<String> tags;
+  final bool isPublic;
 
   const Article({
     required this.id,
@@ -20,6 +21,7 @@ class Article {
     required this.createdAt,
     this.viewCount = 0,
     this.tags = const [],
+    this.isPublic = true,
   });
 
   factory Article.fromJson(Map<String, dynamic> json) {
@@ -31,10 +33,11 @@ class Article {
       category: json['category'] ?? '未分类',
       authorName: json['authorName'] ?? json['author_name'] ?? '',
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
       viewCount: json['view_count'] ?? json['viewCount'] ?? 0,
       tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      isPublic: json['is_public'] ?? json['isPublic'] ?? true,
     );
   }
 }
@@ -53,6 +56,7 @@ class ArticleDetail extends Article {
     required super.createdAt,
     super.viewCount,
     super.tags,
+    super.isPublic,
     required this.content,
   });
 
@@ -66,89 +70,11 @@ class ArticleDetail extends Article {
       category: json['category'] ?? '未分类',
       authorName: json['authorName'] ?? json['author_name'] ?? '',
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
       viewCount: json['view_count'] ?? json['viewCount'] ?? 0,
       tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
-    );
-  }
-}
-
-/// 分类
-class Category {
-  final int id;
-  final String name;
-  final String? description;
-  final String? color;
-  final int articleCount;
-
-  const Category({
-    required this.id,
-    required this.name,
-    this.description,
-    this.color,
-    this.articleCount = 0,
-  });
-
-  factory Category.fromJson(Map<String, dynamic> json) {
-    return Category(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-      description: json['description'],
-      color: json['color'],
-      articleCount: json['article_count'] ?? json['articleCount'] ?? 0,
-    );
-  }
-}
-
-/// AI 聊天消息
-class ChatMessage {
-  final String role;
-  final String content;
-  final DateTime createdAt;
-
-  ChatMessage({
-    required this.role,
-    required this.content,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
-}
-
-/// 用户信息
-class UserInfo {
-  final int id;
-  final String username;
-  final String? nickname;
-  final String? email;
-  final String? avatar;
-  final String? bio;
-  final String role;
-  final int aiDailyLimit;
-  final int aiTodayCount;
-
-  const UserInfo({
-    required this.id,
-    required this.username,
-    this.nickname,
-    this.email,
-    this.avatar,
-    this.bio,
-    this.role = 'user',
-    this.aiDailyLimit = 10,
-    this.aiTodayCount = 0,
-  });
-
-  factory UserInfo.fromJson(Map<String, dynamic> json) {
-    return UserInfo(
-      id: json['id'] ?? 0,
-      username: json['username'] ?? '',
-      nickname: json['nickname'],
-      email: json['email'],
-      avatar: json['avatar'],
-      bio: json['bio'],
-      role: json['role'] ?? 'user',
-      aiDailyLimit: json['aiDailyLimit'] ?? 10,
-      aiTodayCount: json['aiTodayCount'] ?? 0,
+      isPublic: json['is_public'] ?? json['isPublic'] ?? true,
     );
   }
 }

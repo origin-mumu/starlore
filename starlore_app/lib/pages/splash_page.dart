@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
-import '../services/api_service.dart';
-import '../app.dart';
+import '../theme/tokens.dart';
+import '../theme/typography.dart';
+import '../services/auth_service.dart';
+import 'main_shell.dart';
 
+/// 启动屏 — 品牌展示 + 预加载
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
 
@@ -11,75 +14,143 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
-  late AnimationController _c;
-  late Animation<double> _fade;
-  late Animation<double> _scale;
+class _SplashPageState extends State<SplashPage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _opacity;
+  late Animation<Offset> _offset;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _fade = Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _c, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)));
-    _scale = Tween(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
-    _c.forward();
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ));
+
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Tok.easeOutQuart);
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 20),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Tok.easeOutQuart));
+
+    _ctrl.forward();
     _init();
   }
 
   Future<void> _init() async {
-    await Future.delayed(const Duration(milliseconds: 2500));
+    await Future.wait([
+      AuthService.init(),
+      Future.delayed(const Duration(milliseconds: 1500)),
+    ]);
+
     if (!mounted) return;
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-    if (token != null) ApiService.setToken(token);
-    if (mounted) Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainScreen()));
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const MainShell(),
+        transitionsBuilder: (context, anim, secondaryAnimation, child) {
+          return FadeTransition(opacity: anim, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 600),
+      ),
+    );
   }
 
   @override
-  void dispose() { _c.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = paletteOf(context);
+
     return Scaffold(
-      backgroundColor: p.surface0,
+      backgroundColor: p.canvas,
       body: Stack(
         children: [
-          const SpaceBackground(),
-          Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: FadeTransition(
-                opacity: _fade,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 菱形 logo
-                    Transform.rotate(
-                      angle: 0.785398, // 45deg
-                      child: Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(T.r4),
-                          border: Border.all(color: p.accent.withValues(alpha: 0.4), width: 1),
-                        ),
-                        child: Transform.rotate(
-                          angle: -0.785398,
-                          child: Icon(Icons.auto_awesome_rounded, size: 20, color: p.accent),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text('STARLORE', style: F.display(p.text0)),
-                    const SizedBox(height: 8),
-                    Text('// VOID PROTOCOL', style: F.mono(p.text2)),
-                    const SizedBox(height: 64),
-                    SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 1, color: p.accent),
-                    ),
+          Positioned(
+            right: -80,
+            top: -60,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    p.accent.withValues(alpha: 0.12),
+                    p.accent.withValues(alpha: 0),
                   ],
                 ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -100,
+            bottom: 80,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    p.warm.withValues(alpha: 0.1),
+                    p.warm.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: AnimatedBuilder(
+              animation: _ctrl,
+              builder: (_, child) => Opacity(
+                opacity: _opacity.value,
+                child: Transform.translate(
+                  offset: _offset.value,
+                  child: child,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          p.accent.withValues(alpha: 0.15),
+                          p.warm.withValues(alpha: 0.1),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: p.accent.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 32,
+                      color: p.accent,
+                    ),
+                  ),
+                  const SizedBox(height: Tok.space5),
+                  Text('STARLORE', style: Typo.display(p.ink)),
+                  const SizedBox(height: Tok.space2),
+                  Text('星语治愈', style: Typo.bodySmall(p.inkMuted)),
+                ],
               ),
             ),
           ),
