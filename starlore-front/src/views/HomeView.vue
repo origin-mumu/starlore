@@ -71,7 +71,7 @@ const features = [
   {
     icon: Activity,
     title: '全链路可观测性',
-    desc: '自研 Tracing 体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
+    desc: '搭建 Tracing 体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
     tech: 'Trace · Observability · Bad Case Mining',
     link: '/echobot',
   },

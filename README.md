@@ -35,7 +35,7 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 
 ### 📊 全链路可观测性
 
-自研 Tracing 体系，对接 LangSmith API 实现大模型监控：
+基于 LLM Tracing API 构建大模型监控体系：
 
 - **全链路 Tracing**：精准记录每次 LLM 调用的 Token 消耗、Function 路由耗时
 - **Prompt 演进追踪**：记录每个 Agent 节点的 Prompt 变化
@@ -112,7 +112,7 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | JWT                | 认证鉴权         |
 | MinIO              | 文件存储         |
 | LangChain4j        | Agent Graph 引擎 |
-| 自研 Tracing        | 可观测性追踪（LangSmith 兼容协议） |
+| LLM Tracing        | 可观测性追踪（REST API 集成） |
 
 ### Python 后端 (`starlore-py/`)
 
@@ -120,7 +120,7 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | --------------------- | ---------------------- |
 | FastAPI               | 异步 Web 框架          |
 | LangChain + LangGraph | Agent 编排             |
-| 自研 Tracing           | 可观测性追踪           |
+| LLM Tracing       | 可观测性追踪           |
 | FAISS                 | 向量存储               |
 | RAGAS                 | RAG 质量评估           |
 | MCP                   | Model Context Protocol |
@@ -370,7 +370,7 @@ AgentGraph.builder()
 
 - [x] Multi-Agent 协作架构（Planner-Executor-Reviewer）
 - [x] Agent Graph 状态机引擎（条件边/并行执行/重试）
-- [x] 全链路 Tracing（自研追踪体系）
+- [x] 全链路 Tracing（REST API 集成）
 - [x] Bad Case 收集与 Few-Shot 动态反馈
 - [x] Agent 执行指标统计
 - [x] RAG 语义搜索（Zhipu Embedding + Vector Store）
