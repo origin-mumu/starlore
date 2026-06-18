@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import 'api_client.dart';
@@ -7,8 +8,15 @@ class AuthService {
   static const _tokenKey = 'auth_token';
   static UserInfo? _currentUser;
 
+  /// 登录状态变更通知 — MainShell 监听此值以刷新所有页面
+  static final ValueNotifier<bool> authState = ValueNotifier(false);
+
   static UserInfo? get currentUser => _currentUser;
   static bool get isLoggedIn => ApiClient.isAuthenticated && _currentUser != null;
+
+  static void _notifyAuthChange() {
+    authState.value = isLoggedIn;
+  }
 
   /// 初始化：从本地加载 Token 并验证
   static Future<bool> init() async {
@@ -20,6 +28,7 @@ class AuthService {
     final user = await getMe();
     if (user != null) {
       _currentUser = user;
+      _notifyAuthChange();
       return true;
     }
     // Token 过期
@@ -52,6 +61,7 @@ class AuthService {
       _currentUser = await getMe();
     }
 
+    _notifyAuthChange();
     return (ok: true, error: null);
   }
 
@@ -80,6 +90,7 @@ class AuthService {
       _currentUser = await getMe();
     }
 
+    _notifyAuthChange();
     return (ok: true, error: null);
   }
 
@@ -96,6 +107,50 @@ class AuthService {
   static Future<void> logout() async {
     _currentUser = null;
     await _clearToken();
+    _notifyAuthChange();
+  }
+
+  /// 更新个人信息
+  static Future<({bool ok, String? error})> updateProfile({
+    String? nickname,
+    String? email,
+    String? bio,
+    String? location,
+    String? website,
+    String? github,
+    String? avatar,
+  }) async {
+    final res = await ApiClient.put('/auth/profile', body: {
+      'nickname': nickname,
+      'email': email,
+      'bio': bio,
+      'location': location,
+      'website': website,
+      'github': github,
+      'avatar': avatar,
+    });
+
+    if (res == null) return (ok: false, error: '网络错误');
+
+    // 刷新用户信息
+    final user = await getMe();
+    if (user != null) _currentUser = user;
+
+    return (ok: true, error: null);
+  }
+
+  /// 修改密码
+  static Future<({bool ok, String? error})> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final res = await ApiClient.put('/auth/password', body: {
+      'oldPassword': oldPassword,
+      'newPassword': newPassword,
+    });
+
+    if (res == null) return (ok: false, error: '网络错误');
+    return (ok: true, error: null);
   }
 
   static Future<void> _saveToken(String token) async {

@@ -45,9 +45,11 @@ class CategoryChip extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Text(
-          label,
-          style: Typo.label(selected ? p.accent : p.inkSoft),
+        child: Center(
+          child: Text(
+            label,
+            style: Typo.label(selected ? p.accent : p.inkSoft),
+          ),
         ),
       ),
     );

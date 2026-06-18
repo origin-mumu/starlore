@@ -90,28 +90,14 @@ class FloatingNavBar extends StatelessWidget {
               ? p.accent.withValues(alpha: 0.1)
               : Colors.transparent,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedSwitcher(
-              duration: Tok.fast,
-              child: Icon(
-                active ? item.filled : item.outline,
-                key: ValueKey(active),
-                size: 22,
-                color: active ? p.accent : p.inkMuted,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                color: active ? p.accent : p.inkMuted,
-              ),
-            ),
-          ],
+        child: AnimatedSwitcher(
+          duration: Tok.fast,
+          child: Icon(
+            active ? item.filled : item.outline,
+            key: ValueKey(active),
+            size: 22,
+            color: active ? p.accent : p.inkMuted,
+          ),
         ),
       ),
     );

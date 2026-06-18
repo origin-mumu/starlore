@@ -57,4 +57,86 @@ class ArticleService {
   static Future<Map<String, dynamic>?> getPublicStats() async {
     return await ApiClient.get('/public/stats');
   }
+
+  /// 获取当前用户的文章列表
+  static Future<List<Article>> getMyArticles({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final params = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    final res = await ApiClient.get('/articles', queryParams: params);
+    if (res == null) return [];
+
+    final list = res['data'];
+    if (list is List) {
+      return list
+          .map((e) => Article.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  /// 创建文章
+  static Future<({bool ok, String? error, int? id})> createArticle({
+    required String title,
+    required String content,
+    String? description,
+    String? coverImage,
+    required String category,
+    List<String>? tags,
+    bool isPublic = true,
+  }) async {
+    final res = await ApiClient.post('/articles', body: {
+      'title': title,
+      'content': content,
+      'description': description,
+      'cover_image': coverImage,
+      'category': category,
+      'tags': tags,
+      'isPublic': isPublic,
+    });
+
+    if (res == null) return (ok: false, error: '网络错误', id: null);
+
+    final data = res['data'] as Map<String, dynamic>?;
+    if (data == null) {
+      return (ok: false, error: res['message']?.toString() ?? '发布失败', id: null);
+    }
+
+    return (ok: true, error: null, id: data['id'] as int?);
+  }
+
+  /// 更新文章
+  static Future<({bool ok, String? error})> updateArticle({
+    required int id,
+    required String title,
+    required String content,
+    String? description,
+    String? coverImage,
+    required String category,
+    List<String>? tags,
+    bool isPublic = true,
+  }) async {
+    final res = await ApiClient.put('/articles/$id', body: {
+      'title': title,
+      'content': content,
+      'description': description,
+      'cover_image': coverImage,
+      'category': category,
+      'tags': tags,
+      'isPublic': isPublic,
+    });
+
+    if (res == null) return (ok: false, error: '网络错误');
+    return (ok: true, error: null);
+  }
+
+  /// 删除文章
+  static Future<bool> deleteArticle(int id) async {
+    final res = await ApiClient.delete('/articles/$id');
+    return res != null;
+  }
 }

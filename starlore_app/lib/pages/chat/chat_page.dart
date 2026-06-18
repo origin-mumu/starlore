@@ -26,7 +26,6 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    // 添加欢迎消息
     _messages.add(ChatMessage(
       role: 'assistant',
       content: AuthService.isLoggedIn
@@ -55,7 +54,6 @@ class _ChatPageState extends State<ChatPage> {
     });
     _scrollToBottom();
 
-    // 选择流式源
     final stream = AuthService.isLoggedIn
         ? AiService.chatStream(text)
         : AiService.mockChatStream(text);
@@ -159,6 +157,10 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessages(StarlorePalette p) {
+    if (_messages.length == 1) {
+      // 只有欢迎消息时显示空状态引导
+      return _buildEmptyState(p);
+    }
     return ListView.builder(
       controller: _scrollCtrl,
       physics: const BouncingScrollPhysics(),
@@ -167,6 +169,72 @@ class _ChatPageState extends State<ChatPage> {
       itemCount: _messages.length,
       itemBuilder: (_, i) => _buildBubble(_messages[i], p),
     );
+  }
+
+  Widget _buildEmptyState(StarlorePalette p) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(
+          horizontal: Tok.horizontalPadding, vertical: Tok.space3),
+      children: [
+        _buildBubble(_messages[0], p),
+        const SizedBox(height: Tok.space5),
+        // 快捷问题
+        FadeInUp(
+          delay: const Duration(milliseconds: 200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('试试问我', style: Typo.caption(p.inkMuted)),
+              const SizedBox(height: Tok.space3),
+              ..._quickQuestions(p),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _quickQuestions(StarlorePalette p) {
+    final questions = [
+      '今天的星座运势怎么样？',
+      '白羊座的性格特点是什么？',
+      '最近感情运如何？',
+      '帮我分析一下塔罗牌',
+    ];
+    return questions.map((q) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: Tok.space2),
+        child: GestureDetector(
+          onTap: () {
+            _inputCtrl.text = q;
+            _send();
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+                horizontal: Tok.space4, vertical: Tok.space3),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(Tok.radiusMd),
+              border: Border.all(
+                  color: p.border.withValues(alpha: 0.5), width: 0.5),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 14, color: p.accent),
+                const SizedBox(width: Tok.space2),
+                Expanded(
+                  child: Text(q, style: Typo.bodySmall(p.inkSoft)),
+                ),
+                Icon(Icons.arrow_forward_ios_rounded,
+                    size: 12, color: p.inkMuted),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildBubble(ChatMessage msg, p) {
@@ -180,16 +248,17 @@ class _ChatPageState extends State<ChatPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            // AI 头像
             Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: p.accentSoft,
+                gradient: LinearGradient(
+                  colors: [p.accent, p.warm],
+                ),
               ),
               child: Icon(Icons.auto_awesome_rounded,
-                  size: 16, color: p.accent),
+                  size: 16, color: Colors.white),
             ),
             const SizedBox(width: Tok.space2),
           ],
@@ -199,7 +268,7 @@ class _ChatPageState extends State<ChatPage> {
                   horizontal: Tok.space4, vertical: Tok.space3),
               decoration: BoxDecoration(
                 color: isUser
-                    ? p.accent.withValues(alpha: 0.1)
+                    ? p.accent
                     : p.surface,
                 borderRadius: BorderRadius.circular(Tok.radiusLg).copyWith(
                   bottomRight: isUser
@@ -209,24 +278,27 @@ class _ChatPageState extends State<ChatPage> {
                       ? const Radius.circular(4)
                       : null,
                 ),
-                border: Border.all(
-                  color: isUser
-                      ? p.accent.withValues(alpha: 0.15)
-                      : p.border.withValues(alpha: 0.5),
-                  width: 0.5,
-                ),
+                border: isUser
+                    ? null
+                    : Border.all(
+                        color: p.border.withValues(alpha: 0.5),
+                        width: 0.5,
+                      ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    msg.content.isEmpty && msg.isStreaming ? '...' : msg.content,
-                    style: Typo.body(p.ink),
+                    msg.content.isEmpty && msg.isStreaming ? '' : msg.content,
+                    style: Typo.body(isUser
+                        ? Colors.white
+                        : p.ink),
                   ),
                   if (msg.isStreaming)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: _TypingIndicator(color: p.accent),
+                      child: _TypingIndicator(
+                          color: isUser ? Colors.white : p.accent),
                     ),
                 ],
               ),
@@ -289,14 +361,17 @@ class _ChatPageState extends State<ChatPage> {
                   height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _sending
-                        ? p.accent.withValues(alpha: 0.5)
-                        : p.accent,
+                    gradient: _sending
+                        ? null
+                        : LinearGradient(
+                            colors: [p.accent, p.warm],
+                          ),
+                    color: _sending ? p.accent.withValues(alpha: 0.5) : null,
                   ),
                   child: Icon(
                     Icons.arrow_upward_rounded,
                     size: 20,
-                    color: isDark ? p.canvas : Colors.white,
+                    color: Colors.white,
                   ),
                 ),
               ),

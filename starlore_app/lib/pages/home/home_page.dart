@@ -9,7 +9,9 @@ import '../../widgets/article_card.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../services/auth_service.dart';
 import '../article/article_detail.dart';
+import '../article/article_editor_page.dart';
 
 /// 首页 — 文章信息流
 class HomePage extends StatefulWidget {
@@ -189,6 +191,24 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const Spacer(),
+            if (AuthService.isLoggedIn)
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ArticleEditorPage()),
+                ),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: p.accent,
+                    borderRadius: BorderRadius.circular(Tok.radiusMd),
+                  ),
+                  child: Icon(Icons.add_rounded, size: 20, color: Colors.white),
+                ),
+              ),
+            const SizedBox(width: Tok.space2),
             Container(
               width: 38,
               height: 38,

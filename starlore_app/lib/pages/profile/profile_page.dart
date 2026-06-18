@@ -11,7 +11,9 @@ import '../../widgets/article_card.dart';
 import '../../widgets/fade_in_widget.dart';
 import '../../main.dart';
 import '../article/article_detail.dart';
+import '../article/article_editor_page.dart';
 import 'login_page.dart';
+import 'profile_edit_page.dart';
 
 /// 个人中心
 class ProfilePage extends StatefulWidget {
@@ -85,6 +87,14 @@ class _ProfilePageState extends State<ProfilePage> {
           FadeInUp(
             delay: const Duration(milliseconds: 240),
             child: _buildBookmarks(p),
+          ),
+        ],
+        // 发布文章
+        if (AuthService.isLoggedIn) ...[
+          const SizedBox(height: Tok.space5),
+          FadeInUp(
+            delay: const Duration(milliseconds: 280),
+            child: _buildPublishButton(p),
           ),
         ],
         // 设置项
@@ -206,6 +216,25 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
+          GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileEditPage()),
+              );
+              if (result == true && mounted) setState(() {});
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(Tok.radiusFull),
+                border: Border.all(
+                    color: p.border.withValues(alpha: 0.5), width: 0.5),
+              ),
+              child: Text('编辑', style: Typo.caption(p.inkSoft)),
+            ),
+          ),
         ],
       ),
     );
@@ -266,45 +295,131 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSettings(StarlorePalette p) {
-    final items = [
-      ('关于 Starlore', Icons.info_outline_rounded),
-      ('隐私政策', Icons.shield_outlined),
-      ('版本 1.0.0', Icons.code_rounded),
-    ];
+  Widget _buildPublishButton(StarlorePalette p) {
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const ArticleEditorPage()),
+        );
+        if (result == true && mounted) setState(() {});
+      },
+      child: GlassCard(
+        blur: false,
+        padding: const EdgeInsets.all(Tok.space5),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.edit_note_rounded, size: 22, color: p.accent),
+            const SizedBox(width: Tok.space3),
+            Text('发布新文章', style: Typo.h3(p.accent)),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _buildSettings(StarlorePalette p) {
     return GlassCard(
       blur: false,
       padding: EdgeInsets.zero,
       child: Column(
-        children: items.asMap().entries.map((e) {
-          final i = e.key;
-          final item = e.value;
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: Tok.space4, vertical: Tok.space4),
-                child: Row(
-                  children: [
-                    Icon(item.$2, size: 18, color: p.inkSoft),
-                    const SizedBox(width: Tok.space3),
-                    Text(item.$1, style: Typo.body(p.ink)),
-                    const Spacer(),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 18, color: p.inkMuted),
-                  ],
+        children: [
+          _settingItem(p, '关于 Starlore', Icons.info_outline_rounded, () {
+            _showAboutDialog(p);
+          }),
+          Divider(
+              height: 0.5,
+              indent: Tok.space4,
+              endIndent: Tok.space4,
+              color: p.border.withValues(alpha: 0.5)),
+          _settingItem(p, '隐私政策', Icons.shield_outlined, () {
+            _showSnackBar('隐私政策页面即将上线');
+          }),
+          Divider(
+              height: 0.5,
+              indent: Tok.space4,
+              endIndent: Tok.space4,
+              color: p.border.withValues(alpha: 0.5)),
+          _settingItem(p, '版本 1.0.0', Icons.code_rounded, null),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingItem(StarlorePalette p, String title, IconData icon, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: Tok.space4, vertical: Tok.space4),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: p.inkSoft),
+            const SizedBox(width: Tok.space3),
+            Text(title, style: Typo.body(p.ink)),
+            const Spacer(),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: p.inkMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _showAboutDialog(StarlorePalette p) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Tok.radiusLg),
+        ),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [p.accent, p.warm],
                 ),
               ),
-              if (i < items.length - 1)
-                Divider(
-                    height: 0.5,
-                    indent: Tok.space4,
-                    endIndent: Tok.space4,
-                    color: p.border.withValues(alpha: 0.5)),
-            ],
-          );
-        }).toList(),
+              child: Icon(Icons.auto_awesome_rounded, size: 20, color: Colors.white),
+            ),
+            const SizedBox(width: Tok.space3),
+            Text('Starlore', style: Typo.h2(p.ink)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('星语治愈 · 每日精选', style: Typo.body(p.inkSoft)),
+            const SizedBox(height: Tok.space4),
+            Text(
+              'Starlore 是一款星座主题的内容平台，提供星座运势、情感分析、塔罗占卜等精选内容，搭配 AI 星语助手为你答疑解惑。',
+              style: Typo.bodySmall(p.inkMuted),
+            ),
+            const SizedBox(height: Tok.space4),
+            Text('版本 1.0.0', style: Typo.caption(p.inkMuted)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('知道了', style: Typo.label(p.accent)),
+          ),
+        ],
       ),
     );
   }
