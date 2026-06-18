@@ -28,6 +28,7 @@ import {
   Terminal,
   Code2,
   FileArchive,
+  Rocket,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -101,6 +102,13 @@ const features = [
     desc: 'AI 驱动的思维导图，从一个关键词发散出无限可能，辅助创意和决策。',
     tech: 'Graph Layout · AI Generation · Real-time',
     link: '/diverge',
+  },
+  {
+    icon: Rocket,
+    title: 'CI/CD 自动部署',
+    desc: 'GitHub Actions 驱动，push 到 main 自动构建 Docker 镜像并部署到服务器，零停机更新。',
+    tech: 'GitHub Actions · Docker · GHCR',
+    link: '',
   },
 ]
 
@@ -222,7 +230,7 @@ onMounted(async () => {
               </div>
               <h3 class="feature-title">{{ feature.title }}</h3>
               <p class="feature-desc">{{ feature.desc }}</p>
-              <router-link :to="feature.link" class="feature-link">
+              <router-link v-if="feature.link" :to="feature.link" class="feature-link">
                 探索 <ArrowRight :size="14" />
               </router-link>
             </div>

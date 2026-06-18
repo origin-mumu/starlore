@@ -1,6 +1,6 @@
 # Starlore
 
-> AI-Powered Personal Knowledge Universe — 融合 Multi-Agent 协作、LangSmith 可观测性、RAG 知识检索、3D 可视化的智能知识管理系统。
+> AI-Powered Personal Knowledge Universe — 融合 Multi-Agent 协作、全链路可观测性、RAG 知识检索、3D 可视化的智能知识管理系统。
 
 ## 🌐 在线演示
 
@@ -33,9 +33,9 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 - 结果自我纠错（PASS / REVISE / FAIL）
 - Few-Shot 动态反馈机制
 
-### 📊 LangSmith 全链路可观测性
+### 📊 全链路可观测性
 
-集成 LangSmith 构建大模型监控体系：
+自研 Tracing 体系，对接 LangSmith API 实现大模型监控：
 
 - **全链路 Tracing**：精准记录每次 LLM 调用的 Token 消耗、Function 路由耗时
 - **Prompt 演进追踪**：记录每个 Agent 节点的 Prompt 变化
@@ -66,6 +66,12 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 - SSE 流式响应
 - 工具调用状态实时展示
 - Agent 执行追踪嵌入聊天记录
+
+### 🚀 CI/CD 自动部署
+
+- GitHub Actions 自动化构建与部署
+- Docker 多阶段构建，推送到 GHCR 镜像仓库
+- push 到 main 分支自动触发，零停机滚动更新
 
 ## 🏗️ 技术栈
 
@@ -106,7 +112,7 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | JWT                | 认证鉴权         |
 | MinIO              | 文件存储         |
 | LangChain4j        | Agent Graph 引擎 |
-| LangSmith          | 可观测性 Tracing |
+| 自研 Tracing        | 可观测性追踪（LangSmith 兼容协议） |
 
 ### Python 后端 (`starlore-py/`)
 
@@ -114,7 +120,7 @@ Reviewer（审查者）── 检查结果完整性，自动纠错重试（最�
 | --------------------- | ---------------------- |
 | FastAPI               | 异步 Web 框架          |
 | LangChain + LangGraph | Agent 编排             |
-| LangSmith             | Tracing                |
+| 自研 Tracing           | 可观测性追踪           |
 | FAISS                 | 向量存储               |
 | RAGAS                 | RAG 质量评估           |
 | MCP                   | Model Context Protocol |
@@ -153,14 +159,14 @@ starlore/
 ├── starlore-back/           # Spring Boot 后端
 │   └── src/main/java/com/robin/blogback/
 │       ├── agent/           # Multi-Agent 角色（Planner/Executor/Reviewer）
-│       ├── config/          # 配置类（Agent/LangSmith/Security）
+│       ├── config/          # 配置类（Agent/Tracing/Security）
 │       ├── controller/      # REST 控制器
 │       ├── dto/             # 数据传输对象
 │       ├── entity/          # 实体类
 │       ├── exception/       # 异常处理
 │       ├── graph/           # Agent Graph 状态机引擎
 │       ├── mapper/          # MyBatis-Plus Mapper
-│       ├── observability/   # LangSmith Tracing / BadCase / Metrics
+│       ├── observability/   # Tracing / BadCase / Metrics
 │       ├── service/         # 业务逻辑（BlogTools / RAG / AI）
 │       └── util/            # 工具类
 │
@@ -169,7 +175,7 @@ starlore/
 │       ├── models/          # SQLAlchemy 数据模型
 │       ├── routers/         # API 路由（articles/ai/agent/multi_agent 等）
 │       ├── schemas/         # Pydantic 请求/响应模型
-│       ├── services/        # 业务服务（LangGraph/LangSmith/MCP/RAGAS）
+│       ├── services/        # 业务服务（LangGraph/Tracing/MCP/RAGAS）
 │       ├── config.py        # 配置管理
 │       ├── database.py      # 数据库连接
 │       ├── dependencies.py  # FastAPI 依赖注入
@@ -337,7 +343,7 @@ AgentGraph.builder()
 | `subtask_start`  | 子任务开始执行            |
 | `subtask_result` | 子任务执行完成            |
 | `review`         | Reviewer 审查结果         |
-| `metrics`        | Token/耗时/LangSmith 指标 |
+| `metrics`        | Token/耗时/Tracing 指标 |
 | `content`        | 最终回答内容              |
 | `done`           | 流程结束                  |
 
@@ -347,9 +353,9 @@ AgentGraph.builder()
 用户请求
   │
   ├─→ Multi-Agent Graph
-  │     ├─ Planner  ──→ LangSmith Tracer ──→ Token/耗时
-  │     ├─ Executor ──→ LangSmith Tracer ──→ 工具调用记录
-  │     └─ Reviewer ──→ LangSmith Tracer ──→ 决策记录
+  │     ├─ Planner  ──→ Trace Collector ──→ Token/耗时
+  │     ├─ Executor ──→ Trace Collector ──→ 工具调用记录
+  │     └─ Reviewer ──→ Trace Collector ──→ 决策记录
   │
   ├─→ BadCase Collector ──→ ai_bad_cases 表
   │                           │
@@ -364,7 +370,7 @@ AgentGraph.builder()
 
 - [x] Multi-Agent 协作架构（Planner-Executor-Reviewer）
 - [x] Agent Graph 状态机引擎（条件边/并行执行/重试）
-- [x] LangSmith 全链路 Tracing
+- [x] 全链路 Tracing（自研追踪体系）
 - [x] Bad Case 收集与 Few-Shot 动态反馈
 - [x] Agent 执行指标统计
 - [x] RAG 语义搜索（Zhipu Embedding + Vector Store）
@@ -378,6 +384,7 @@ AgentGraph.builder()
 - [x] Python 后端（LangGraph + MCP + RAGAS）
 - [x] 管理后台（数据统计/内容管理）
 - [x] PDF 简历生成服务（Puppeteer）
+- [x] CI/CD 自动部署（GitHub Actions + Docker + GHCR）
 
 ## 🤝 贡献指南
 
