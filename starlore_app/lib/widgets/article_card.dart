@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import '../models/article.dart';
+import 'glass_card.dart';
 
 /// 文章卡片 — 两种样式：有封面 / 无封面
 class ArticleCard extends StatelessWidget {
@@ -18,29 +19,12 @@ class ArticleCard extends StatelessWidget {
     final hasCover =
         article.coverImage != null && article.coverImage!.isNotEmpty;
 
-    return GestureDetector(
+    return GlassCard(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: Tok.normal,
-        curve: Tok.easeOutQuart,
-        margin: const EdgeInsets.only(bottom: Tok.space3),
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(Tok.radiusLg),
-          border: Border.all(color: p.border.withValues(alpha: 0.6), width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: p.shadowCard,
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(Tok.radiusLg),
-          child: hasCover ? _withCover(p) : _textOnly(p),
-        ),
-      ),
+      radius: Tok.radiusLg,
+      margin: const EdgeInsets.only(bottom: Tok.space3),
+      padding: EdgeInsets.zero,
+      child: hasCover ? _withCover(p) : _textOnly(p),
     );
   }
 
