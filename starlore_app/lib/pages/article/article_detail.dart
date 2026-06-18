@@ -9,6 +9,7 @@ import '../../services/article_service.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../utils/html_utils.dart';
 
 /// 文章详情 — 沉浸式阅读
 class ArticleDetailPage extends StatefulWidget {
@@ -169,7 +170,7 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
                         const SizedBox(height: Tok.space6),
                         // Markdown 正文
                         MarkdownBody(
-                          data: article.content,
+                          data: convertHtmlToMarkdown(article.content),
                           styleSheet: _markdownStyle(p),
                           selectable: true,
                         ),

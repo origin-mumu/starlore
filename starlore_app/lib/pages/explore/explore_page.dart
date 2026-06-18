@@ -9,6 +9,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/article_card.dart';
 import '../../widgets/fade_in_widget.dart';
 import '../article/article_detail.dart';
+import '../../services/auth_service.dart';
 
 /// 探索页 — 分类浏览
 class ExplorePage extends StatefulWidget {
@@ -28,7 +29,20 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   void initState() {
     super.initState();
+    AuthService.authState.addListener(_onAuthChange);
     _load();
+  }
+
+  void _onAuthChange() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    AuthService.authState.removeListener(_onAuthChange);
+    super.dispose();
   }
 
   Future<void> _load() async {

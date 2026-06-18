@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
-import '../services/auth_service.dart';
 import '../widgets/floating_nav_bar.dart';
 import '../widgets/orb_background.dart';
 import 'home/home_page.dart';
@@ -19,36 +18,18 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
-  int _pageKey = 0; // 用于强制刷新子页面
 
-  @override
-  void initState() {
-    super.initState();
-    AuthService.authState.addListener(_onAuthChange);
-  }
-
-  @override
-  void dispose() {
-    AuthService.authState.removeListener(_onAuthChange);
-    super.dispose();
-  }
-
-  void _onAuthChange() {
-    if (mounted) {
-      setState(() => _pageKey++);
-    }
-  }
-
-  List<Widget> get _pages => [
-        HomePage(key: ValueKey('home$_pageKey')),
-        ExplorePage(key: ValueKey('explore$_pageKey')),
-        ChatPage(key: ValueKey('chat$_pageKey')),
-        ProfilePage(key: ValueKey('profile$_pageKey')),
-      ];
+  final List<Widget> _pages = const [
+    HomePage(),
+    ExplorePage(),
+    ChatPage(),
+    ProfilePage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final p = paletteOf(context);
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
     // 根据主题动态设置状态栏样式
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -70,10 +51,11 @@ class _MainShellState extends State<MainShell> {
               children: _pages,
             ),
           ),
-          FloatingNavBar(
-            currentIndex: _currentIndex,
-            onTap: (i) => setState(() => _currentIndex = i),
-          ),
+          if (!isKeyboardOpen)
+            FloatingNavBar(
+              currentIndex: _currentIndex,
+              onTap: (i) => setState(() => _currentIndex = i),
+            ),
         ],
       ),
     );

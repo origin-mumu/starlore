@@ -34,12 +34,20 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    AuthService.authState.addListener(_onAuthChange);
     _load();
     _scrollCtrl.addListener(_onScroll);
   }
 
+  void _onAuthChange() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
+    AuthService.authState.removeListener(_onAuthChange);
     _scrollCtrl.dispose();
     super.dispose();
   }

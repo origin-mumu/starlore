@@ -26,6 +26,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    AuthService.authState.addListener(_onAuthChange);
     _messages.add(ChatMessage(
       role: 'assistant',
       content: AuthService.isLoggedIn
@@ -34,8 +35,26 @@ class _ChatPageState extends State<ChatPage> {
     ));
   }
 
+  void _onAuthChange() {
+    if (mounted) {
+      setState(() {
+        if (_messages.isNotEmpty &&
+            _messages[0].role == 'assistant' &&
+            _messages.length == 1) {
+          _messages[0] = ChatMessage(
+            role: 'assistant',
+            content: AuthService.isLoggedIn
+                ? '你好 ✨ 我是星语助手，由 DeepSeek 云端 AI 驱动。你可以问我任何关于星座、运势、情感的问题～'
+                : '你好 ✨ 我是星语助手！目前你在体验游客模式，回复为本地预设。登录后可享受 DeepSeek 云端 AI 的真实对话体验～',
+          );
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
+    AuthService.authState.removeListener(_onAuthChange);
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -94,16 +113,21 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final p = paletteOf(context);
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return Column(
       children: [
         _buildHeader(p),
         Expanded(child: _buildMessages(p)),
-        _buildInput(p),
+        _buildInput(p, isKeyboardOpen),
         SizedBox(
-            height: MediaQuery.of(context).padding.bottom +
-                Tok.navBarHeight +
-                Tok.navBarBottomPadding),
+          height: isKeyboardOpen
+              ? Tok.space3
+              : MediaQuery.of(context).padding.bottom +
+                  Tok.navBarHeight +
+                  Tok.navBarBottomPadding +
+                  Tok.space2,
+        ),
       ],
     );
   }
@@ -310,72 +334,82 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget _buildInput(StarlorePalette p) {
+  Widget _buildInput(StarlorePalette p, bool isKeyboardOpen) {
     final isDark = p.brightness == Brightness.dark;
 
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: Tok.blurMd, sigmaY: Tok.blurMd),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(
-              Tok.horizontalPadding, Tok.space3, Tok.horizontalPadding, Tok.space3),
-          decoration: BoxDecoration(
-            color: isDark
-                ? p.surface.withValues(alpha: 0.7)
-                : p.surface.withValues(alpha: 0.85),
-            border: Border(
-              top: BorderSide(color: p.border.withValues(alpha: 0.5), width: 0.5),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: Tok.horizontalPadding),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Tok.radiusXl),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: Tok.blurMd, sigmaY: Tok.blurMd),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(Tok.space4, Tok.space2, Tok.space2, Tok.space2),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? p.surface.withValues(alpha: 0.65)
+                  : p.surface.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(Tok.radiusXl),
+              border: Border.all(
+                color: p.border.withValues(alpha: isDark ? 0.3 : 0.5),
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Tok.space4),
-                  decoration: BoxDecoration(
-                    color: p.canvasDeep.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(Tok.radiusFull),
-                    border: Border.all(
-                        color: p.border.withValues(alpha: 0.5), width: 0.5),
-                  ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Tok.space2 + 2),
+                  child: Icon(Icons.auto_awesome_rounded, size: 18, color: p.accent),
+                ),
+                const SizedBox(width: Tok.space2),
+                Expanded(
                   child: TextField(
                     controller: _inputCtrl,
                     style: Typo.body(p.ink),
+                    maxLines: 4,
+                    minLines: 1,
+                    keyboardType: TextInputType.multiline,
                     decoration: InputDecoration(
                       hintText: '输入你的问题...',
                       hintStyle: Typo.body(p.inkMuted),
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: Tok.space3),
+                      contentPadding: const EdgeInsets.symmetric(vertical: Tok.space2),
                     ),
-                    onSubmitted: (_) => _send(),
                   ),
                 ),
-              ),
-              const SizedBox(width: Tok.space2),
-              GestureDetector(
-                onTap: _send,
-                child: AnimatedContainer(
-                  duration: Tok.fast,
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: _sending
-                        ? null
-                        : LinearGradient(
-                            colors: [p.accent, p.warm],
-                          ),
-                    color: _sending ? p.accent.withValues(alpha: 0.5) : null,
-                  ),
-                  child: Icon(
-                    Icons.arrow_upward_rounded,
-                    size: 20,
-                    color: Colors.white,
+                const SizedBox(width: Tok.space2),
+                GestureDetector(
+                  onTap: _send,
+                  child: AnimatedContainer(
+                    duration: Tok.fast,
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: _sending
+                          ? null
+                          : LinearGradient(
+                              colors: [p.accent, p.warm],
+                            ),
+                      color: _sending ? p.accent.withValues(alpha: 0.5) : null,
+                    ),
+                    child: const Icon(
+                      Icons.arrow_upward_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

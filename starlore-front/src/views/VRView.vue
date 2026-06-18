@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAllArticlesService, getCategoriesService } from '@/api/article'
+import { getAllArticlesService, getCategoriesService, getPublicArticlesService, getPublicCategoriesService } from '@/api/article'
 import StarfieldCanvas from './vr/StarfieldCanvas.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -211,52 +211,51 @@ onMounted(async () => {
   try {
     let result: { name: string; count: number; lastUpdated: string }[] = []
 
-    if (!userStore.isLoggedIn) {
-      result = demoCategories
-      articlesByCategory.value = demoArticlesByCategory
-    } else {
-      const [catsRes, articlesRes] = await Promise.all([
-        getCategoriesService() as any,
-        getAllArticlesService({ page: 1, limit: 200 }) as any,
-      ])
+    const [catsRes, articlesRes] = await Promise.all([
+      userStore.isLoggedIn
+        ? (getCategoriesService() as any)
+        : (getPublicCategoriesService() as any),
+      userStore.isLoggedIn
+        ? (getAllArticlesService({ page: 1, limit: 200 }) as any)
+        : (getPublicArticlesService({ page: 1, limit: 200 }) as any),
+    ])
 
-      const apiCategories: { id: number; name: string; article_count: number }[] = catsRes?.data || []
-      const articles: any[] = articlesRes?.data || []
+    const apiCategories: { id: number; name: string; article_count: number }[] = catsRes?.data || []
+    const articles: any[] = articlesRes?.data || []
 
-      // Build article stats and group by category
-      const articleStats = new Map<string, { count: number; lastUpdated: string }>()
-      const grouped = new Map<string, { id: number; title: string; desc: string }[]>()
+    // Build article stats and group by category
+    const articleStats = new Map<string, { count: number; lastUpdated: string }>()
+    const grouped = new Map<string, { id: number; title: string; desc: string }[]>()
 
-      for (const a of articles) {
-        const cat = a.category || '未分类'
-        if (!articleStats.has(cat)) articleStats.set(cat, { count: 0, lastUpdated: '' })
-        const s = articleStats.get(cat)!
-        s.count++
-        const d = a.updatedAt || a.createdAt
-        if (d && d > s.lastUpdated) s.lastUpdated = d.slice(0, 10)
+    for (const a of articles) {
+      const cat = a.category || '未分类'
+      if (!articleStats.has(cat)) articleStats.set(cat, { count: 0, lastUpdated: '' })
+      const s = articleStats.get(cat)!
+      s.count++
+      const d = a.updatedAt || a.createdAt
+      if (d && d > s.lastUpdated) s.lastUpdated = d.slice(0, 10)
 
-        if (!grouped.has(cat)) grouped.set(cat, [])
-        grouped.get(cat)!.push({
-          id: a.id,
-          title: a.title,
-          desc: a.description || a.title,
-        })
-      }
+      if (!grouped.has(cat)) grouped.set(cat, [])
+      grouped.get(cat)!.push({
+        id: a.id,
+        title: a.title,
+        desc: a.description || a.title,
+      })
+    }
 
-      articlesByCategory.value = grouped
+    articlesByCategory.value = grouped
 
-      for (const cat of apiCategories) {
-        const s = articleStats.get(cat.name)
-        result.push({
-          name: cat.name,
-          count: s?.count ?? cat.article_count ?? 0,
-          lastUpdated: s?.lastUpdated || '-',
-        })
-      }
-      for (const [name, s] of articleStats) {
-        if (!result.find(r => r.name === name)) {
-          result.push({ name, count: s.count, lastUpdated: s.lastUpdated })
-        }
+    for (const cat of apiCategories) {
+      const s = articleStats.get(cat.name)
+      result.push({
+        name: cat.name,
+        count: s?.count ?? cat.article_count ?? 0,
+        lastUpdated: s?.lastUpdated || '-',
+      })
+    }
+    for (const [name, s] of articleStats) {
+      if (!result.find(r => r.name === name)) {
+        result.push({ name, count: s.count, lastUpdated: s.lastUpdated })
       }
     }
 

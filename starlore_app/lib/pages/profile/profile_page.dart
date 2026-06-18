@@ -30,7 +30,25 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    AuthService.authState.addListener(_onAuthChange);
     if (AuthService.isLoggedIn) _loadBookmarks();
+  }
+
+  void _onAuthChange() {
+    if (mounted) {
+      setState(() {});
+      if (AuthService.isLoggedIn) {
+        _loadBookmarks();
+      } else {
+        _bookmarks = [];
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    AuthService.authState.removeListener(_onAuthChange);
+    super.dispose();
   }
 
   Future<void> _loadBookmarks() async {
@@ -146,15 +164,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: Typo.bodySmall(p.inkMuted)),
             const SizedBox(height: Tok.space5),
             GestureDetector(
-              onTap: () async {
-                final result = await Navigator.push<bool>(
+              onTap: () {
+                Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginPage()),
                 );
-                if (result == true && mounted) {
-                  setState(() {});
-                  _loadBookmarks();
-                }
               },
               child: Container(
                 width: double.infinity,
