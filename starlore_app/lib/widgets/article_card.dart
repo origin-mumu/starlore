@@ -16,7 +16,6 @@ class ArticleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = paletteOf(context);
-    final isDark = p.brightness == Brightness.dark;
 
     // 根据文章ID哈希计算一个美妙的瀑布流随机高宽比
     final double ratio = (article.id.hashCode % 3 == 0)
