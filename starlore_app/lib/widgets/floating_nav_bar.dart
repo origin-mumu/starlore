@@ -87,7 +87,7 @@ class FloatingNavBar extends StatelessWidget {
 
                   return Stack(
                     children: [
-                      // 滑动液体玻璃气泡指示器 (使用主题专有的 accentSoft/accent 软亮色)
+                      // 滑动液体玻璃气泡指示器
                       AnimatedPositioned(
                         duration: Tok.normal,
                         curve: Tok.easeOutQuart,
@@ -103,18 +103,18 @@ class FloatingNavBar extends StatelessWidget {
                               end: Alignment.bottomRight,
                               colors: isDark
                                   ? [
-                                      p.accentSoft.withValues(alpha: 0.25),
-                                      p.accentSoft.withValues(alpha: 0.08),
+                                      Colors.white.withValues(alpha: 0.20),
+                                      Colors.white.withValues(alpha: 0.05),
                                     ]
                                   : [
-                                      p.accentSoft.withValues(alpha: 0.90),
-                                      p.accentSoft.withValues(alpha: 0.65),
+                                      Colors.white.withValues(alpha: 0.70),
+                                      Colors.white.withValues(alpha: 0.30),
                                     ],
                             ),
                             border: Border.all(
                               color: isDark
-                                  ? p.accent.withValues(alpha: 0.35)
-                                  : p.accent.withValues(alpha: 0.15),
+                                  ? Colors.white.withValues(alpha: 0.25)
+                                  : Colors.white.withValues(alpha: 0.65),
                               width: 1.0,
                             ),
                             boxShadow: [
