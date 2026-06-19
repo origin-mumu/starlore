@@ -25,6 +25,7 @@ import {
   type AiSessionRow,
   type CharacterCard,
 } from '@/api/ai'
+import { getGuestQuota } from '@/api/guest-ai'
 
 const router = useRouter()
 
@@ -126,11 +127,18 @@ const dailyExceeded = computed(() => !isAdminUser.value && dailyRemaining.value 
 
 async function refreshQuota() {
   try {
-    const res: any = await getAiQuota()
-    const q = res.data
-    dailyLimit.value = q.dailyLimit
-    dailyRemaining.value = q.remaining
-    isAdminUser.value = q.isAdmin
+    if (userStore.isLoggedIn) {
+      const res: any = await getAiQuota()
+      const q = res.data
+      dailyLimit.value = q.dailyLimit
+      dailyRemaining.value = q.remaining
+      isAdminUser.value = q.isAdmin
+    } else {
+      const res = await getGuestQuota()
+      dailyLimit.value = res.limit
+      dailyRemaining.value = res.remaining
+      isAdminUser.value = false
+    }
   } catch {
     // 离线或未登录时默认为 10
   }
@@ -937,10 +945,11 @@ onMounted(async () => {
     messages.value = [
       {
         role: 'assistant',
-        content: '你好！我是 Starlore 智能助理。目前系统已自动进入**访客体验模式（本地模拟）**。\n\n> ⚠️ **提示**：访客模式下对话由本地脚本模拟生成。**登录后将解锁真实的 AI 助手，连接云端 Multi-Agent 架构的 DeepSeek 大语言模型，并支持您个人会话记录的持久化云端存储。**\n\n您可以试着提问关于“文章”、“星域”、“灵感”或“简历”等词汇，或切换上方角色卡、体验 TTS 朗读功能！',
-        reasoningContent: '检测到当前用户未登录，已初始化本地访客沙盒会话，并提醒用户登录后可使用真实 AI。'
+        content: '你好！我是 Starlore 智能助理。目前系统已自动进入**访客体验模式**。\n\n> 💡 **提示**：访客模式下您可以**真实调用 AI 助手**进行对话，每日可享受 **20 次免费调用额度**（与创意发散共享）。\n\n您不仅可以正常对话，还能**自由切换角色卡**、体验 TTS 朗读功能，AI 会自动为您检索公开文章进行智能回答。欢迎登录解锁无限额度、全功能 Multi-Agent 架构及专属的云端会话空间！',
+        reasoningContent: '检测到当前用户未登录，已初始化真实访客会话体验。'
       }
     ]
+    await refreshQuota()
     return
   }
 
@@ -989,6 +998,7 @@ onBeforeUnmount(() => {
     @new-session="newSession"
     @delete-session="confirmDeleteSession"
     @send="onImmersiveSend"
+    @refresh-quota="refreshQuota"
   />
 </template>
 

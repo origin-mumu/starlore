@@ -133,6 +133,45 @@ public class ArticleEmbeddingService {
     }
 
     /**
+     * 访客语义搜索公开相关文章
+     */
+    public List<Article> searchSimilarPublic(String query, int topK) {
+        if (vectorStore == null) return Collections.emptyList();
+
+        try {
+            SearchRequest request = SearchRequest.builder()
+                    .query(query)
+                    .topK(topK)
+                    .similarityThreshold(0.3)
+                    .build();
+
+            List<Document> results = vectorStore.similaritySearch(request);
+            if (results == null || results.isEmpty()) return Collections.emptyList();
+
+            // 提取 articleId（不需要按 userId 过滤，公开文章即可）
+            List<Integer> articleIds = results.stream()
+                    .map(doc -> {
+                        Object id = doc.getMetadata().get("articleId");
+                        return id != null ? Integer.parseInt(id.toString()) : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            if (articleIds.isEmpty()) return Collections.emptyList();
+
+            // 批量查询公开文章 (published 且 isPublic = true)
+            return articleMapper.selectList(
+                    new LambdaQueryWrapper<Article>()
+                            .in(Article::getId, articleIds)
+                            .eq(Article::getStatus, "published")
+                            .eq(Article::getIsPublic, true));
+        } catch (Exception e) {
+            log.error("[RAG] 访客公开语义搜索失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
      * 构建用于 embedding 的文本（标题 + 描述 + 内容摘要）
      */
     private String buildEmbeddingText(Article article) {

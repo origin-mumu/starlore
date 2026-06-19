@@ -57,3 +57,6 @@ blog-back/.env.*
 # Ro-blog相关
 ro-blog/.env*
 ro-blog/*.env
+
+# Scratch scripts
+scratch/

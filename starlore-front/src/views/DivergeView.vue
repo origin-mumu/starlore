@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { divergeWord } from '@/api/diverge'
 import { getAiQuota } from '@/api/ai'
+import { guestDiverge, getGuestQuota } from '@/api/guest-ai'
 import { useThemeStore } from '@/stores/theme'
 import { useUserStore } from '@/stores/user'
 import { 
@@ -141,11 +142,18 @@ const quotaError = ref('')
 
 async function refreshDivergeQuota() {
   try {
-    const res: any = await getAiQuota()
-    const q = res.data
-    aiQuotaDaily.value = q.dailyLimit
-    aiQuotaRemaining.value = q.remaining
-    aiQuotaExceeded.value = !q.isAdmin && q.remaining <= 0
+    if (userStore.isLoggedIn) {
+      const res: any = await getAiQuota()
+      const q = res.data
+      aiQuotaDaily.value = q.dailyLimit
+      aiQuotaRemaining.value = q.remaining
+      aiQuotaExceeded.value = !q.isAdmin && q.remaining <= 0
+    } else {
+      const res = await getGuestQuota()
+      aiQuotaDaily.value = res.limit
+      aiQuotaRemaining.value = res.remaining
+      aiQuotaExceeded.value = res.remaining <= 0
+    }
   } catch {
     // ignore
   }
@@ -407,9 +415,10 @@ const expandNode = async (nodeId: string) => {
       const res = await divergeWord(node.wordEn || node.word)
       pairs = res.pairs
     } else {
-      // Simulate network response latency for visitor mode
-      await new Promise(resolve => setTimeout(resolve, 600))
-      pairs = getMockDivergePairs(node.word)
+      const res = await guestDiverge(node.wordEn || node.word)
+      pairs = res.pairs
+      aiQuotaRemaining.value = res.remaining
+      aiQuotaExceeded.value = res.remaining <= 0
     }
 
     const positions = layoutChildren(nodeId, pairs.length)!
@@ -520,8 +529,10 @@ const handleSearch = async () => {
       const res = await divergeWord(word)
       pairs = res.pairs
     } else {
-      await new Promise(resolve => setTimeout(resolve, 800))
-      pairs = getMockDivergePairs(word)
+      const res = await guestDiverge(word)
+      pairs = res.pairs
+      aiQuotaRemaining.value = res.remaining
+      aiQuotaExceeded.value = res.remaining <= 0
     }
 
     const centerX = window.innerWidth / 2
@@ -893,7 +904,7 @@ onBeforeUnmount(() => {
           <input
             v-model="inputWord"
             type="text"
-            :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '本地模拟模式 · 登录后体验云端真实 AI 联想...'"
+            :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '访客体验模式 · 每日 20 次免费联想...'"
             class="search-input"
             :disabled="loading"
           />
@@ -911,7 +922,7 @@ onBeforeUnmount(() => {
             {{ aiQuotaExceeded ? '今日 AI 次数已用尽' : `今日剩余 ${aiQuotaRemaining} 次` }}
           </span>
           <span v-else class="guest-quota-badge">
-            游客体验模式（本地模拟） · <router-link to="/login" style="text-decoration: underline; color: var(--accent); font-weight: bold;">立即登录</router-link>解锁真实云端 AI
+            访客体验模式（剩余 {{ aiQuotaRemaining }} 次） · <router-link to="/login" style="text-decoration: underline; color: var(--accent); font-weight: bold;">立即登录</router-link>解锁无限次数与云端 AI
           </span>
         </div>
       </div>
