@@ -20,6 +20,7 @@ from app.routers import (
     health,
     multi_agent,
     projects,
+    public_ai,
     resume,
     upload,
 )
@@ -60,11 +61,13 @@ app.include_router(bookmarks.router)
 app.include_router(ai.router)
 app.include_router(agent.router)
 app.include_router(multi_agent.router)
+app.include_router(public_ai.router)
 app.include_router(ai_config.router)
 app.include_router(resume.router)
 app.include_router(projects.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
+
 
 
 if __name__ == "__main__":

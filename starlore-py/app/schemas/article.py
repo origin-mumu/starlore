@@ -15,6 +15,8 @@ class CreateArticleRequest(BaseModel):
     tags: list[str] | None = None
     coverImage: str | None = None
     status: str | None = None
+    is_public: bool | None = None
+
 
 
 class UpdateArticleRequest(BaseModel):
@@ -25,6 +27,8 @@ class UpdateArticleRequest(BaseModel):
     tags: list[str] | None = None
     coverImage: str | None = None
     status: str | None = None
+    is_public: bool | None = None
+
 
 
 class ArticleSummary(BaseModel):
@@ -38,7 +42,9 @@ class ArticleSummary(BaseModel):
     tags: list[str] | None = None
     cover_image: str | None = None
     view_count: int | None = None
+    is_public: bool | None = None
     createdAt: datetime | None = None
+
 
 
 class ArticleDetail(BaseModel):
@@ -51,7 +57,9 @@ class ArticleDetail(BaseModel):
     cover_image: str | None = None
     view_count: int | None = None
     status: str | None = None
+    is_public: bool | None = None
     createdAt: datetime | None = None
+
     updatedAt: datetime | None = None
 
 

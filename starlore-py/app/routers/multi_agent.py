@@ -22,16 +22,22 @@ router = APIRouter(prefix="/api/ai", tags=["multi-agent"])
 @router.post("/multi-agent-sse")
 async def multi_agent_sse(
     request: Request,
+    model: str = "deepseek-chat",
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Multi-Agent Planner-Executor-Reviewer SSE 流式端点。"""
     body = await request.json()
-    model = body.get("model", "deepseek-chat")
-    messages = body.get("messages", [])
-    character_key = body.get("characterKey", "default")
+    if isinstance(body, list):
+        messages = body
+        character_key = "default"
+    else:
+        messages = body.get("messages", [])
+        character_key = body.get("characterKey", "default")
+        model = body.get("model", model)
 
     llm = await ai_stream_service._resolve_model(db, model)
+
 
     # 获取角色卡 prompt
     from app.services.ai_service import get_character_cards
@@ -141,7 +147,7 @@ async def get_agent_bad_cases(
         "total": total,
         "page": page,
         "size": size,
-        "cases": [
+        "data": [
             {
                 "id": c.id,
                 "question": c.question,

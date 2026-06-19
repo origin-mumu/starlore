@@ -35,6 +35,7 @@ def _to_summary(article: Article, author_name: str | None = None) -> ArticleSumm
         tags=article.tags,
         cover_image=article.cover_image,
         view_count=article.view_count,
+        is_public=article.is_public,
         createdAt=article.createdAt,
     )
 
@@ -50,6 +51,7 @@ def _to_detail(article: Article) -> ArticleDetail:
         cover_image=article.cover_image,
         view_count=article.view_count,
         status=article.status,
+        is_public=article.is_public,
         createdAt=article.createdAt,
         updatedAt=article.updatedAt,
     )
@@ -241,6 +243,7 @@ async def create_article(db: AsyncSession, user_id: int, req: CreateArticleReque
         cover_image=req.coverImage,
         view_count=0,
         status=req.status or "published",
+        is_public=req.is_public if req.is_public is not None else False,
         createdAt=now,
         updatedAt=now,
     )
@@ -276,7 +279,9 @@ async def update_article(db: AsyncSession, article_id: int, req: UpdateArticleRe
         article.cover_image = req.coverImage
     if req.status is not None:
         article.status = req.status
-
+    if req.is_public is not None:
+        article.is_public = req.is_public
+ 
     article.updatedAt = datetime.now()
     await db.flush()
 

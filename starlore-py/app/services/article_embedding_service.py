@@ -230,3 +230,33 @@ async def search_similar(db: AsyncSession, query: str, user_id: int, top_k: int 
 
     result = await db.execute(select(Article).where(Article.id.in_(list(article_ids))))
     return list(result.scalars().all())
+
+
+async def search_similar_public(db: AsyncSession, query: str, top_k: int = 5) -> list[Article]:
+    """语义搜索公开文章（游客模式）。"""
+    store = await _ensure_vector_store(db)
+    if store is None:
+        return []
+
+    # FAISS 搜索
+    results = store.similarity_search(query, k=top_k * 2)
+
+    # 提取 articleId 并过滤公开文章
+    article_ids = set()
+    for doc in results:
+        meta = doc.metadata
+        if not meta.get("placeholder") and meta.get("articleId"):
+            article_ids.add(meta.get("articleId"))
+
+    if not article_ids:
+        return []
+
+    result = await db.execute(
+        select(Article).where(
+            Article.id.in_(list(article_ids)),
+            Article.status == "published",
+            Article.is_public == True,
+        )
+    )
+    return list(result.scalars().all())
+

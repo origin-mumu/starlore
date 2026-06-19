@@ -110,5 +110,22 @@ class QuotaInfo(BaseModel):
 
 
 class AIQuotaResponse(BaseModel):
-    success: bool
-    quota: QuotaInfo
+    data: QuotaInfo
+
+
+class AiConfigInfo(BaseModel):
+    id: int
+    modelKey: str
+    modelName: str
+    apiUrl: str
+    modelId: str
+    apiKey: str | None = None
+    enabled: bool
+    createdAt: datetime | None = None
+    updatedAt: datetime | None = None
+
+
+class AiConfigResponse(BaseModel):
+    data: AiConfigInfo
+    message: str | None = None
+

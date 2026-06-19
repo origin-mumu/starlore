@@ -164,7 +164,63 @@ async def text_to_speech(
         return {"error": f"TTS 调用失败: {e}"}
 
 
+# ---------- ASR ----------
+
+@router.post("/transcribe")
+async def transcribe(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import asr_service
+    body = await request.json()
+    audio = body.get("audio", "")
+    if not audio:
+        return {"error": "audio 不能为空"}
+    try:
+        text = await asr_service.transcribe(db, audio)
+        return {"success": True, "text": text}
+    except Exception as e:
+        logger.error("ASR error: %s", e)
+        return {"error": str(e)}
+
+
+@router.post("/transcribe/stream")
+async def transcribe_stream(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services import asr_service
+    body = await request.json()
+    audio = body.get("audio", "")
+    if not audio:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"error": "audio 不能为空"})
+    
+    return StreamingResponse(
+        asr_service.transcribe_stream(db, audio),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+
 # ---------- 发散思维 ----------
+
+def extract_json_array(content: str) -> str | None:
+    if not content:
+        return None
+    start = content.find('[')
+    end = content.rfind(']')
+    if start >= 0 and end > start:
+        return content[start:end+1]
+    return content.strip()
+
 
 @router.post("/diverge")
 async def diverge(
@@ -172,18 +228,56 @@ async def diverge(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from fastapi.responses import JSONResponse
     body = await request.json()
-    keyword = body.get("keyword", "")
+    word = body.get("word") or body.get("keyword", "")
     model = body.get("model", "deepseek-chat")
 
-    prompt = f"""请围绕关键词「{keyword}」进行发散联想，生成 8 个关联词。
-每个词包含中文和英文两个版本，分别从以下维度思考：
-1. 工具 2. 场景 3. 上下游 4. 风格 5. 品牌 6. 痛点 7. 趋势 8. 创新
-返回 JSON 数组格式：[{{"zh": "中文词", "en": "English word", "dimension": "维度"}}]"""
+    if not word:
+        return JSONResponse(status_code=400, content={"message": "请输入一个词"})
 
-    messages = [{"role": "user", "content": prompt}]
+    # Check quota
+    remaining = await ai_quota_service.get_remaining(db, user.id)
+    if remaining == 0:
+        return JSONResponse(status_code=429, content={"message": "今日 AI 创意发散次数已用尽，明天再来吧～"})
+
+    # Consume quota
+    await ai_quota_service.try_consume(db, user.id)
+
+    prompt = f"""请输入词为："{word}"。请围绕它向外联想 8 个关联词语。
+
+要求：
+1. 每个联想词必须与输入词有强烈的直接关联，逻辑必须合乎常理、生动逼真（例如对于食物或动作，应联想相关器具、食材、流派、场景或直接相关联想词，避免生硬死板地套用无关概念）。
+2. 每个联想词包含 zh（中文）和 en（英文翻译），必须使用 JSON 格式表示，例如：[{{"zh":"火锅","en":"hotpot"}}, ...]。
+3. 严禁返回任何 Markdown 代码块包裹（如 ```json）或多余的文字说明，仅返回纯粹的 JSON 数组。"""
+
+    messages = [
+        {"role": "system", "content": "你是一个头脑风暴创意联想助手。能够根据用户输入的词语，向外扩散联想出与之强关联的 8 个最典型、最生动、最具画面感的事物或概念。你必须严格以 JSON 数组形式返回结果，不能包含任何其他 Markdown 语法或额外解释。"},
+        {"role": "user", "content": prompt}
+    ]
+
     content = await ai_stream_service.invoke_model(db, model, messages)
-    return {"content": content}
+    
+    # Extract & parse JSON array
+    json_str = extract_json_array(content)
+    pairs = []
+    if json_str:
+        try:
+            parsed = json.loads(json_str)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, dict):
+                        pairs.append({
+                            "en": str(item.get("en", "")),
+                            "zh": str(item.get("zh", ""))
+                        })
+        except Exception as e:
+            logger.error("Diverge JSON parse error: %s, raw content: %s", e, content)
+            
+    if not pairs:
+        return JSONResponse(status_code=500, content={"message": "AI 返回格式解析失败"})
+
+    return {"pairs": pairs}
 
 
 # ---------- RAG 重索引 ----------
@@ -267,10 +361,10 @@ async def append_pair(
 
 # ---------- 配额 ----------
 
-@router.get("/quota")
+@router.get("/quota", response_model=AIQuotaResponse)
 async def get_quota(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     quota = await ai_quota_service.get_quota_info(db, user.id)
-    return {"success": True, "quota": quota}
+    return {"data": quota}
