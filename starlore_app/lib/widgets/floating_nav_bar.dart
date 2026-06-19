@@ -48,30 +48,32 @@ class FloatingNavBar extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: isDark
                       ? [
-                          Colors.black.withValues(alpha: 0.45),
-                          Colors.black.withValues(alpha: 0.20),
+                          p.surface.withValues(alpha: 0.70),
+                          p.surface.withValues(alpha: 0.45),
                         ]
                       : [
-                          Colors.white.withValues(alpha: 0.35),
-                          Colors.white.withValues(alpha: 0.10),
+                          p.surface.withValues(alpha: 0.85),
+                          p.surface.withValues(alpha: 0.65),
                         ],
                 ),
                 border: Border.all(
                   color: isDark
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : Colors.white.withValues(alpha: 0.45),
+                      ? p.border.withValues(alpha: 0.25)
+                      : p.border.withValues(alpha: 0.60),
                   width: 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.40)
+                        : p.shadowCard.withValues(alpha: 0.15),
                     blurRadius: 24,
-                    offset: const Offset(0, 10),
+                    offset: const Offset(0, 8),
                   ),
                   BoxShadow(
-                    color: p.accent.withValues(alpha: isDark ? 0.12 : 0.04),
-                    blurRadius: 32,
-                    offset: const Offset(0, 4),
+                    color: p.accent.withValues(alpha: isDark ? 0.08 : 0.03),
+                    blurRadius: 20,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -85,7 +87,7 @@ class FloatingNavBar extends StatelessWidget {
 
                   return Stack(
                     children: [
-                      // 滑动液体玻璃气泡指示器
+                      // 滑动液体玻璃气泡指示器 (使用主题专有的 accentSoft/accent 软亮色)
                       AnimatedPositioned(
                         duration: Tok.normal,
                         curve: Tok.easeOutQuart,
@@ -101,18 +103,18 @@ class FloatingNavBar extends StatelessWidget {
                               end: Alignment.bottomRight,
                               colors: isDark
                                   ? [
-                                      Colors.white.withValues(alpha: 0.20),
-                                      Colors.white.withValues(alpha: 0.05),
+                                      p.accentSoft.withValues(alpha: 0.25),
+                                      p.accentSoft.withValues(alpha: 0.08),
                                     ]
                                   : [
-                                      Colors.white.withValues(alpha: 0.70),
-                                      Colors.white.withValues(alpha: 0.30),
+                                      p.accentSoft.withValues(alpha: 0.90),
+                                      p.accentSoft.withValues(alpha: 0.65),
                                     ],
                             ),
                             border: Border.all(
                               color: isDark
-                                  ? Colors.white.withValues(alpha: 0.25)
-                                  : Colors.white.withValues(alpha: 0.65),
+                                  ? p.accent.withValues(alpha: 0.35)
+                                  : p.accent.withValues(alpha: 0.15),
                               width: 1.0,
                             ),
                             boxShadow: [
