@@ -35,13 +35,17 @@ class UserInfo(BaseModel):
 
 
 class AuthData(BaseModel):
-    token: str
+    token: str | None = None
     user: UserInfo
 
 
 class AuthResponse(BaseModel):
     message: str
     data: AuthData
+
+
+class UserMeResponse(BaseModel):
+    data: UserInfo
 
 
 class UpdateProfileRequest(BaseModel):

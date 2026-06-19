@@ -8,6 +8,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.article import (
     ArticleDetail,
+    ArticleDetailResponse,
     ArticleListResponse,
     ArticleSummary,
     CreateArticleRequest,
@@ -56,14 +57,15 @@ async def daily_stats(
     return {"data": data}
 
 
-@router.get("/{article_id}", response_model=ArticleDetail)
+@router.get("/{article_id}", response_model=ArticleDetailResponse)
 async def get_article(
     article_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     user_id = getattr(request.state, "user_id", None)
-    return await article_service.get_article_by_id(db, user_id, article_id)
+    detail = await article_service.get_article_by_id(db, user_id, article_id)
+    return {"data": detail}
 
 
 @router.post("", response_model=SimpleResponse)

@@ -58,3 +58,8 @@ class ArticleDetail(BaseModel):
 class ArticleListResponse(BaseModel):
     data: list[ArticleSummary]
     pagination: PaginationInfo
+
+
+class ArticleDetailResponse(BaseModel):
+    data: ArticleDetail
+
