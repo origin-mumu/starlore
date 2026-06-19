@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 
-/// 浮动底部导航栏 — 胶囊形毛玻璃
+/// 浮动底部导航栏 — 胶囊形毛玻璃 (带液体玻璃质感和滑动气泡微动效)
 class FloatingNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -44,16 +44,16 @@ class FloatingNavBar extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(Tok.navBarRadius),
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                   colors: isDark
                       ? [
-                          Colors.black.withValues(alpha: 0.35),
-                          Colors.black.withValues(alpha: 0.15),
+                          Colors.black.withValues(alpha: 0.45),
+                          Colors.black.withValues(alpha: 0.20),
                         ]
                       : [
-                          Colors.white.withValues(alpha: 0.25),
-                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.35),
+                          Colors.white.withValues(alpha: 0.10),
                         ],
                 ),
                 border: Border.all(
@@ -75,65 +75,98 @@ class FloatingNavBar extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(_items.length, (i) {
-                  final item = _items[i];
-                  final active = currentIndex == i;
-                  return _buildItem(context, item, active, () => onTap(i), p);
-                }),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final totalWidth = constraints.maxWidth;
+                  final itemWidth = totalWidth / _items.length;
+                  const indicatorWidth = 58.0;
+                  const indicatorHeight = 40.0;
+                  final left = currentIndex * itemWidth + (itemWidth - indicatorWidth) / 2;
+
+                  return Stack(
+                    children: [
+                      // 滑动液体玻璃气泡指示器
+                      AnimatedPositioned(
+                        duration: Tok.normal,
+                        curve: Tok.easeOutQuart,
+                        left: left,
+                        top: (Tok.navBarHeight - indicatorHeight) / 2,
+                        width: indicatorWidth,
+                        height: indicatorHeight,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(Tok.radiusFull),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: isDark
+                                  ? [
+                                      Colors.white.withValues(alpha: 0.20),
+                                      Colors.white.withValues(alpha: 0.05),
+                                    ]
+                                  : [
+                                      Colors.white.withValues(alpha: 0.70),
+                                      Colors.white.withValues(alpha: 0.30),
+                                    ],
+                            ),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.25)
+                                  : Colors.white.withValues(alpha: 0.65),
+                              width: 1.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: p.accent.withValues(alpha: isDark ? 0.30 : 0.12),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // 交互图标行
+                      Positioned.fill(
+                        child: Row(
+                          children: List.generate(_items.length, (i) {
+                            final item = _items[i];
+                            final active = currentIndex == i;
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () => onTap(i),
+                                behavior: HitTestBehavior.opaque,
+                                child: Container(
+                                  height: Tok.navBarHeight,
+                                  alignment: Alignment.center,
+                                  child: AnimatedScale(
+                                    scale: active ? 1.18 : 1.0,
+                                    duration: Tok.fast,
+                                    curve: Curves.easeOutBack,
+                                    child: TweenAnimationBuilder<Color?>(
+                                      duration: Tok.fast,
+                                      tween: ColorTween(
+                                        end: active ? p.accent : p.inkMuted,
+                                      ),
+                                      builder: (context, color, child) {
+                                        return Icon(
+                                          active ? item.filled : item.outline,
+                                          size: 22,
+                                          color: color ?? (active ? p.accent : p.inkMuted),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItem(BuildContext context, _NavItem item, bool active,
-      VoidCallback onTap, p) {
-    final isDark = p.brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: Tok.fast,
-        curve: Tok.easeOutQuart,
-        width: 56,
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Tok.radiusFull),
-          color: active
-              ? (isDark
-                  ? Colors.white.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.6))
-              : Colors.transparent,
-          border: Border.all(
-            color: active
-                ? (isDark
-                    ? Colors.white.withValues(alpha: 0.25)
-                    : Colors.white.withValues(alpha: 0.7))
-                : Colors.transparent,
-            width: 1.0,
-          ),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: p.accent.withValues(alpha: 0.15),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [],
-        ),
-        child: AnimatedSwitcher(
-          duration: Tok.fast,
-          child: Icon(
-            active ? item.filled : item.outline,
-            key: ValueKey(active),
-            size: 22,
-            color: active ? p.accent : p.inkMuted,
           ),
         ),
       ),
