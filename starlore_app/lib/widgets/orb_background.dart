@@ -86,8 +86,6 @@ class _OrbBackgroundState extends State<OrbBackground>
       default:
         return const [
           Color(0xFFFFB7B2), // Macaron Pink (樱花粉)
-          Color(0xFFFFDAC1), // Macaron Peach (蜜桃橘)
-          Color(0xFFE2F0CB), // Macaron Yellow-Green (柠檬黄绿)
           Color(0xFFB5EAD7), // Macaron Mint (薄荷绿)
           Color(0xFFC7CEEA), // Macaron Lavender (薰衣草紫)
         ];

@@ -204,9 +204,6 @@ const allPalettes = [
   paletteDefault,
   paletteWhite,
   paletteDark,
-  paletteGreen,
-  paletteBlue,
-  palettePink,
 ];
 
 /// 通过 key 查找

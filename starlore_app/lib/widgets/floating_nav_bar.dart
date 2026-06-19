@@ -17,7 +17,7 @@ class FloatingNavBar extends StatelessWidget {
   static const _items = [
     _NavItem(Icons.home_outlined, Icons.home_rounded, '首页'),
     _NavItem(Icons.explore_outlined, Icons.explore_rounded, '探索'),
-    _NavItem(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'AI'),
+    _NavItem(Icons.add_circle_outline_rounded, Icons.add_circle_rounded, '发布'),
     _NavItem(Icons.person_outline_rounded, Icons.person_rounded, '我的'),
   ];
 

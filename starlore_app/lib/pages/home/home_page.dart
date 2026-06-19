@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
@@ -123,27 +124,30 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final p = paletteOf(context);
 
-    return Column(
+    return Stack(
       children: [
-        _buildHeader(p),
-        _buildCategories(p),
-        Expanded(
+        // 滚动的内容区域 (在底层，填充整个页面并向上延伸到状态栏)
+        Positioned.fill(
           child: _loading
-              ? _buildSkeleton()
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 132),
+                  child: _buildSkeleton(),
+                )
               : RefreshIndicator(
                   color: p.accent,
                   backgroundColor: p.surface,
+                  edgeOffset: 120,
                   onRefresh: _load,
                   child: ListView(
                     controller: _scrollCtrl,
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: BouncingScrollPhysics(),
                     ),
-                    padding: EdgeInsets.fromLTRB(
+                    padding: const EdgeInsets.fromLTRB(
                       Tok.horizontalPadding,
-                      Tok.space3,
+                      132, // 顶部留空给浮动的毛玻璃 Header
                       Tok.horizontalPadding,
-                      120, // 底部留白给导航栏
+                      120, // 底部留空给导航栏
                     ),
                     children: [
                       _buildStaggeredGrid(context, p),
@@ -164,6 +168,36 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+        ),
+        // 顶部的浮动毛玻璃渐变 Header
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+              child: Container(
+                padding: const EdgeInsets.only(bottom: Tok.space2),
+                decoration: BoxDecoration(
+                  color: p.canvas.withValues(alpha: 0.82),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: p.border.withValues(alpha: 0.4),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildHeader(p),
+                    _buildCategories(p),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );

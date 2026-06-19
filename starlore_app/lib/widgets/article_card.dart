@@ -35,24 +35,23 @@ class ArticleCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 封面图片或马卡龙占位渐变色块
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(Tok.radiusLg),
-              topRight: Radius.circular(Tok.radiusLg),
+          // 封面图片 (如果没有封面就不要展示封面)
+          if (hasCover)
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(Tok.radiusLg),
+                topRight: Radius.circular(Tok.radiusLg),
+              ),
+              child: AspectRatio(
+                aspectRatio: ratio,
+                child: CachedNetworkImage(
+                  imageUrl: article.coverImage!,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(color: p.canvasDeep),
+                  errorWidget: (context, url, error) => Container(color: p.canvasDeep),
+                ),
+              ),
             ),
-            child: AspectRatio(
-              aspectRatio: ratio,
-              child: hasCover
-                  ? CachedNetworkImage(
-                      imageUrl: article.coverImage!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(color: p.canvasDeep),
-                      errorWidget: (context, url, error) => _pastelPlaceholder(p),
-                    )
-                  : _pastelPlaceholder(p),
-            ),
-          ),
           // 文字内容区域
           Padding(
             padding: const EdgeInsets.all(Tok.space3),

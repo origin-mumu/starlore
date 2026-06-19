@@ -5,7 +5,7 @@ import '../widgets/floating_nav_bar.dart';
 import '../widgets/orb_background.dart';
 import 'home/home_page.dart';
 import 'explore/explore_page.dart';
-import 'chat/chat_page.dart';
+import 'publish/publish_page.dart';
 import 'profile/profile_page.dart';
 
 /// 主壳 — 底部导航 + 页面切换
@@ -22,7 +22,7 @@ class _MainShellState extends State<MainShell> {
   final List<Widget> _pages = const [
     HomePage(),
     ExplorePage(),
-    ChatPage(),
+    PublishPage(),
     ProfilePage(),
   ];
 
