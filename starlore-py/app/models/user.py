@@ -25,5 +25,9 @@ class User(Base):
     ai_daily_limit: Mapped[int] = mapped_column(Integer, default=10)
     ai_today_count: Mapped[int] = mapped_column(Integer, default=0)
     ai_reset_date: Mapped[date | None] = mapped_column(Date)
+    register_ip: Mapped[str | None] = mapped_column(String(50))
+    register_country: Mapped[str | None] = mapped_column(String(50))
+    register_province: Mapped[str | None] = mapped_column(String(50))
+    register_city: Mapped[str | None] = mapped_column(String(50))
     createdAt: Mapped[datetime | None] = mapped_column(DateTime)  # noqa: N815
     updatedAt: Mapped[datetime | None] = mapped_column(DateTime)  # noqa: N815

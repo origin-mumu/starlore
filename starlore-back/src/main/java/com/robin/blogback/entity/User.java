@@ -30,6 +30,14 @@ public class User {
     private Integer aiTodayCount;
     @TableField("ai_reset_date")
     private LocalDate aiResetDate;
+    @TableField("register_ip")
+    private String registerIp;
+    @TableField("register_country")
+    private String registerCountry;
+    @TableField("register_province")
+    private String registerProvince;
+    @TableField("register_city")
+    private String registerCity;
     @TableField("createdAt")
     private LocalDateTime createdAt;
     @TableField("updatedAt")

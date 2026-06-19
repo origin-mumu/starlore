@@ -38,7 +38,7 @@ def to_user_info(user: User) -> UserInfo:
     )
 
 
-async def register(db: AsyncSession, req: RegisterRequest) -> AuthResponse:
+async def register(db: AsyncSession, req: RegisterRequest, ip: str | None = None) -> AuthResponse:
     """用户注册。"""
     if not req.username or not req.password:
         raise BadRequestException("用户名和密码不能为空")
@@ -48,6 +48,10 @@ async def register(db: AsyncSession, req: RegisterRequest) -> AuthResponse:
     existing = await db.execute(select(User).where(User.username == req.username))
     if existing.scalar_one_or_none() is not None:
         raise ConflictException("用户名已存在")
+
+    normalized_ip = ip
+    if normalized_ip == "0:0:0:0:0:0:0:1":
+        normalized_ip = "127.0.0.1"
 
     hashed_pwd = hash_password(req.password)
     now = datetime.now()
@@ -60,11 +64,17 @@ async def register(db: AsyncSession, req: RegisterRequest) -> AuthResponse:
         ai_daily_limit=10,
         ai_today_count=0,
         ai_reset_date=date.today(),
+        register_ip=normalized_ip,
         createdAt=now,
         updatedAt=now,
     )
     db.add(user)
     await db.flush()
+
+    # 异步查询注册 IP 地理位置
+    if normalized_ip and not normalized_ip.startswith("127.") and normalized_ip != "0:0:0:0:0:0:0:1":
+        user_id = user.id
+        asyncio.create_task(_update_user_register_location(user_id, normalized_ip))
 
     token = generate_token(user.id, user.username)
     return AuthResponse(
@@ -126,6 +136,23 @@ async def _update_login_log_location(log_id: int, ip: str | None) -> None:
                     await session.commit()
     except Exception as e:
         logger.warning("Failed to update login log location: %s", e)
+
+
+async def _update_user_register_location(user_id: int, ip: str | None) -> None:
+    """异步更新用户注册的地理位置信息（使用独立会话）。"""
+    try:
+        location = await lookup_ip(ip)
+        if location:
+            async with async_session_factory() as session:
+                result = await session.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                if user:
+                    user.register_country = location["country"]
+                    user.register_province = location["province"]
+                    user.register_city = location["city"]
+                    await session.commit()
+    except Exception as e:
+        logger.warning("Failed to update user register location: %s", e)
 
 
 async def get_current_user(db: AsyncSession, user_id: int) -> UserInfo:

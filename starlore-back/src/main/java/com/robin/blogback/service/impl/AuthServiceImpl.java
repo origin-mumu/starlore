@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private IpLocationService ipLocationService;
 
     @Override
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         if (request.getUsername() == null || request.getPassword() == null
                 || request.getUsername().isBlank() || request.getPassword().isBlank()) {
             throw new BadRequestException("用户名和密码不能为空");
@@ -62,10 +62,35 @@ public class AuthServiceImpl implements AuthService {
         user.setAiDailyLimit(10);
         user.setAiTodayCount(0);
         user.setAiResetDate(LocalDate.now());
+
+        // 记录注册 IP
+        String ip = httpRequest != null ? httpRequest.getRemoteAddr() : null;
+        if (ip != null && ip.equals("0:0:0:0:0:0:0:1")) ip = "127.0.0.1";
+        user.setRegisterIp(ip);
+
         LocalDateTime now = LocalDateTime.now();
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         userMapper.insert(user);
+
+        // 异步查询注册 IP 归属地并更新
+        if (ip != null && !ip.startsWith("127.") && !"0:0:0:0:0:0:0:1".equals(ip)) {
+            final String finalIp = ip;
+            final Integer userId = user.getId();
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    IpLocationService.IpLocation loc = ipLocationService.lookup(finalIp);
+                    if (loc.country() != null && !loc.country().isEmpty()) {
+                        User updateNode = new User();
+                        updateNode.setId(userId);
+                        updateNode.setRegisterCountry(loc.country());
+                        updateNode.setRegisterProvince(loc.province());
+                        updateNode.setRegisterCity(loc.city());
+                        userMapper.updateById(updateNode);
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername());
         UserInfo userInfo = toUserInfo(user);
