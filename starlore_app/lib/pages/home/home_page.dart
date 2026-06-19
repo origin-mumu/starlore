@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> {
                   color: p.accent,
                   backgroundColor: p.surface,
                   onRefresh: _load,
-                  child: ListView.builder(
+                  child: ListView(
                     controller: _scrollCtrl,
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: BouncingScrollPhysics(),
@@ -145,10 +145,10 @@ class _HomePageState extends State<HomePage> {
                       Tok.horizontalPadding,
                       120, // 底部留白给导航栏
                     ),
-                    itemCount: _articles.length + (_loadingMore ? 1 : 0),
-                    itemBuilder: (_, i) {
-                      if (i >= _articles.length) {
-                        return Center(
+                    children: [
+                      _buildStaggeredGrid(context, p),
+                      if (_loadingMore)
+                        Center(
                           child: Padding(
                             padding: const EdgeInsets.all(Tok.space5),
                             child: SizedBox(
@@ -160,24 +160,69 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                           ),
-                        );
-                      }
-                      return StaggeredFadeIn(
-                        index: i,
-                        child: ArticleCard(
-                          article: _articles[i],
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ArticleDetailPage(articleId: _articles[i].id),
-                            ),
-                          ),
                         ),
-                      );
-                    },
+                    ],
                   ),
                 ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStaggeredGrid(BuildContext context, StarlorePalette p) {
+    final leftArticles = <Article>[];
+    final rightArticles = <Article>[];
+    for (int i = 0; i < _articles.length; i++) {
+      if (i % 2 == 0) {
+        leftArticles.add(_articles[i]);
+      } else {
+        rightArticles.add(_articles[i]);
+      }
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(leftArticles.length, (index) {
+              final article = leftArticles[index];
+              return StaggeredFadeIn(
+                index: index * 2,
+                child: ArticleCard(
+                  article: article,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ArticleDetailPage(articleId: article.id),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(width: Tok.space3), // Spacing between columns
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(rightArticles.length, (index) {
+              final article = rightArticles[index];
+              return StaggeredFadeIn(
+                index: index * 2 + 1,
+                child: ArticleCard(
+                  article: article,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ArticleDetailPage(articleId: article.id),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ],
     );
@@ -261,10 +306,21 @@ class _HomePageState extends State<HomePage> {
   Widget _buildSkeleton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Tok.horizontalPadding),
-      child: ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
-        itemBuilder: (context, index) => const ArticleCardSkeleton(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              children: List.generate(3, (_) => const ArticleCardSkeleton()),
+            ),
+          ),
+          const SizedBox(width: Tok.space3),
+          Expanded(
+            child: Column(
+              children: List.generate(3, (_) => const ArticleCardSkeleton()),
+            ),
+          ),
+        ],
       ),
     );
   }
