@@ -817,7 +817,7 @@ onBeforeUnmount(() => {
         <Sparkles class="welcome-icon-svg" />
         <h2>创意发散</h2>
         <p v-if="userStore.isLoggedIn">输入一个词，在AI的星云中开始联想发散...</p>
-        <p v-else>已开启访客体验模式，输入词汇即可进行发散</p>
+        <p v-else>当前为<strong>访客模式（本地模拟体验）</strong>。输入词汇可试用物理图谱，<strong>登录后解锁云端 DeepSeek AI 真实联想图谱！</strong></p>
       </div>
 
       <!-- Canvas -->
@@ -893,7 +893,7 @@ onBeforeUnmount(() => {
           <input
             v-model="inputWord"
             type="text"
-            :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '访客体验模式，输入词汇发散...'"
+            :placeholder="userStore.isLoggedIn ? '输入一个词，开始发散...' : '本地模拟模式 · 登录后体验云端真实 AI 联想...'"
             class="search-input"
             :disabled="loading"
           />
@@ -911,7 +911,7 @@ onBeforeUnmount(() => {
             {{ aiQuotaExceeded ? '今日 AI 次数已用尽' : `今日剩余 ${aiQuotaRemaining} 次` }}
           </span>
           <span v-else class="guest-quota-badge">
-            游客免登录体验模式 (本地模拟)
+            游客体验模式（本地模拟） · <router-link to="/login" style="text-decoration: underline; color: var(--accent); font-weight: bold;">立即登录</router-link>解锁真实云端 AI
           </span>
         </div>
       </div>
