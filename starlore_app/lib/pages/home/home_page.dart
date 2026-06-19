@@ -130,13 +130,13 @@ class _HomePageState extends State<HomePage> {
         Positioned.fill(
           child: _loading
               ? Padding(
-                  padding: const EdgeInsets.only(top: 132),
+                  padding: const EdgeInsets.only(top: 144),
                   child: _buildSkeleton(),
                 )
               : RefreshIndicator(
                   color: p.accent,
                   backgroundColor: p.surface,
-                  edgeOffset: 120,
+                  edgeOffset: 130,
                   onRefresh: _load,
                   child: ListView(
                     controller: _scrollCtrl,
@@ -145,7 +145,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     padding: const EdgeInsets.fromLTRB(
                       Tok.horizontalPadding,
-                      132, // 顶部留空给浮动的毛玻璃 Header
+                      144, // 顶部留空给浮动的毛玻璃 Header
                       Tok.horizontalPadding,
                       120, // 底部留空给导航栏
                     ),
@@ -169,31 +169,50 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
         ),
-        // 顶部的浮动毛玻璃渐变 Header
+        // 顶部的浮动毛玻璃渐变 Header (ShaderMask 渐变羽化)
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
-              child: Container(
-                padding: const EdgeInsets.only(bottom: Tok.space2),
-                decoration: BoxDecoration(
-                  color: p.canvas.withValues(alpha: 0.82),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: p.border.withValues(alpha: 0.4),
-                      width: 0.5,
+          child: ShaderMask(
+            shaderCallback: (rect) {
+              return LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: const [
+                  Colors.black,
+                  Colors.black,
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.75, 1.0],
+              ).createShader(rect);
+            },
+            blendMode: BlendMode.dstIn,
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+                child: Container(
+                  padding: const EdgeInsets.only(bottom: Tok.space4),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        p.canvas.withValues(alpha: 0.95),
+                        p.canvas.withValues(alpha: 0.85),
+                        p.canvas.withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.0, 0.75, 1.0],
                     ),
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHeader(p),
-                    _buildCategories(p),
-                  ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeader(p),
+                      _buildCategories(p),
+                      const SizedBox(height: Tok.space2),
+                    ],
+                  ),
                 ),
               ),
             ),
