@@ -12,7 +12,8 @@ from app.dependencies import require_admin
 from app.exceptions import NotFoundException
 from app.models.login_log import LoginLog
 from app.models.user import User
-from app.schemas.common import SimpleResponse
+from app.schemas.common import MessageResponse, SimpleResponse
+from app.schemas.admin import AdminUserUpdateResponse
 from app.services import auth_service
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -24,7 +25,7 @@ class UpdateUserRoleRequest(BaseModel):
     avatar: str | None = None
     bio: str | None = None
     role: str | None = None
-    ai_daily_limit: int | None = None
+    aiDailyLimit: int | None = None
 
 
 @router.get("/users")
@@ -50,7 +51,7 @@ async def get_user(
     return {"data": auth_service.to_user_info(target)}
 
 
-@router.put("/users/{user_id}", response_model=SimpleResponse)
+@router.put("/users/{user_id}", response_model=AdminUserUpdateResponse)
 async def update_user(
     user_id: int,
     req: UpdateUserRoleRequest,
@@ -73,17 +74,20 @@ async def update_user(
         updates["bio"] = req.bio
     if req.role is not None:
         updates["role"] = req.role
-    if req.ai_daily_limit is not None:
-        updates["ai_daily_limit"] = req.ai_daily_limit
+    if req.aiDailyLimit is not None:
+        updates["ai_daily_limit"] = req.aiDailyLimit
 
     updates["updatedAt"] = datetime.now()
     for field, value in updates.items():
         setattr(target, field, value)
     await db.flush()
-    return SimpleResponse.ok("用户更新成功")
+    return {
+        "message": "更新成功",
+        "data": auth_service.to_user_info(target)
+    }
 
 
-@router.delete("/users/{user_id}", response_model=SimpleResponse)
+@router.delete("/users/{user_id}", response_model=MessageResponse)
 async def delete_user(
     user_id: int,
     admin: User = Depends(require_admin),
@@ -95,7 +99,7 @@ async def delete_user(
         raise NotFoundException("用户不存在")
     await db.delete(target)
     await db.flush()
-    return SimpleResponse.ok("用户删除成功")
+    return {"message": "用户删除成功"}
 
 
 @router.get("/login-logs")
@@ -134,5 +138,7 @@ async def list_login_logs(
             }
             for log in logs
         ],
-        "pagination": {"current": page, "total": total, "pages": pages},
+        "total": total,
+        "pages": pages,
+        "current": page,
     }

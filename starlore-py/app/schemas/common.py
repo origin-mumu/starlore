@@ -23,3 +23,14 @@ class PaginationInfo(BaseModel):
     current: int
     total: int
     pages: int
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class UploadResponse(BaseModel):
+    data: dict
+    message: str
+
+

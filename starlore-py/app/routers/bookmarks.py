@@ -12,8 +12,13 @@ from app.exceptions import NotFoundException
 from app.models.article import Article
 from app.models.bookmark import Bookmark
 from app.models.user import User
+from app.schemas.common import MessageResponse, SimpleResponse
 from app.schemas.article import ArticleSummary
-from app.schemas.common import SimpleResponse
+
+
+class AddBookmarkRequest(BaseModel):
+    articleId: int
+
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
 
@@ -66,12 +71,13 @@ async def check_bookmark(
     return {"bookmarked": bookmarked}
 
 
-@router.post("", response_model=SimpleResponse)
+@router.post("", response_model=MessageResponse)
 async def add_bookmark(
-    article_id: int,
+    req: AddBookmarkRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    article_id = req.articleId
     art = await db.execute(select(Article).where(Article.id == article_id))
     if art.scalar_one_or_none() is None:
         raise NotFoundException("文章不存在")
@@ -80,15 +86,15 @@ async def add_bookmark(
         select(Bookmark).where(Bookmark.user_id == user.id, Bookmark.article_id == article_id)
     )
     if existing.scalar_one_or_none() is not None:
-        return SimpleResponse.ok("已收藏")
+        return {"message": "已收藏"}
 
     bookmark = Bookmark(user_id=user.id, article_id=article_id, created_at=datetime.now())
     db.add(bookmark)
     await db.flush()
-    return SimpleResponse.ok("收藏成功")
+    return {"message": "收藏成功"}
 
 
-@router.delete("/{article_id}", response_model=SimpleResponse)
+@router.delete("/{article_id}", response_model=MessageResponse)
 async def remove_bookmark(
     article_id: int,
     user: User = Depends(get_current_user),
@@ -103,4 +109,4 @@ async def remove_bookmark(
 
     await db.delete(bookmark)
     await db.flush()
-    return SimpleResponse.ok("取消收藏成功")
+    return {"message": "已取消收藏"}

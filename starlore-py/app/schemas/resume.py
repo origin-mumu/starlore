@@ -11,11 +11,26 @@ class ResumeItem(BaseModel):
     title: str | None = None
     template: str | None = None
     name: str | None = None
-    job_title: str | None = None
+    jobTitle: str | None = None
     phone: str | None = None
     email: str | None = None
-    photo_url: str | None = None
+    photoUrl: str | None = None
     content: str | None = None
     status: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    createdAt: datetime | None = None
+    updatedAt: datetime | None = None
+
+
+class ResumeResponse(BaseModel):
+    data: ResumeItem
+    message: str
+
+
+class ResumeListResponse(BaseModel):
+    data: list[ResumeItem]
+
+
+class ResumeDetailResponse(BaseModel):
+    data: ResumeItem
+
+

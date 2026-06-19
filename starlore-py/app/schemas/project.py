@@ -22,3 +22,9 @@ class ProjectInfo(BaseModel):
     sortOrder: int | None = None
     createdAt: datetime | None = None
     updatedAt: datetime | None = None
+
+
+class ProjectResponse(BaseModel):
+    data: ProjectInfo
+    message: str
+

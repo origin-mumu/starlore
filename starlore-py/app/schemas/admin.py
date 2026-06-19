@@ -32,3 +32,11 @@ class DailyItem(BaseModel):
 
 class DailyStatsResponse(BaseModel):
     data: list[DailyItem]
+
+
+from app.schemas.auth import UserInfo
+
+class AdminUserUpdateResponse(BaseModel):
+    message: str
+    data: UserInfo
+

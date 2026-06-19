@@ -8,8 +8,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.resume import Resume
 from app.models.user import User
-from app.schemas.common import SimpleResponse
-from app.schemas.resume import ResumeItem
+from app.schemas.common import MessageResponse, SimpleResponse
+from app.schemas.resume import ResumeDetailResponse, ResumeItem, ResumeListResponse, ResumeResponse
 from app.services import resume_service
 
 router = APIRouter(prefix="/api/resume", tags=["resume"])
@@ -19,10 +19,10 @@ class CreateResumeRequest(BaseModel):
     title: str | None = None
     template: str | None = None
     name: str | None = None
-    job_title: str | None = None
+    jobTitle: str | None = None
     phone: str | None = None
     email: str | None = None
-    photo_url: str | None = None
+    photoUrl: str | None = None
     content: str | None = None
 
 
@@ -31,14 +31,14 @@ class UpdateResumeRequest(BaseModel):
     title: str | None = None
     template: str | None = None
     name: str | None = None
-    job_title: str | None = None
+    jobTitle: str | None = None
     phone: str | None = None
     email: str | None = None
-    photo_url: str | None = None
+    photoUrl: str | None = None
     content: str | None = None
 
 
-@router.get("/list")
+@router.get("/list", response_model=ResumeListResponse)
 async def list_resumes(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -52,21 +52,21 @@ async def list_resumes(
                 title=r.title,
                 template=r.template,
                 name=r.name,
-                job_title=r.job_title,
+                jobTitle=r.job_title,
                 phone=r.phone,
                 email=r.email,
-                photo_url=r.photo_url,
+                photoUrl=r.photo_url,
                 content=r.content,
                 status=r.status,
-                created_at=r.created_at,
-                updated_at=r.updated_at,
+                createdAt=r.created_at,
+                updatedAt=r.updated_at,
             )
             for r in resumes
         ]
     }
 
 
-@router.get("/{resume_id}")
+@router.get("/{resume_id}", response_model=ResumeDetailResponse)
 async def get_resume(
     resume_id: int,
     user: User = Depends(get_current_user),
@@ -80,19 +80,19 @@ async def get_resume(
             title=r.title,
             template=r.template,
             name=r.name,
-            job_title=r.job_title,
+            jobTitle=r.job_title,
             phone=r.phone,
             email=r.email,
-            photo_url=r.photo_url,
+            photoUrl=r.photo_url,
             content=r.content,
             status=r.status,
-            created_at=r.created_at,
-            updated_at=r.updated_at,
+            createdAt=r.created_at,
+            updatedAt=r.updated_at,
         )
     }
 
 
-@router.post("/create", response_model=SimpleResponse)
+@router.post("/create", response_model=ResumeResponse)
 async def create_resume(
     req: CreateResumeRequest,
     user: User = Depends(get_current_user),
@@ -102,17 +102,32 @@ async def create_resume(
         title=req.title,
         template=req.template,
         name=req.name,
-        job_title=req.job_title,
+        job_title=req.jobTitle,
         phone=req.phone,
         email=req.email,
-        photo_url=req.photo_url,
+        photo_url=req.photoUrl,
         content=req.content,
     )
     await resume_service.create(db, resume, user.id)
-    return SimpleResponse.ok("简历创建成功", {"id": resume.id})
+    item = ResumeItem(
+        id=resume.id,
+        userId=resume.user_id,
+        title=resume.title,
+        template=resume.template,
+        name=resume.name,
+        jobTitle=resume.job_title,
+        phone=resume.phone,
+        email=resume.email,
+        photoUrl=resume.photo_url,
+        content=resume.content,
+        status=resume.status,
+        createdAt=resume.created_at,
+        updatedAt=resume.updated_at,
+    )
+    return {"data": item, "message": "创建成功"}
 
 
-@router.put("/update", response_model=SimpleResponse)
+@router.put("/update", response_model=ResumeResponse)
 async def update_resume(
     req: UpdateResumeRequest,
     user: User = Depends(get_current_user),
@@ -123,24 +138,39 @@ async def update_resume(
         title=req.title,
         template=req.template,
         name=req.name,
-        job_title=req.job_title,
+        job_title=req.jobTitle,
         phone=req.phone,
         email=req.email,
-        photo_url=req.photo_url,
+        photo_url=req.photoUrl,
         content=req.content,
     )
     updated = await resume_service.update(db, resume, user.id)
-    return SimpleResponse.ok("简历更新成功", {"id": updated.id})
+    item = ResumeItem(
+        id=updated.id,
+        userId=updated.user_id,
+        title=updated.title,
+        template=updated.template,
+        name=updated.name,
+        jobTitle=updated.job_title,
+        phone=updated.phone,
+        email=updated.email,
+        photoUrl=updated.photo_url,
+        content=updated.content,
+        status=updated.status,
+        createdAt=updated.created_at,
+        updatedAt=updated.updated_at,
+    )
+    return {"data": item, "message": "更新成功"}
 
 
-@router.delete("/{resume_id}", response_model=SimpleResponse)
+@router.delete("/{resume_id}", response_model=MessageResponse)
 async def delete_resume(
     resume_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await resume_service.delete(db, resume_id, user.id)
-    return SimpleResponse.ok("简历删除成功")
+    return {"message": "删除成功"}
 
 
 @router.get("/{resume_id}/export-pdf")
