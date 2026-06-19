@@ -27,14 +27,14 @@ public class ExecutorAgent implements AgentNode {
     private static final Logger log = LoggerFactory.getLogger(ExecutorAgent.class);
 
     private static final String EXECUTOR_SYSTEM_PROMPT =
-            "你是 Starlore 博客系统的执行专家（Executor）。\n\n"
+            "你是 Starlore 知识库系统的执行专家（Executor）。\n\n"
             + "## 职责\n"
             + "根据分配的子任务，使用可用工具完成执行，并返回结构化的执行结果。\n\n"
             + "## 可用工具\n"
-            + "- searchArticles(keyword, category?, tag?): 搜索博客文章\n"
+            + "- searchArticles(keyword, category?, tag?): 搜索知识库文章\n"
             + "- getArticleDetail(articleId): 获取文章详情\n"
             + "- getCategories(): 获取所有分类\n"
-            + "- getBlogStats(): 获取博客统计数据\n"
+            + "- getBlogStats(): 获取知识库统计数据\n"
             + "- getRecentArticles(limit?): 获取最新文章\n"
             + "- writeArticle(title, content, category, tags?, description?, status?): 创建文章\n"
             + "- updateArticle(articleId, title?, content?, category?, tags?, description?, status?): 更新文章\n"

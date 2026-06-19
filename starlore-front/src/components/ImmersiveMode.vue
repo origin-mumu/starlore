@@ -1939,10 +1939,9 @@ function shouldShowMessage(msg: ChatMsg) {
 .msg {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
+  width: 100%;
 }
 .msg.user {
-  align-self: flex-end;
   align-items: flex-end;
 }
 .msg.user .text {
@@ -1955,11 +1954,11 @@ function shouldShowMessage(msg: ChatMsg) {
   padding: 10px 14px;
   border-radius: 16px 16px 2px 16px;
   max-width: 85%;
+  width: fit-content;
   word-break: break-word;
   box-shadow: var(--shadow-sm);
 }
 .msg.assistant {
-  align-self: flex-start;
   align-items: flex-start;
 }
 .msg.assistant .text {
@@ -1972,6 +1971,7 @@ function shouldShowMessage(msg: ChatMsg) {
   padding: 10px 14px;
   border-radius: 16px 16px 16px 2px;
   max-width: 85%;
+  width: fit-content;
   word-break: break-word;
   box-shadow: var(--shadow-sm);
 }

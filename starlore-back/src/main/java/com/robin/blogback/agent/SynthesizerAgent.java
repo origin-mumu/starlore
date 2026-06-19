@@ -26,7 +26,7 @@ public class SynthesizerAgent implements AgentNode {
     private static final Logger log = LoggerFactory.getLogger(SynthesizerAgent.class);
 
     private static final String SYNTHESIZER_SYSTEM_PROMPT =
-            "你是 Starlore 博客系统的回答合成专家（Synthesizer）。\n\n"
+            "你是 Starlore 知识库系统的回答合成专家（Synthesizer）。\n\n"
             + "## 职责\n"
             + "将多个子任务的执行结果整合为一个连贯、自然、完整的最终回答。\n\n"
             + "## 规则\n"

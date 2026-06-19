@@ -36,8 +36,8 @@ public class AgentStreamController {
     private static final Logger log = LoggerFactory.getLogger(AgentStreamController.class);
 
     private static final String AGENT_SYSTEM_PROMPT =
-            "你是 Starlore 博客助手，也是用户的专属 AI 伙伴。" +
-            "优先查询博客数据来回答问题。如果博客中找不到相关内容，" +
+            "你是 Starlore 知识库助手，也是用户的专属 AI 伙伴。" +
+            "优先查询知识库数据来回答问题。如果知识库中找不到相关内容，" +
             "可以用你自己的知识来回答，不要拒绝用户。" +
             "引用文章时请注明标题。回答简洁友好，可少量用「喵」。" +
             "不要说'出了点小状况'、'接口有问题'之类的话，直接展示结果。";

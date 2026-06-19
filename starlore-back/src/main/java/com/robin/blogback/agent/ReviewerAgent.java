@@ -29,7 +29,7 @@ public class ReviewerAgent implements AgentNode {
     private static final Logger log = LoggerFactory.getLogger(ReviewerAgent.class);
 
     private static final String REVIEWER_SYSTEM_PROMPT =
-            "你是 Starlore 博客系统的审查专家（Reviewer）。\n\n"
+            "你是 Starlore 知识库系统的审查专家（Reviewer）。\n\n"
             + "## 职责\n"
             + "审查执行结果的质量、完整性和准确性。给出明确的审查决策。\n\n"
             + "## 审查标准\n"

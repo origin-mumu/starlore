@@ -35,8 +35,7 @@ public class DivergeController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String SYSTEM_PROMPT =
-            "你是一个创意联想助手，擅长从一个词出发，沿着具体的方向（工具、场景、人物、风格、趋势等）找到生动且强相关的联想词。" +
-            "你的联想让人感觉\"妙啊，确实是这样\"，而不是\"这有什么关系？\"。你只返回JSON数组，不返回其他内容。";
+            "你是一个头脑风暴创意联想助手。能够根据用户输入的词语，向外扩散联想出与之强关联的 8 个最典型、最生动、最具画面感的事物或概念。你必须严格以 JSON 数组形式返回结果，不能包含任何其他 Markdown 语法或额外解释。";
 
     @PostMapping("/diverge")
     public ResponseEntity<?> diverge(HttpServletRequest httpRequest, @RequestBody Map<String, String> body) {
@@ -56,23 +55,12 @@ public class DivergeController {
             // 消耗一次配额
             aiQuotaService.tryConsume(userId);
             String userPrompt = String.format(
-                "用户输入了\"%s\"，请围绕它联想8个词。\n\n" +
-                "核心原则：每个词必须和\"%s\"强相关。联想可以巧妙、有趣，但不能牵强——如果别人看到这个词，应该能立刻明白\"为什么从%s想到了它\"。\n\n" +
-                "联想方向建议（每个方向挑一两个即可，不用全部覆盖）：\n" +
-                "- 工具/设备：%s常用什么工具\n" +
-                "- 场景/空间：%s在什么环境下工作或出现\n" +
-                "- 上下游：%s的上游输入或下游产出是什么\n" +
-                "- 风格/流派：%s领域内有什么分支或风格\n" +
-                "- 代表人物/品牌：行业内公认的名字\n" +
-                "- 痛点/需求：%s面临什么困扰或用户需要什么\n" +
-                "- 搭配/组合：%s常和什么一起出现\n" +
-                "- 趋势/新事物：%s领域最近有什么新变化\n\n" +
+                "请输入词为：\"%s\"。请围绕它向外联想 8 个关联词语。\n\n" +
                 "要求：\n" +
-                "1. 每个联想词必须是和\"%s\"直接相关的具体事物，不能是抽象概念\n" +
-                "2. 优先选生动、有画面感的词，让人能\"看到\"它\n" +
-                "3. 网感可以有，但不能为了网感牺牲相关性\n" +
-                "4. 每个词包含 zh 和 en，严格按JSON数组返回，不要其他文字",
-                word, word, word, word, word, word, word, word, word, word, word);
+                "1. 每个联想词必须与输入词有强烈的直接关联，逻辑必须合乎常理、生动逼真（例如对于食物或动作，应联想相关器具、食材、流派、场景或直接相关联想词，避免生硬死板地套用无关概念）。\n" +
+                "2. 每个联想词包含 zh（中文）和 en（英文翻译），必须使用 JSON 格式表示，例如：[{\"zh\":\"火锅\",\"en\":\"hotpot\"}, ...]。\n" +
+                "3. 严禁返回任何 Markdown 代码块包裹（如 ```json）或多余的文字说明，仅返回纯粹的 JSON 数组。",
+                word);
 
             log.info("Diverge request: word={}", word);
 
