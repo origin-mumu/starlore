@@ -169,53 +169,63 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
         ),
-        // 顶部的浮动毛玻璃渐变 Header (ShaderMask 渐变羽化)
+        // 顶部的浮动毛玻璃背景 (高斯模糊与背景色渐变羽化，独立于内容以保证背景过渡平滑)
         Positioned(
           top: 0,
           left: 0,
           right: 0,
+          height: 165, // 延伸背景高度，给渐变留出充足的羽化过渡空间
           child: ShaderMask(
             shaderCallback: (rect) {
-              return LinearGradient(
+              return const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: const [
+                colors: [
                   Colors.black,
                   Colors.black,
                   Colors.transparent,
                 ],
-                stops: const [0.0, 0.75, 1.0],
+                stops: [0.0, 0.6, 1.0], // 从 60% (99px) 开始渐变消失，到 165px 完全透明，过渡更自然
               ).createShader(rect);
             },
             blendMode: BlendMode.dstIn,
             child: ClipRect(
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+                filter: ImageFilter.blur(
+                  sigmaX: 16.0,
+                  sigmaY: 16.0,
+                  tileMode: TileMode.decal, // 使用 decal 模式，防止边缘出现硬边或夹取模糊像素
+                ),
                 child: Container(
-                  padding: const EdgeInsets.only(bottom: Tok.space4),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
                         p.canvas.withValues(alpha: 0.95),
-                        p.canvas.withValues(alpha: 0.85),
+                        p.canvas.withValues(alpha: 0.65),
                         p.canvas.withValues(alpha: 0.0),
                       ],
-                      stops: const [0.0, 0.75, 1.0],
+                      stops: const [0.0, 0.6, 1.0],
                     ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildHeader(p),
-                      _buildCategories(p),
-                      const SizedBox(height: Tok.space2),
-                    ],
                   ),
                 ),
               ),
             ),
+          ),
+        ),
+        // 顶部的浮动 Header 内容 (保持清晰，不受 ShaderMask 的渐变透明影响)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHeader(p),
+              _buildCategories(p),
+              const SizedBox(height: Tok.space2),
+            ],
           ),
         ),
       ],
