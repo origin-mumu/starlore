@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.robin.blogback.entity.Article;
+import com.robin.blogback.entity.AiConfig;
 import com.robin.blogback.mapper.ArticleMapper;
+import com.robin.blogback.service.AiConfigService;
 import com.robin.blogback.service.ArticleEmbeddingService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -43,6 +45,9 @@ public class GuestAiController {
 
     @Autowired
     private ArticleMapper articleMapper;
+
+    @Autowired
+    private AiConfigService aiConfigService;
 
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
@@ -255,24 +260,39 @@ public class GuestAiController {
             }
             apiMessages.add(Map.of("role", "user", "content", message));
 
+            String resolvedApiKey = apiKey;
+            String resolvedBaseUrl = baseUrl;
+            String resolvedModel = modelName;
+
+            if (aiConfigService != null) {
+                AiConfig dbConfig = aiConfigService.getConfigByKey("deepseek-v4-flash");
+                if (dbConfig != null && dbConfig.getEnabled() && org.springframework.util.StringUtils.hasText(dbConfig.getApiKey())) {
+                    resolvedApiKey = dbConfig.getApiKey();
+                    resolvedBaseUrl = dbConfig.getApiUrl();
+                    resolvedModel = dbConfig.getModelId();
+                }
+            }
+
             // 5. 构造原生 HTTP 请求，以便同时获取 content 和 reasoning_content
             Map<String, Object> requestBody = new java.util.LinkedHashMap<>();
-            requestBody.put("model", modelName);
+            requestBody.put("model", resolvedModel);
             requestBody.put("messages", apiMessages);
             requestBody.put("stream", false);
 
-            String finalApiUrl = baseUrl + "/v1/chat/completions";
-            if (baseUrl.endsWith("/v1") || baseUrl.endsWith("/v1/")) {
-                finalApiUrl = baseUrl + "/chat/completions";
+            String finalApiUrl = resolvedBaseUrl + "/v1/chat/completions";
+            if (resolvedBaseUrl.endsWith("/v1") || resolvedBaseUrl.endsWith("/v1/")) {
+                finalApiUrl = resolvedBaseUrl + "/chat/completions";
+            } else if (resolvedBaseUrl.endsWith("/chat/completions")) {
+                finalApiUrl = resolvedBaseUrl;
             }
 
             String bodyJson = objectMapper.writeValueAsString(requestBody);
-            log.info("Guest Chat request (IP={}): URL={}, model={}", ip, finalApiUrl, modelName);
+            log.info("Guest Chat request (IP={}): URL={}, model={}", ip, finalApiUrl, resolvedModel);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(finalApiUrl))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Authorization", "Bearer " + resolvedApiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
                     .build();
 

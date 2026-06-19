@@ -1527,7 +1527,7 @@ function shouldShowMessage(msg: ChatMsg) {
             </div>
             <!-- 图片消息 -->
             <img v-if="msg.imageUrl" :src="msg.imageUrl" class="imm-msg-image" />
-            <div class="text" v-html="fmt(msg.content)"></div>
+            <div v-if="msg.content && msg.content.trim()" class="text" v-html="fmt(msg.content)"></div>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
