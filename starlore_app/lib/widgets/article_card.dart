@@ -105,37 +105,6 @@ class ArticleCard extends StatelessWidget {
     );
   }
 
-  Widget _pastelPlaceholder(StarlorePalette p) {
-    // 经典马卡龙渐变底色
-    final colors = [
-      const Color(0xFFFFB7B2), // 樱花粉
-      const Color(0xFFFFDAC1), // 蜜桃橘
-      const Color(0xFFE2F0CB), // 薄荷绿
-      const Color(0xFFB5EAD7), // 青提绿
-      const Color(0xFFC7CEEA), // 熏衣紫
-    ];
-    final color = colors[article.id.hashCode % colors.length];
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color,
-            color.withValues(alpha: 0.7),
-          ],
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.auto_awesome_rounded,
-        color: Colors.white.withValues(alpha: 0.9),
-        size: 28,
-      ),
-    );
-  }
-
   Widget _buildAvatar(StarlorePalette p) {
     final avatarColors = [
       const Color(0xFFFF9A9E),
