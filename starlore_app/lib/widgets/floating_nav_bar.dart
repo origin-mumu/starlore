@@ -42,19 +42,36 @@ class FloatingNavBar extends StatelessWidget {
               height: Tok.navBarHeight,
               padding: const EdgeInsets.symmetric(horizontal: Tok.space2),
               decoration: BoxDecoration(
-                color: isDark
-                    ? p.surface.withValues(alpha: 0.7)
-                    : p.surface.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(Tok.navBarRadius),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [
+                          Colors.black.withValues(alpha: 0.35),
+                          Colors.black.withValues(alpha: 0.15),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.25),
+                          Colors.white.withValues(alpha: 0.08),
+                        ],
+                ),
                 border: Border.all(
-                  color: p.border.withValues(alpha: isDark ? 0.4 : 0.6),
-                  width: 0.5,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.45),
+                  width: 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
                     blurRadius: 24,
-                    offset: const Offset(0, 8),
+                    offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: p.accent.withValues(alpha: isDark ? 0.12 : 0.04),
+                    blurRadius: 32,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -75,6 +92,7 @@ class FloatingNavBar extends StatelessWidget {
 
   Widget _buildItem(BuildContext context, _NavItem item, bool active,
       VoidCallback onTap, p) {
+    final isDark = p.brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -85,10 +103,29 @@ class FloatingNavBar extends StatelessWidget {
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Tok.radiusMd),
+          borderRadius: BorderRadius.circular(Tok.radiusFull),
           color: active
-              ? p.accent.withValues(alpha: 0.1)
+              ? (isDark
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Colors.white.withValues(alpha: 0.6))
               : Colors.transparent,
+          border: Border.all(
+            color: active
+                ? (isDark
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : Colors.white.withValues(alpha: 0.7))
+                : Colors.transparent,
+            width: 1.0,
+          ),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: p.accent.withValues(alpha: 0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
         ),
         child: AnimatedSwitcher(
           duration: Tok.fast,
