@@ -660,63 +660,13 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- 右侧装饰区域 -->
-          <div class="hero-visual fade-in-up" style="animation-delay: 0.3s">
-            <!-- 浮动装饰点 -->
-            <div class="visual-dot visual-dot--1"></div>
-            <div class="visual-dot visual-dot--2"></div>
-            <div class="visual-dot visual-dot--3"></div>
-
-            <!-- RAG 搜索卡片 -->
-            <div class="visual-card visual-card--search">
-              <div class="card-header-mini">
-                <div class="terminal-dots">
-                  <span class="dot-red"></span>
-                  <span class="dot-yellow"></span>
-                  <span class="dot-green"></span>
-                </div>
-                <span class="mini-title">Quick Search</span>
-              </div>
-              <div class="search-content-mini">
-                <div class="search-input-mock">
-                  <span class="search-icon">🔍</span>
-                  <span class="search-text">RAG: "知识图谱优化"</span>
-                </div>
-                <div class="search-results-mock">
-                  <div class="result-item-mock">
-                    <span class="result-dot">✦</span>
-                    <span class="result-name">3D 沉浸式图谱设计</span>
-                    <span class="result-relevance">98%</span>
-                  </div>
-                  <div class="result-item-mock">
-                    <span class="result-dot">✦</span>
-                    <span class="result-name">LangGraph 状态机定义</span>
-                    <span class="result-relevance">89%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 笔记卡片 -->
-            <div class="visual-card visual-card--note">
-              <div class="note-header">
-                <div class="note-icon"><FileArchive /></div>
-                <div class="note-title">今日笔记</div>
-              </div>
-              <div class="note-lines">
-                <div class="note-line"></div>
-                <div class="note-line"></div>
-                <div class="note-line"></div>
-                <div class="note-line"></div>
-              </div>
-            </div>
-
-            <!-- 品牌卡片 -->
-            <div class="visual-card visual-card--tag">
-              <div class="tag-icon">✦</div>
-              <div class="tag-text">Starlore</div>
-              <div class="tag-sub">AI-Powered Knowledge</div>
-            </div>
+          <!-- 右侧 3D Parallax 装饰卡片 (使用和未登录相同的 ParticleGlobe 组件) -->
+          <div class="hero-visual hero-visual-container fade-in-up" style="animation-delay: 0.3s">
+            <ParticleGlobe 
+              :key="themeStore.current" 
+              :color="themeColors[themeStore.current] || '#E85D2A'" 
+              :secondaryColor="themeSecondaryColors[themeStore.current] || '#FFAE19'"
+            />
           </div>
         </div>
       </section>

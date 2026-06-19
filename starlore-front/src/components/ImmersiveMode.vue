@@ -900,7 +900,12 @@ function setMode(mode: Mode) {
 
 function scrollChat() {
   nextTick(() => {
-    chatScrollRef.value?.scrollTo({ top: chatScrollRef.value.scrollHeight, behavior: 'auto' })
+    requestAnimationFrame(() => {
+      const el = chatScrollRef.value
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+      }
+    })
   })
 }
 
@@ -1365,7 +1370,13 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => props.messages.length,
+  () => props.messages,
+  () => scrollChat(),
+  { deep: true }
+)
+
+watch(
+  toolStatus,
   () => scrollChat()
 )
 

@@ -17,12 +17,12 @@
           <!-- Text metrics -->
           <div class="stats-row">
             <div class="stat-box">
-              <span class="stat-box-label">Connected Stars</span>
-              <span class="stat-box-value" :style="{ color: color }">128</span>
+              <div class="skeleton-line-title"></div>
+              <div class="skeleton-line-value" :style="{ background: color }"></div>
             </div>
             <div class="stat-box">
-              <span class="stat-box-label">Graph Accuracy</span>
-              <span class="stat-box-value" :style="{ color: secondaryColor }">94%</span>
+              <div class="skeleton-line-title"></div>
+              <div class="skeleton-line-value" :style="{ background: secondaryColor }"></div>
             </div>
           </div>
           
@@ -115,10 +115,11 @@
           </div>
         </div>
         <div class="chat-body">
-          <p class="chat-message-text">已为您自动检索并关联 3 篇相关星记，并生成了最新知识星图节点。</p>
+          <div class="skeleton-chat-line"></div>
+          <div class="skeleton-chat-line short"></div>
           <div class="chat-badges">
-            <span class="chat-badge">RAG Active</span>
-            <span class="chat-badge">Constellation Generated</span>
+            <span class="chat-badge-skeleton"></span>
+            <span class="chat-badge-skeleton"></span>
           </div>
         </div>
       </div>
@@ -559,5 +560,59 @@ function handleMouseLeave() {
     bottom: 10px;
     right: 5px;
   }
+}
+
+/* Skeletons */
+.skeleton-line-title {
+  width: 70px;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.4;
+  margin-bottom: 6px;
+}
+
+.skeleton-line-value {
+  width: 45px;
+  height: 20px;
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+.skeleton-chat-line {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.45;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.skeleton-chat-line.short {
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.chat-badge-skeleton {
+  width: 65px;
+  height: 16px;
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  opacity: 0.3;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton-line-title,
+.skeleton-chat-line,
+.chat-badge-skeleton {
+  animation: skeleton-pulse 2s infinite ease-in-out;
 }
 </style>
