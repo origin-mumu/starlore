@@ -189,7 +189,7 @@ const handleExport = async () => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${form.name || '简历'}.pdf`
+    a.download = `${form.title || '简历'}.pdf`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
