@@ -180,7 +180,9 @@ async def export_pdf(
     db: AsyncSession = Depends(get_db),
 ):
     """导出简历为 PDF（调用外部 starlore-pdf 服务）。"""
+    import json
     import os
+    import urllib.parse
     import httpx
     from fastapi.responses import Response
 
@@ -188,27 +190,39 @@ async def export_pdf(
 
     pdf_service_url = os.getenv("PDF_SERVICE_URL", "http://localhost:3001")
 
+    # PDF 服务期望 content 为对象（含 spacing/education 等），而非 JSON 字符串
+    try:
+        content_obj = json.loads(r.content) if r.content else {}
+    except (json.JSONDecodeError, TypeError):
+        content_obj = {}
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                f"{pdf_service_url}/generate",
+                f"{pdf_service_url}/api/pdf/resume",
                 json={
                     "template": r.template or "classic",
                     "data": {
+                        "title": r.title or "",
                         "name": r.name or "",
-                        "job_title": r.job_title or "",
+                        "jobTitle": r.job_title or "",
                         "phone": r.phone or "",
                         "email": r.email or "",
-                        "photo_url": r.photo_url or "",
-                        "content": r.content or "",
+                        "photoUrl": r.photo_url or "",
+                        "content": content_obj,
                     },
                 },
             )
             resp.raise_for_status()
+            # 文件名取简历标题，与前端/Java 后端保持一致
+            file_name = f"{r.title or '简历'}.pdf"
+            encoded = urllib.parse.quote(file_name)
             return Response(
                 content=resp.content,
                 media_type="application/pdf",
-                headers={"Content-Disposition": f'attachment; filename="resume_{resume_id}.pdf"'},
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded}",
+                },
             )
     except httpx.ConnectError:
         return {"error": f"PDF 服务不可用 ({pdf_service_url})，请确保 starlore-pdf 已启动"}

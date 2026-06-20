@@ -135,7 +135,7 @@ public class ResumeController {
             );
 
             if (pdfResponse.getStatusCode().is2xxSuccessful() && pdfResponse.getBody() != null) {
-                String fileName = (resume.getName() != null ? resume.getName() : "简历") + ".pdf";
+                String fileName = (resume.getTitle() != null && !resume.getTitle().isBlank() ? resume.getTitle() : "简历") + ".pdf";
                 return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_PDF)
                     .header(HttpHeaders.CONTENT_DISPOSITION,
