@@ -10,6 +10,7 @@ import '../../widgets/article_card.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../widgets/empty_state.dart';
 import '../../services/auth_service.dart';
 import '../article/article_detail.dart';
 import '../article/article_editor_page.dart';
@@ -27,6 +28,7 @@ class _HomePageState extends State<HomePage> {
   List<models.Category> _categories = [];
   int _selectedCatIndex = 0;
   bool _loading = true;
+  bool _loadError = false;
   bool _loadingMore = false;
   int _page = 1;
   bool _hasMore = true;
@@ -150,7 +152,16 @@ class _HomePageState extends State<HomePage> {
                       120, // 底部留空给导航栏
                     ),
                     children: [
-                      _buildStaggeredGrid(context, p),
+                      if (_articles.isEmpty)
+                        EmptyState(
+                          icon: Icons.article_outlined,
+                          title: '还没有内容',
+                          subtitle: '下拉刷新试试，或去发布你的第一篇星语',
+                          actionLabel: '刷新',
+                          onAction: _load,
+                        )
+                      else
+                        _buildStaggeredGrid(context, p),
                       if (_loadingMore)
                         Center(
                           child: Padding(
@@ -324,17 +335,6 @@ class _HomePageState extends State<HomePage> {
                   child: Icon(Icons.add_rounded, size: 20, color: Colors.white),
                 ),
               ),
-            const SizedBox(width: Tok.space2),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: BorderRadius.circular(Tok.radiusMd),
-                border: Border.all(color: p.border, width: 0.5),
-              ),
-              child: Icon(Icons.search_rounded, size: 18, color: p.inkSoft),
-            ),
           ],
         ),
       ),

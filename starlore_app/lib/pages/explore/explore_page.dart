@@ -8,6 +8,7 @@ import '../../services/article_service.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/article_card.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../widgets/empty_state.dart';
 import '../article/article_detail.dart';
 import '../../services/auth_service.dart';
 
@@ -199,15 +200,12 @@ class _ExplorePageState extends State<ExplorePage> {
     }
 
     if (_articles.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.article_outlined, size: 48, color: p.inkMuted),
-            const SizedBox(height: Tok.space3),
-            Text('暂无文章', style: Typo.body(p.inkMuted)),
-          ],
-        ),
+      return EmptyState(
+        icon: Icons.article_outlined,
+        title: '暂无文章',
+        subtitle: '该分类下还没有内容，去其他分类看看吧',
+        actionLabel: '返回分类',
+        onAction: _clearSelection,
       );
     }
 

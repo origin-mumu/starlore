@@ -8,14 +8,18 @@ class AuthService {
   static const _tokenKey = 'auth_token';
   static UserInfo? _currentUser;
 
-  /// 登录状态变更通知 — MainShell 监听此值以刷新所有页面
-  static final ValueNotifier<bool> authState = ValueNotifier(false);
+  /// 登录状态变更通知 — 各页面 addListener 监听此值以刷新。
+  ///
+  /// 用自增计数器而非 bool：因为 ValueNotifier<bool> 仅在值真正变化时才通知监听者，
+  /// 而「已登录→登录成功」这种 true→true 的场景不会触发通知（典型现象：登录后首页
+  /// 的发布按钮不出现）。改成计数器，每次登录/登出/刷新用户信息都自增，确保每次都通知。
+  static final ValueNotifier<int> authState = ValueNotifier(0);
 
   static UserInfo? get currentUser => _currentUser;
   static bool get isLoggedIn => ApiClient.isAuthenticated && _currentUser != null;
 
   static void _notifyAuthChange() {
-    authState.value = isLoggedIn;
+    authState.value = authState.value + 1;
   }
 
   /// 初始化：从本地加载 Token 并验证

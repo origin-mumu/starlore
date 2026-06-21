@@ -136,9 +136,24 @@ class _ChatPageState extends State<ChatPage> {
     return FadeInUp(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-            Tok.horizontalPadding, Tok.space3, Tok.horizontalPadding, Tok.space2),
+            Tok.space2, Tok.space3, Tok.horizontalPadding, Tok.space2),
         child: Row(
           children: [
+            // 返回按钮（从悬浮入口 push 进入时使用）
+            GestureDetector(
+              onTap: () => Navigator.of(context).maybePop(),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(Tok.radiusMd),
+                  border: Border.all(color: p.border.withValues(alpha: 0.5), width: 0.5),
+                ),
+                child: Icon(Icons.arrow_back_ios_rounded, size: 16, color: p.ink),
+              ),
+            ),
+            const SizedBox(width: Tok.space2),
             Text('星语助手', style: Typo.h1(p.ink)),
             const SizedBox(width: Tok.space2),
             Container(

@@ -139,7 +139,7 @@ app.post('/api/pdf/resume', async (req, res) => {
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
       })
 
-      const fileName = `${data.name || '简历'}.pdf`
+      const fileName = `${data.title || '简历'}.pdf`
       // Use writeHead to avoid Express auto-adding charset=utf-8 to binary Content-Type
       res.writeHead(200, {
         'Content-Type': 'application/pdf',
