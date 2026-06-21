@@ -2165,6 +2165,11 @@ function shouldShowMessage(msg: ChatMsg) {
   z-index: 1;
 }
 
+/* Hide line on the last visible node of the stepper to avoid hanging lines */
+.imm-step-node:last-child .imm-step-line {
+  display: none;
+}
+
 /* Highlight line if the current step is done */
 .imm-step-node.is-done .imm-step-line {
   background: var(--accent);
