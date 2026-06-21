@@ -9,6 +9,7 @@ import '../../widgets/glass_card.dart';
 import '../../widgets/theme_picker.dart';
 import '../../widgets/article_card.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../widgets/empty_state.dart';
 import '../../main.dart';
 import '../article/article_detail.dart';
 import '../article/article_editor_page.dart';
@@ -275,21 +276,10 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           )
         else if (_bookmarks.isEmpty)
-          GlassCard(
-            blur: false,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(Tok.space6),
-                child: Column(
-                  children: [
-                    Icon(Icons.bookmark_outline_rounded,
-                        size: 36, color: p.inkMuted),
-                    const SizedBox(height: Tok.space3),
-                    Text('还没有收藏文章', style: Typo.bodySmall(p.inkMuted)),
-                  ],
-                ),
-              ),
-            ),
+          EmptyState(
+            icon: Icons.bookmark_outline_rounded,
+            title: '还没有收藏文章',
+            subtitle: '浏览星语时遇到喜欢的文章，点击收藏即可在这里找到',
           )
         else
           ...List.generate(

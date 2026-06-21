@@ -9,7 +9,9 @@ import '../../services/article_service.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/fade_in_widget.dart';
+import '../../widgets/empty_state.dart';
 import '../../utils/html_utils.dart';
+import '../profile/login_page.dart';
 
 /// 文章详情 — 沉浸式阅读
 class ArticleDetailPage extends StatefulWidget {
@@ -72,20 +74,28 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
     if (_article == null) {
       return Scaffold(
         backgroundColor: p.canvas,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline_rounded, size: 48, color: p.inkMuted),
-              const SizedBox(height: Tok.space3),
-              Text('文章加载失败', style: Typo.body(p.inkMuted)),
-              const SizedBox(height: Tok.space4),
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Text('返回', style: Typo.label(p.accent)),
+        body: Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              child: SafeArea(
+                child: _backButton(p),
               ),
-            ],
-          ),
+            ),
+            Center(
+              child: EmptyState(
+                icon: Icons.error_outline_rounded,
+                title: '文章加载失败',
+                subtitle: '网络开小差了，请稍后重试',
+                actionLabel: '重新加载',
+                onAction: () {
+                  setState(() => _loading = true);
+                  _load();
+                },
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -224,48 +234,45 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
           top: BorderSide(color: p.border.withValues(alpha: 0.5), width: 0.5),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          if (AuthService.isLoggedIn)
-            _actionButton(
-              p,
-              icon: _bookmarked
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_outline_rounded,
-              label: _bookmarked ? '已收藏' : '收藏',
-              active: _bookmarked,
-              onTap: _toggleBookmark,
+      child: AuthService.isLoggedIn
+          ? Row(
+              children: [
+                _BookmarkButton(
+                  bookmarked: _bookmarked,
+                  onTap: _toggleBookmark,
+                ),
+                const SizedBox(width: Tok.space4),
+                Expanded(
+                  child: Text(
+                    _bookmarked ? '已收入你的收藏夹' : '收藏这篇星语，稍后再读',
+                    style: Typo.caption(p.inkMuted),
+                  ),
+                ),
+              ],
+            )
+          : GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.bookmark_outline_rounded,
+                      size: 22, color: p.inkSoft),
+                  const SizedBox(width: Tok.space3),
+                  Expanded(
+                    child: Text('登录后即可收藏文章',
+                        style: Typo.caption(p.inkMuted)),
+                  ),
+                  Text('登录',
+                      style: Typo.label(p.accent)
+                          .copyWith(fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
-          _actionButton(
-            p,
-            icon: Icons.share_outlined,
-            label: '分享',
-            onTap: () {},
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _actionButton(StarlorePalette p,
-      {required IconData icon,
-      required String label,
-      bool active = false,
-      required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 22, color: active ? p.accent : p.inkSoft),
-          const SizedBox(height: 4),
-          Text(label,
-              style: Typo.caption(active ? p.accent : p.inkMuted)),
-        ],
-      ),
-    );
-  }
 
   String _formatDate(DateTime d) {
     return '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
@@ -294,6 +301,64 @@ class _ArticleDetailPageState extends State<ArticleDetailPage> {
       horizontalRuleDecoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: p.border, width: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+/// 收藏按钮 — 点击时 scale 弹跳反馈
+class _BookmarkButton extends StatefulWidget {
+  final bool bookmarked;
+  final VoidCallback onTap;
+
+  const _BookmarkButton({required this.bookmarked, required this.onTap});
+
+  @override
+  State<_BookmarkButton> createState() => _BookmarkButtonState();
+}
+
+class _BookmarkButtonState extends State<_BookmarkButton> {
+  bool _animate = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = paletteOf(context);
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => _animate = true);
+        widget.onTap();
+        Future.delayed(Tok.normal, () {
+          if (mounted) setState(() => _animate = false);
+        });
+      },
+      child: AnimatedScale(
+        scale: _animate ? 1.25 : 1.0,
+        duration: Tok.fast,
+        curve: Curves.easeOutBack,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.bookmarked
+                ? p.accentSoft
+                : p.surface,
+            border: Border.all(
+              color: widget.bookmarked
+                  ? p.accent.withValues(alpha: 0.3)
+                  : p.border.withValues(alpha: 0.5),
+              width: 0.5,
+            ),
+          ),
+          child: Icon(
+            widget.bookmarked
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_outline_rounded,
+            size: 22,
+            color: widget.bookmarked ? p.accent : p.inkSoft,
+          ),
         ),
       ),
     );
