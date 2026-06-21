@@ -132,7 +132,7 @@ public class MultiAgentController {
                                 if ("planner".equals(nodeId)) {
                                     sendSseEvent(emitter, "plan", Map.of(
                                             "summary", state.getPlanSummary() != null ? state.getPlanSummary() : "",
-                                            "subtasks", state.getSubtasks().size()));
+                                            "subtasks", state.getSubtasks()));
                                 }
                             }
                             case "graph_end" -> { /* handled after execute */ }
@@ -157,7 +157,7 @@ public class MultiAgentController {
                 // 发送 plan 事件
                 sendSseEvent(emitter, "plan", Map.of(
                         "summary", finalState.getPlanSummary() != null ? finalState.getPlanSummary() : "",
-                        "subtasks", finalState.getSubtasks().size()
+                        "subtasks", finalState.getSubtasks()
                 ));
 
                 // 发送每个子任务的结果

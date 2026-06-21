@@ -787,37 +787,48 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           }
           if (data.type === 'plan') {
             const trace = props.messages[aiIdx].agentTrace
-            const count = data.subtasks || 0
             if (trace) {
               trace.planSummary = data.summary || ''
-              trace.subtasks = Array.from({ length: count }, (_, i) => ({
-                id: i + 1,
-                desc: '',
-                status: 'pending' as const,
-              }))
+              if (Array.isArray(data.subtasks)) {
+                trace.subtasks = data.subtasks.map((st: any) => ({
+                  id: st.id,
+                  desc: st.description || st.toolHint || '',
+                  status: 'pending' as const,
+                }))
+              } else {
+                const count = data.subtasks || 0
+                trace.subtasks = Array.from({ length: count }, (_, i) => ({
+                  id: i + 1,
+                  desc: '',
+                  status: 'pending' as const,
+                }))
+              }
             }
-            toolStatus.value = `规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
+            toolStatus.value = `规划完成 → 共拆解为 ${trace?.subtasks.length || 0} 个子任务，开始执行...`
           }
           if (data.type === 'subtask_start') {
-            const trace = props.messages[aiIdx].agentTrace
             const node = data.node || ''
+            toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+          }
+          if (data.type === 'subtask_running') {
+            const trace = props.messages[aiIdx].agentTrace
+            const subtaskId = data.subtask_id
             if (trace && trace.subtasks.length > 0) {
-              const running = trace.subtasks.find((s: any) => s.status === 'pending')
-              if (running) {
-                running.status = 'running'
-                running.desc = node
+              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
+              if (st) {
+                st.status = 'running'
               }
-              const runningIdx = trace.subtasks.filter((s: any) => s.status === 'done').length + 1
-              toolStatus.value = `Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
-            } else {
-              toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+              toolStatus.value = `Executor 正在执行子任务 ${subtaskId}/${trace.subtasks.length}：${st?.desc || ''}`
             }
           }
           if (data.type === 'subtask_result') {
             const trace = props.messages[aiIdx].agentTrace
-            if (trace) {
-              const doneTask = trace.subtasks.find((s: any) => s.status === 'running')
-              if (doneTask) doneTask.status = 'done'
+            const subtaskId = data.subtask_id
+            if (trace && trace.subtasks.length > 0) {
+              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
+              if (st) {
+                st.status = 'done'
+              }
               const doneCount = trace.subtasks.filter((s: any) => s.status === 'done').length
               const total = trace.subtasks.length
               if (doneCount < total) {
@@ -870,7 +881,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   // 持久化：通知父组件保存本轮对话
   const aiContent = props.messages[aiIdx]?.content || ''
   const trace = props.messages[aiIdx]?.agentTrace
-  const agentTraceStr = trace && trace.subtasks.length > 0 ? JSON.stringify(trace) : undefined
+  const agentTraceStr = trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision) ? JSON.stringify(trace) : undefined
   if (aiContent && !aiContent.startsWith('错误：')) {
     emit('send', pendingApiText || text, aiContent, agentTraceStr)
   }
@@ -1504,12 +1515,12 @@ function shouldShowMessage(msg: ChatMsg) {
             <!-- Agent 追踪信息（流式步骤节点） -->
             <div
               v-if="
-                msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length)
+                msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length || msg.agentTrace.reviewDecision)
               "
               class="imm-trace-stepper"
             >
               <!-- 1. Planner Node -->
-              <div v-if="msg.agentTrace.planSummary" class="imm-step-node" :class="{ 'is-done': msg.agentTrace.subtasks.length > 0 }">
+              <div v-if="msg.agentTrace.planSummary" class="imm-step-node is-done">
                 <div class="imm-step-line"></div>
                 <div class="imm-step-icon-container">
                   <ClipboardList :size="11" class="imm-step-icon" />
@@ -1520,7 +1531,7 @@ function shouldShowMessage(msg: ChatMsg) {
                 </div>
               </div>
 
-              <!-- 2. Subtask Nodes -->
+              <!-- 2. Subtask Nodes (when subtasks exist) -->
               <div 
                 v-for="st in msg.agentTrace.subtasks" 
                 :key="st.id" 
@@ -1545,9 +1556,29 @@ function shouldShowMessage(msg: ChatMsg) {
                 </div>
               </div>
 
+              <!-- 2b. Direct Executor Node (when no subtasks exist) -->
+              <div 
+                v-if="msg.agentTrace && msg.agentTrace.subtasks.length === 0" 
+                class="imm-step-node"
+                :class="{ 
+                  'is-done': msg.agentTrace.reviewDecision || msg.content,
+                  'is-running': !msg.agentTrace.reviewDecision && !msg.content
+                }"
+              >
+                <div class="imm-step-line"></div>
+                <div class="imm-step-icon-container">
+                  <span v-if="msg.agentTrace.reviewDecision || msg.content" class="imm-step-dot done">✓</span>
+                  <span v-else class="imm-step-dot running"></span>
+                </div>
+                <div class="imm-step-content">
+                  <div class="imm-step-title">执行阶段 (Executor)</div>
+                  <div class="imm-step-desc">无需外部工具，直接分析并生成回答...</div>
+                </div>
+              </div>
+
               <!-- 3. Reviewer Node -->
               <div 
-                v-if="msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.some(s => s.status === 'done')"
+                v-if="msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.length > 0 || msg.content"
                 class="imm-step-node"
                 :class="{ 
                   'is-pending': !msg.agentTrace.reviewDecision,

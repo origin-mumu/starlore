@@ -151,6 +151,11 @@ public class ExecutorAgent implements AgentNode {
     private void executeSubtask(AgentState.Subtask subtask, AgentState state) throws Exception {
         log.info("[Executor] Executing subtask {}: {}", subtask.getId(), subtask.getDescription());
 
+        // 发送实时子任务执行中状态
+        com.robin.blogback.config.SseContextHolder.sendEvent("subtask_running", Map.of(
+                "subtask_id", subtask.getId()
+        ));
+
         // 构建带上下文的 prompt
         String context = buildSubtaskContext(subtask, state);
         String fewShotPrompt = buildFewShotPrompt(subtask);
@@ -185,6 +190,12 @@ public class ExecutorAgent implements AgentNode {
 
         state.addExecutionResult(subtask.getId(), output);
         state.addToolCallLog("subtask-" + subtask.getId() + ": " + subtask.getDescription());
+
+        // 发送实时子任务执行完成状态
+        com.robin.blogback.config.SseContextHolder.sendEvent("subtask_result", Map.of(
+                "subtask_id", subtask.getId(),
+                "result", output
+        ));
 
         if (tracer != null) {
             tracer.traceAgentCall("Executor-Subtask-" + subtask.getId(),

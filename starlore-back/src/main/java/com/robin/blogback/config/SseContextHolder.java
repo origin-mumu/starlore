@@ -23,6 +23,9 @@ public class SseContextHolder {
         SseEmitter emitter = emitterLocal.get();
         if (emitter == null) {
             emitter = crossThreadEmitters.get("agent-stream");
+            if (emitter == null) {
+                emitter = crossThreadEmitters.get("multi-agent-stream");
+            }
         }
         return emitter;
     }
@@ -32,6 +35,19 @@ public class SseContextHolder {
         if (emitter != null) {
             try {
                 emitter.send(Map.of("tool_start", toolName));
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    public static void sendEvent(String type, Map<String, Object> data) {
+        SseEmitter emitter = getEmitter();
+        if (emitter != null) {
+            try {
+                Map<String, Object> event = new java.util.LinkedHashMap<>();
+                event.put("type", type);
+                event.putAll(data);
+                emitter.send(event);
             } catch (IOException ignored) {
             }
         }

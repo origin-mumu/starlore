@@ -453,38 +453,49 @@ async function sendMessage() {
           }
           if (data.type === 'plan') {
             const trace = messages.value[assistantIndex].agentTrace
-            const count = data.subtasks || 0
             if (trace) {
               trace.planSummary = data.summary || ''
-              trace.subtasks = Array.from({ length: count }, (_, i) => ({
-                id: i + 1,
-                desc: '',
-                status: 'pending' as const,
-              }))
+              if (Array.isArray(data.subtasks)) {
+                trace.subtasks = data.subtasks.map((st: any) => ({
+                  id: st.id,
+                  desc: st.description || st.toolHint || '',
+                  status: 'pending' as const,
+                }))
+              } else {
+                const count = data.subtasks || 0
+                trace.subtasks = Array.from({ length: count }, (_, i) => ({
+                  id: i + 1,
+                  desc: '',
+                  status: 'pending' as const,
+                }))
+              }
             }
-            toolStatus.value = `规划完成 → 共拆解为 ${count} 个子任务，开始执行...`
+            toolStatus.value = `规划完成 → 共拆解为 ${trace?.subtasks.length || 0} 个子任务，开始执行...`
           }
           if (data.type === 'subtask_start') {
-            const trace = messages.value[assistantIndex].agentTrace
             const node = data.node || ''
-            if (trace) {
-              const running = trace.subtasks.find(s => s.status === 'pending')
-              if (running) {
-                running.status = 'running'
-                running.desc = node
+            toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+          }
+          if (data.type === 'subtask_running') {
+            const trace = messages.value[assistantIndex].agentTrace
+            const subtaskId = data.subtask_id
+            if (trace && trace.subtasks.length > 0) {
+              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
+              if (st) {
+                st.status = 'running'
               }
-              const runningIdx = trace.subtasks.filter(s => s.status === 'done').length + 1
-              toolStatus.value = `Executor 正在执行第 ${runningIdx}/${trace.subtasks.length} 个子任务：${agentNodeLabelMap[node] || node}`
-            } else {
-              toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+              toolStatus.value = `Executor 正在执行子任务 ${subtaskId}/${trace.subtasks.length}：${st?.desc || ''}`
             }
           }
           if (data.type === 'subtask_result') {
             const trace = messages.value[assistantIndex].agentTrace
-            if (trace) {
-              const doneTask = trace.subtasks.find(s => s.status === 'running')
-              if (doneTask) doneTask.status = 'done'
-              const doneCount = trace.subtasks.filter(s => s.status === 'done').length
+            const subtaskId = data.subtask_id
+            if (trace && trace.subtasks.length > 0) {
+              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
+              if (st) {
+                st.status = 'done'
+              }
+              const doneCount = trace.subtasks.filter((s: any) => s.status === 'done').length
               const total = trace.subtasks.length
               if (doneCount < total) {
                 toolStatus.value = `子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
@@ -534,7 +545,7 @@ async function sendMessage() {
     const userContent = messages.value[messages.value.length - 2]?.content ?? text
     const assistantContent = messages.value[assistantIndex].content
     const trace = messages.value[assistantIndex].agentTrace
-    const agentTraceStr = trace && trace.subtasks.length > 0 ? JSON.stringify(trace) : undefined
+    const agentTraceStr = trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision) ? JSON.stringify(trace) : undefined
     if (assistantContent && !assistantContent.startsWith('错误：')) {
       await appendChatPair(sid, userContent, assistantContent, agentTraceStr)
       await refreshSessions()
