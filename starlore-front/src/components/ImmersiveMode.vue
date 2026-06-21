@@ -1501,34 +1501,90 @@ function shouldShowMessage(msg: ChatMsg) {
 
         <div ref="chatScrollRef" class="chat-messages">
           <div v-for="(msg, i) in messages" :key="i" class="msg" :class="msg.role" v-show="shouldShowMessage(msg)">
-            <!-- Agent 追踪信息 -->
+            <!-- Agent 追踪信息（流式步骤节点） -->
             <div
               v-if="
                 msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length)
               "
-              class="imm-trace"
+              class="imm-trace-stepper"
             >
-              <div v-if="msg.agentTrace.planSummary" class="imm-trace-item">
-                <ClipboardList :size="14" class="imm-trace-icon-svg" />
-                <span>{{ msg.agentTrace.planSummary }}</span>
+              <!-- 1. Planner Node -->
+              <div v-if="msg.agentTrace.planSummary" class="imm-step-node" :class="{ 'is-done': msg.agentTrace.subtasks.length > 0 }">
+                <div class="imm-step-line"></div>
+                <div class="imm-step-icon-container">
+                  <ClipboardList :size="11" class="imm-step-icon" />
+                </div>
+                <div class="imm-step-content">
+                  <div class="imm-step-title">任务规划 (Planner)</div>
+                  <div class="imm-step-desc">{{ msg.agentTrace.planSummary }}</div>
+                </div>
               </div>
-              <div v-for="st in msg.agentTrace.subtasks" :key="st.id" class="imm-trace-item">
-                <span class="imm-trace-dot" :class="'st-' + st.status"></span>
-                <span>{{ st.desc || `子任务 ${st.id}` }}</span>
+
+              <!-- 2. Subtask Nodes -->
+              <div 
+                v-for="st in msg.agentTrace.subtasks" 
+                :key="st.id" 
+                class="imm-step-node"
+                :class="{ 
+                  'is-pending': st.status === 'pending',
+                  'is-running': st.status === 'running',
+                  'is-done': st.status === 'done'
+                }"
+              >
+                <div class="imm-step-line"></div>
+                <div class="imm-step-icon-container">
+                  <span v-if="st.status === 'done'" class="imm-step-dot done">✓</span>
+                  <span v-else-if="st.status === 'running'" class="imm-step-dot running"></span>
+                  <span v-else class="imm-step-dot pending"></span>
+                </div>
+                <div class="imm-step-content">
+                  <div class="imm-step-title">子任务 {{ st.id }}</div>
+                  <div class="imm-step-desc">
+                    {{ toolLabelMap[st.desc] || agentNodeLabelMap[st.desc] || st.desc || '等待获取执行内容...' }}
+                  </div>
+                </div>
               </div>
-              <div v-if="msg.agentTrace.reviewDecision" class="imm-trace-item">
-                <CheckCircle
-                  v-if="msg.agentTrace.reviewDecision === 'PASS'"
-                  :size="14"
-                  class="imm-trace-icon-svg pass"
-                />
-                <RotateCcw v-else :size="14" class="imm-trace-icon-svg revise" />
-                <span>审查: {{ msg.agentTrace.reviewDecision }}</span>
+
+              <!-- 3. Reviewer Node -->
+              <div 
+                v-if="msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.some(s => s.status === 'done')"
+                class="imm-step-node"
+                :class="{ 
+                  'is-pending': !msg.agentTrace.reviewDecision,
+                  'is-done': msg.agentTrace.reviewDecision === 'PASS',
+                  'is-warning': msg.agentTrace.reviewDecision === 'REVISE',
+                  'is-error': msg.agentTrace.reviewDecision === 'FAIL'
+                }"
+              >
+                <div class="imm-step-line" v-if="msg.agentTrace.metrics"></div>
+                <div class="imm-step-icon-container">
+                  <CheckCircle v-if="msg.agentTrace.reviewDecision === 'PASS'" :size="11" class="imm-step-icon" />
+                  <RotateCcw v-else-if="msg.agentTrace.reviewDecision === 'REVISE'" :size="11" class="imm-step-icon" />
+                  <XCircle v-else-if="msg.agentTrace.reviewDecision === 'FAIL'" :size="11" class="imm-step-icon" />
+                  <Bot v-else :size="11" class="imm-step-icon" />
+                </div>
+                <div class="imm-step-content">
+                  <div class="imm-step-title">结果审核 (Reviewer)</div>
+                  <div class="imm-step-desc">
+                    <span v-if="msg.agentTrace.reviewDecision">
+                      决策: <strong :class="msg.agentTrace.reviewDecision.toLowerCase()">{{ msg.agentTrace.reviewDecision }}</strong>
+                      <span v-if="msg.agentTrace.reviewFeedback"> ({{ msg.agentTrace.reviewFeedback }})</span>
+                    </span>
+                    <span v-else>正在评估执行结果的质量和完整性...</span>
+                  </div>
+                </div>
               </div>
-              <div v-if="msg.agentTrace.metrics" class="imm-trace-metrics">
-                Token: {{ msg.agentTrace.metrics.tokensIn }}↓/{{
-                  msg.agentTrace.metrics.tokensOut
-                }}↑ · {{ msg.agentTrace.metrics.latencyMs }}ms
+
+              <!-- 4. Metrics Node -->
+              <div v-if="msg.agentTrace.metrics" class="imm-step-node is-metrics">
+                <div class="imm-step-icon-container">
+                  <span class="imm-step-dot metrics"></span>
+                </div>
+                <div class="imm-step-content">
+                  <div class="imm-step-desc metrics-data">
+                    Token 消耗: {{ msg.agentTrace.metrics.tokensIn }}↓ / {{ msg.agentTrace.metrics.tokensOut }}↑ · 耗时: {{ msg.agentTrace.metrics.latencyMs }}ms
+                  </div>
+                </div>
               </div>
             </div>
             <!-- 附件标签 -->
@@ -2048,69 +2104,196 @@ function shouldShowMessage(msg: ChatMsg) {
   margin: 0.15rem 0;
 }
 
-/* ── Agent 追踪 ── */
-.imm-trace {
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border);
-  font-size: 12px;
+/* ── Agent 追踪（步骤节点） ── */
+.imm-trace-stepper {
   display: flex;
   flex-direction: column;
-  gap: 0px;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-raised, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-md, 10px);
+  margin-bottom: 10px;
+  align-self: flex-start;
+  width: 100%;
 }
-.imm-trace-item {
+
+.imm-step-node {
+  position: relative;
+  display: flex;
+  gap: 12px;
+}
+
+.imm-step-line {
+  position: absolute;
+  top: 18px; /* start from center of icon container */
+  left: 9px; /* align with center of icon container */
+  bottom: -18px; /* extend to center of next icon container */
+  width: 2px;
+  background: var(--border-interactive);
+  z-index: 1;
+}
+
+/* Highlight line if the current step is done */
+.imm-step-node.is-done .imm-step-line {
+  background: var(--accent);
+}
+
+.imm-step-icon-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--border-interactive);
   display: flex;
   align-items: center;
-  gap: 0px;
-  color: var(--ink-muted);
-}
-.imm-trace-icon {
-  font-size: 13px;
-}
-.imm-trace-icon-svg {
+  justify-content: center;
+  z-index: 2;
   flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.imm-step-icon {
   color: var(--ink-muted);
 }
-.imm-trace-icon-svg.pass {
-  color: #28a745;
+
+/* Colors for states */
+.imm-step-node.is-done .imm-step-icon-container {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
-.imm-trace-icon-svg.revise {
-  color: var(--warm, #f5a623);
+.imm-step-node.is-done .imm-step-icon {
+  color: var(--accent);
 }
-.imm-trace-dot {
+
+.imm-step-node.is-running .imm-step-icon-container {
+  border-color: var(--accent);
+  background: var(--surface);
+  animation: pulse-ring 1.5s infinite;
+}
+
+.imm-step-node.is-warning .imm-step-icon-container {
+  border-color: var(--warm);
+  background: var(--warm-soft);
+}
+.imm-step-node.is-warning .imm-step-icon {
+  color: var(--warm);
+}
+
+.imm-step-node.is-error .imm-step-icon-container {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+.imm-step-node.is-error .imm-step-icon {
+  color: #ef4444;
+}
+
+/* Subtask dots */
+.imm-step-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  flex-shrink: 0;
+  background: var(--ink-muted);
+  display: inline-block;
+  transition: all 0.3s ease;
 }
-.st-pending .imm-trace-dot {
-  background: var(--border-interactive);
+
+.imm-step-dot.done {
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: bold;
 }
-.st-running .imm-trace-dot {
+
+.imm-step-dot.running {
   background: var(--accent);
-  animation: trace-pulse 1s infinite;
+  animation: pulse-dot 1s infinite;
 }
-.st-done .imm-trace-dot {
-  background: #28a745;
+
+.imm-step-dot.pending {
+  background: var(--ink-muted);
 }
-@keyframes trace-pulse {
-  0%,
+
+.imm-step-dot.metrics {
+  width: 4px;
+  height: 4px;
+  background: var(--ink-muted);
+}
+
+.imm-step-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.imm-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.imm-step-desc {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.imm-step-desc strong.pass {
+  color: #28a745;
+}
+.imm-step-desc strong.revise {
+  color: var(--warm);
+}
+.imm-step-desc strong.fail {
+  color: #ef4444;
+}
+
+.imm-step-node.is-metrics {
+  gap: 12px;
+}
+
+.imm-step-node.is-metrics .imm-step-icon-container {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.metrics-data {
+  font-family: var(--font-mono, 'Fira Code', monospace);
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(139, 92, 246, 0);
+  }
   100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
     opacity: 1;
   }
   50% {
-    opacity: 0.4;
+    transform: scale(1.3);
+    opacity: 0.6;
   }
-}
-.imm-trace-metrics {
-  font-size: 11px;
-  color: var(--ink-muted);
-  opacity: 0.7;
-  font-family: 'Fira Code', monospace;
-  padding-top: 4px;
-  border-top: 1px dashed var(--border);
 }
 
 /* ── 工具状态 ── */
