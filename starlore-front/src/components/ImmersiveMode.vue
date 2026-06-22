@@ -130,10 +130,10 @@ function onQrMouseUp() {
 
 const quickReplies = [
   '最近有什么新文章？',
-  '帮我总结一下星域分类',
+  '帮我总结一下分类',
   '写一篇技术博客大纲',
   '推荐几个学习方向',
-  '帮我查一下面试相关文章',
+  '帮我查一下后端相关文章',
   '介绍一下 Starlore 项目',
   '给新文章起个标题',
 ]
@@ -591,7 +591,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   })
   pendingImage.value = null
   pendingImagePreview.value = null
-  scrollChat()
+  scrollChat(true)
   setMode('thinking')
 
   // 加 AI 占位消息（带 agentTrace）
@@ -671,7 +671,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
         ? '今日访客体验额度（20次）已用尽，登录后即可享受无限次数与专属 Agent 服务哦！'
         : (e?.message || '发送失败，请稍后重试')
       props.messages[aiIdx].content = errorMsg
-      scrollChat()
+      scrollChat(true)
     }
     return
   }
@@ -909,12 +909,15 @@ function setMode(mode: Mode) {
   }
 }
 
-function scrollChat() {
+function scrollChat(force = false) {
   nextTick(() => {
     requestAnimationFrame(() => {
       const el = chatScrollRef.value
       if (el) {
-        el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+        if (force || distanceFromBottom < 120) {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+        }
       }
     })
   })
