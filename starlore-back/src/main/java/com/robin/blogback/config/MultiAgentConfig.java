@@ -163,7 +163,7 @@ public class MultiAgentConfig {
                     String decision = state.getReviewDecision();
                     if ("REVISE".equals(decision) && state.canRetry()) {
                         state.incrementRetryCount();
-                        return "executor";
+                        return "planner";
                     }
                     // PASS 和 FAIL 都走 Synthesizer
                     return "synthesizer";

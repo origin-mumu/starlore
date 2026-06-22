@@ -90,7 +90,12 @@ public class PlannerAgent implements AgentNode {
             messages.add(new SystemMessage(state.getSystemPromptOverride()));
         }
 
-        messages.add(new UserMessage(state.getUserQuery()));
+        StringBuilder queryBuilder = new StringBuilder(state.getUserQuery());
+        if (state.getRetryCount() > 0 && state.getReviewFeedback() != null && !state.getReviewFeedback().isBlank()) {
+            queryBuilder.append("\n\n【系统提示：上一次的任务规划未通过审查，请根据以下审查反馈重新生成优化后的任务规划 JSON】\n反馈内容：")
+                    .append(state.getReviewFeedback());
+        }
+        messages.add(new UserMessage(queryBuilder.toString()));
 
         long startTime = System.currentTimeMillis();
         ChatResponse response = chatClient.prompt()

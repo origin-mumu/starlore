@@ -77,6 +77,11 @@ public class ExecutorAgent implements AgentNode {
 
     @Override
     public AgentState execute(AgentState state) throws Exception {
+        // 清理上一次可能的执行痕迹（用于重试时重新执行）
+        state.getExecutionResults().clear();
+        state.getToolCallsLog().clear();
+        state.setCurrentSubtaskIndex(0);
+
         List<AgentState.Subtask> subtasks = state.getSubtasks();
         if (subtasks.isEmpty()) {
             // 没有子任务，直接用 LLM 回答
