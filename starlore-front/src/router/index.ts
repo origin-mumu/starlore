@@ -68,8 +68,7 @@ const router = createRouter({
       component: () => import('../views/EchobotView.vue'),
       meta: {
         title: 'AI 助手 - Starlore',
-        requiresAuth: false,
-        guestAllowed: true
+        requiresAuth: true
       }
     },
     {
@@ -87,8 +86,7 @@ const router = createRouter({
       component: () => import('../views/DivergeView.vue'),
       meta: {
         title: '创意发散 - Starlore',
-        requiresAuth: false,
-        guestAllowed: true
+        requiresAuth: true
       }
     },
     {

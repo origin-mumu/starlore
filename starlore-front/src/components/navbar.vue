@@ -42,7 +42,7 @@ const themes: {
   { name: 'pink', label: '晚樱', color: '#D4638F' },
 ]
 
-const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr', '/diverge', '/echobot']
+const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr']
 
 const handleLogout = () => {
   userStore.logout()

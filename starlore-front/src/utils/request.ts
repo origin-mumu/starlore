@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const baseURL = '/api'
 const TOKEN_KEY = 'ro_blog_token'
-const GUEST_ALLOWED_PATHS = ['/', '/categories', '/vr', '/diverge', '/echobot']
+const GUEST_ALLOWED_PATHS = ['/', '/categories', '/vr']
 const instance = axios.create({ baseURL })
 
 instance.interceptors.request.use(

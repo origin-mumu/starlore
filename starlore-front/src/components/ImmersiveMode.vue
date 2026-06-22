@@ -4,11 +4,8 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import { buildMultiAgentSseUrl, type CharacterCard } from '@/api/ai'
 import { guestChat } from '@/api/guest-ai'
-import { useTTS } from '@/composables/useTTS'
 import { useUserStore } from '@/stores/user'
 import {
-  Volume2,
-  VolumeX,
   Bot,
   Image,
   FileText,
@@ -73,7 +70,7 @@ const emit = defineEmits<{
   refreshQuota: []
 }>()
 
-const { ttsEnabled, toggleTTS, feedStreamChunk, flushStreamBuffer, reset: resetTTS } = useTTS()
+
 
 /* ─── 状态 ─── */
 type Mode = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -649,7 +646,6 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
         if (currentLen >= reply.length) {
           clearInterval(interval)
           props.messages[aiIdx].content = reply
-          flushStreamBuffer()
           isLocalSending.value = false
           setMode('speaking')
           setTimeout(() => setMode('idle'), 1500)
@@ -657,7 +653,6 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
         } else {
           const chunk = reply.substring(currentLen, currentLen + 2)
           props.messages[aiIdx].content += chunk
-          feedStreamChunk(chunk)
           scrollChat()
           currentLen += 2
         }
@@ -668,7 +663,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
       isLocalSending.value = false
       setMode('idle')
       const errorMsg = e?.response?.status === 429
-        ? '今日访客体验额度（20次）已用尽，登录后即可享受无限次数与专属 Agent 服务哦！'
+        ? '今日访客体验额度（20次）已用尽，登录后即可体验更多哦！'
         : (e?.message || '发送失败，请稍后重试')
       props.messages[aiIdx].content = errorMsg
       scrollChat(true)
@@ -677,7 +672,6 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   }
 
   abortCtrl = new AbortController()
-  resetTTS()
 
   try {
     const token = localStorage.getItem('ro_blog_token')
@@ -776,7 +770,6 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
             hasReceivedContent.value = true
             toolStatus.value = null
             scrollChat()
-            feedStreamChunk(data.content)
           }
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
@@ -870,13 +863,10 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
       }
     }
   } catch (e: any) {
-    resetTTS()
     if (e.name !== 'AbortError') {
       props.messages[aiIdx].content += `\n\n[错误: ${e.message}]`
     }
   }
-
-  flushStreamBuffer()
 
   // 持久化：通知父组件保存本轮对话
   const aiContent = props.messages[aiIdx]?.content || ''
@@ -1433,15 +1423,7 @@ function shouldShowMessage(msg: ChatMsg) {
       </svg>
     </button>
 
-    <button
-      class="tts-toggle-btn"
-      :class="{ active: ttsEnabled }"
-      :title="ttsEnabled ? '关闭 AI 朗读' : '开启 AI 朗读'"
-      @click="toggleTTS()"
-    >
-      <Volume2 v-if="ttsEnabled" :size="18" />
-      <VolumeX v-else :size="18" />
-    </button>
+
 
     <div class="mic-wrapper">
       <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
@@ -1863,35 +1845,7 @@ function shouldShowMessage(msg: ChatMsg) {
   border-color: var(--border-interactive);
 }
 
-.tts-toggle-btn {
-  position: absolute;
-  top: 24px;
-  left: 76px;
-  z-index: 50;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  backdrop-filter: blur(8px);
-}
-.tts-toggle-btn:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-  border-color: var(--border-interactive);
-}
-.tts-toggle-btn.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
-}
+
 
 .mic-wrapper {
   position: absolute;

@@ -3,15 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import ImmersiveMode from '@/components/ImmersiveMode.vue'
-import { useTTS } from '@/composables/useTTS'
-
 const userStore = useUserStore()
-const {
-  isSpeaking,
-  feedStreamChunk,
-  flushStreamBuffer,
-  reset: resetTTS,
-} = useTTS()
 import {
   appendChatPair,
   buildMultiAgentSseUrl,
@@ -320,7 +312,7 @@ async function sendMessage() {
   messages.value.push({ role: 'assistant', content: '', reasoningContent: '' })
   const assistantIndex = messages.value.length - 1
   document.documentElement.classList.add('echobot-streaming')
-  resetTTS() // 开始新对话前重置 TTS
+  // 开始新对话前重置对话状态
 
   // 如果有图片，用 MiMo 流式识别（此时用户已看到自己的消息）
   let imageDescription = ''
@@ -445,7 +437,6 @@ async function sendMessage() {
             messages.value[assistantIndex].content += data.content
             hasReceivedContent.value = true
             toolStatus.value = null
-            feedStreamChunk(data.content) // 流式文字喂给 TTS
           }
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
@@ -543,7 +534,6 @@ async function sendMessage() {
     }
 
     await refreshQuota()
-    flushStreamBuffer() // 流式结束，播放剩余缓冲
 
     const userContent = messages.value[messages.value.length - 2]?.content ?? text
     const assistantContent = messages.value[assistantIndex].content
@@ -554,7 +544,6 @@ async function sendMessage() {
       await refreshSessions()
     }
   } catch (e: any) {
-    resetTTS()
     if (e.name === 'AbortError') {
       // User cancelled
     } else {
@@ -959,7 +948,7 @@ onMounted(async () => {
     messages.value = [
       {
         role: 'assistant',
-        content: '你好！我是 Starlore 智能助理。目前系统已自动进入**访客体验模式**。\n\n> 💡 **提示**：访客模式下您可以**真实调用 AI 助手**进行对话，每日可享受 **20 次免费调用**（与创意发散共享）。\n\n您不仅可以正常对话，还能**自由切换角色卡**、体验 TTS 朗读功能，AI 会自动为您检索公开文章进行智能回答。',
+        content: '你好！我是 Starlore 智能助理。目前系统已自动进入**访客体验模式**。\n\n> 💡 **提示**：访客模式下您可以**真实调用 AI 助手**进行对话，每日可享受 **20 次免费调用**（与创意发散共享）。\n\n您不仅可以正常对话，还能**自由切换角色卡**，AI 会自动为您检索公开文章进行智能回答。',
         reasoningContent: '检测到当前用户未登录，已初始化真实访客会话体验。'
       }
     ]
@@ -1907,15 +1896,7 @@ onBeforeUnmount(() => {
   color: var(--accent) !important;
   animation: pulse 1s ease-in-out infinite;
 }
-.tts-active {
-  background: linear-gradient(
-    135deg,
-    rgba(139, 92, 246, 0.15),
-    rgba(99, 102, 241, 0.15)
-  ) !important;
-  border-color: rgba(139, 92, 246, 0.4) !important;
-  color: #8b5cf6 !important;
-}
+
 @keyframes pulse {
   0%,
   100% {

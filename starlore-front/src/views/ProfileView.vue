@@ -20,7 +20,7 @@ const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
 
-const guestAllowedPaths = ['/', '/about', '/categories', '/vr', '/diverge', '/echobot']
+const guestAllowedPaths = ['/', '/about', '/categories', '/vr']
 
 const handleLogout = () => {
   userStore.logout()
