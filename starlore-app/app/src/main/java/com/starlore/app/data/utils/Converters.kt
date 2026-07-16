@@ -1,0 +1,71 @@
+package com.starlore.app.data.utils
+
+import androidx.room.TypeConverter
+import com.starlore.app.data.todo.RepeatFrequency
+import com.starlore.app.data.todo.TodoReminderMode
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+
+class Converters {
+    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    private val dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+    private val timeFormatter = DateTimeFormatter.ISO_LOCAL_TIME
+
+    @TypeConverter
+    fun fromTimestamp(value: String?): LocalDateTime? {
+        return value?.let {
+            return LocalDateTime.parse(it, dateTimeFormatter)
+        }
+    }
+
+    @TypeConverter
+    fun dateToTimestamp(date: LocalDateTime?): String? {
+        return date?.format(dateTimeFormatter)
+    }
+
+    @TypeConverter
+    fun fromDateStamp(value: String?): LocalDate? {
+        return value?.let {
+            return LocalDate.parse(it, dateFormatter)
+        }
+    }
+
+    @TypeConverter
+    fun dateToDateStamp(date: LocalDate?): String? {
+        return date?.format(dateFormatter)
+    }
+
+    @TypeConverter
+    fun fromTimeString(value: String?): LocalTime? {
+        return value?.let {
+            return LocalTime.parse(it, timeFormatter)
+        }
+    }
+
+    @TypeConverter
+    fun timeToString(time: LocalTime?): String? {
+        return time?.format(timeFormatter)
+    }
+
+    @TypeConverter
+    fun fromReminderMode(value: String?): TodoReminderMode? {
+        return value?.let(TodoReminderMode::valueOf)
+    }
+
+    @TypeConverter
+    fun reminderModeToString(mode: TodoReminderMode?): String? {
+        return mode?.name
+    }
+
+    @TypeConverter
+    fun fromRepeatFrequency(value: String?): RepeatFrequency? {
+        return value?.let(RepeatFrequency::valueOf)
+    }
+
+    @TypeConverter
+    fun repeatFrequencyToString(frequency: RepeatFrequency?): String? {
+        return frequency?.name
+    }
+}

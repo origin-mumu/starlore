@@ -1,0 +1,415 @@
+package com.starlore.app.ui.components.packed
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.starlore.app.R
+import kotlinx.coroutines.launch
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+@Composable
+fun CircularTimer(
+    modifier: Modifier = Modifier,
+    currentMinutes: Int,
+    onMinutesChange: (Int) -> Unit,
+    startIcon: Painter,
+    endIcon: Painter,
+    knobSize: Dp,
+    iconSize: Dp,
+    innerIconSize: Dp,
+    strokeWidth: Dp,
+    progressColor: Color,
+    trackColor: Color,
+    thumbWidth: Dp,
+    iconColor: Color,
+    contentColor: Color,
+) {
+    val scope = rememberCoroutineScope()
+
+    var isDragging by remember { mutableStateOf(false) }
+    val angleAnimatable = remember { Animatable(currentMinutes * 6f) }
+    var currentSnapedMinute by remember { mutableIntStateOf(currentMinutes) }
+
+    val textMeasurer = rememberTextMeasurer()
+    val textStyle = TextStyle(
+        color = contentColor.copy(.5f),
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp
+    )
+
+    val tomato = painterResource(R.drawable.ic_tomato)
+    val ecg = painterResource(R.drawable.ic_ecg)
+    val bolt = painterResource(R.drawable.ic_bolt)
+    val sparkles = painterResource(R.drawable.ic_sparkles)
+
+    val haptic = LocalHapticFeedback.current
+
+    Canvas(
+        modifier = modifier
+            .aspectRatio(1f)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val center = Offset(
+                            (size.width / 2).toFloat(),
+                            (size.height / 2).toFloat()
+                        )
+                        val dx = offset.x - center.x
+                        val dy = offset.y - center.y
+                        val distance = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+
+                        val currentRadius =
+                            (size.width.coerceAtMost(size.height) - strokeWidth.toPx()) / 2
+
+                        val touchThreshold = (strokeWidth).toPx()
+
+                        val isValidTouch = distance >= (currentRadius - touchThreshold) &&
+                                distance <= (currentRadius + touchThreshold)
+
+                        isDragging = isValidTouch
+                    },
+                    onDragEnd = { isDragging = false },
+                    onDragCancel = { isDragging = false },
+                    onDrag = { change, _ ->
+                        if (isDragging) {
+                            val center =
+                                Offset((size.width / 2).toFloat(), (size.height / 2).toFloat())
+                            val touchPoint = change.position
+
+                            val dx = touchPoint.x - center.x
+                            val dy = touchPoint.y - center.y
+                            var rawAngle =
+                                Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+
+                            rawAngle += 90f
+                            if (rawAngle < 0) rawAngle += 360f
+
+                            val targetMinute = (rawAngle / 6f).roundToInt().coerceIn(0, 60)
+
+                            if (targetMinute != currentSnapedMinute) {
+
+                                val targetAngle = targetMinute * 6f
+
+                                scope.launch {
+                                    val currentVisualAngle = angleAnimatable.value
+
+                                    val diff = kotlin.math.abs(targetAngle - currentVisualAngle)
+
+                                    if (diff > 270) {
+                                        angleAnimatable.snapTo(targetAngle)
+                                    } else {
+                                        angleAnimatable.animateTo(
+                                            targetValue = targetAngle,
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMedium,
+                                                dampingRatio = Spring.DampingRatioNoBouncy
+                                            )
+                                        )
+                                    }
+                                }
+
+                                currentSnapedMinute = targetMinute
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onMinutesChange(targetMinute)
+                            }
+                        }
+                    }
+                )
+            }
+    ) {
+        val width = size.width
+        val height = size.height
+        val center = Offset(width / 2, height / 2)
+        val radius = (width.coerceAtMost(height) - strokeWidth.toPx()) / 2
+
+        val innerClockRadius =
+            (width.coerceAtMost(height) - strokeWidth.toPx() * 2 - 16.dp.toPx()) / 2
+
+        for (i in 0 until 60) {
+            val angleInDegrees = i * 6f - 90f
+            val angleInRad = Math.toRadians(angleInDegrees.toDouble())
+
+            val isMajorTick = i % 5 == 0
+
+            val tickLength = if (isMajorTick) 8.dp.toPx() else 2.dp.toPx()
+            val tickWidth = if (isMajorTick) 2.dp.toPx() else 2.dp.toPx()
+
+            val color = contentColor.copy(.2f)
+
+            val endX = center.x + (innerClockRadius * cos(angleInRad)).toFloat()
+            val endY = center.y + (innerClockRadius * sin(angleInRad)).toFloat()
+
+            val startX = center.x + ((innerClockRadius - tickLength) * cos(angleInRad)).toFloat()
+            val startY = center.y + ((innerClockRadius - tickLength) * sin(angleInRad)).toFloat()
+
+            drawLine(
+                color = color,
+                start = Offset(startX, startY),
+                end = Offset(endX, endY),
+                strokeWidth = tickWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+
+        val offsetDistance = 16.dp.toPx()
+        val iconRadius = innerClockRadius - offsetDistance - innerIconSize.toPx() / 4
+
+        // tomato
+        run {
+            val targetMinute = 25
+            val iconAngleDeg = targetMinute * 6f - 90f
+            val iconAngleRad = Math.toRadians(iconAngleDeg.toDouble())
+
+            val iconX = center.x + (iconRadius * cos(iconAngleRad)).toFloat()
+            val iconY = center.y + (iconRadius * sin(iconAngleRad)).toFloat()
+
+
+            translate(
+                left = iconX - innerIconSize.toPx() / 2,
+                top = iconY - innerIconSize.toPx() / 2
+            ) {
+                with(tomato) {
+                    draw(
+                        size = Size((innerIconSize * 0.9f).toPx(), (innerIconSize * 0.9f).toPx()),
+                        colorFilter = ColorFilter.tint(contentColor.copy(.2f))
+                    )
+                }
+            }
+        }
+
+        // flow
+        run {
+            val targetMinute = 10
+            val iconAngleDeg = targetMinute * 6f - 90f
+            val iconAngleRad = Math.toRadians(iconAngleDeg.toDouble())
+
+            val iconX = center.x + (iconRadius * cos(iconAngleRad)).toFloat()
+            val iconY = center.y + (iconRadius * sin(iconAngleRad)).toFloat()
+
+
+            translate(
+                left = iconX - innerIconSize.toPx() / 2,
+                top = iconY - innerIconSize.toPx() / 2
+            ) {
+                with(ecg) {
+                    draw(
+                        size = Size(innerIconSize.toPx(), innerIconSize.toPx()),
+                        colorFilter = ColorFilter.tint(contentColor.copy(.2f))
+                    )
+                }
+            }
+        }
+
+        // bolt
+        run {
+            val targetMinute = 55
+            val iconAngleDeg = targetMinute * 6f - 90f
+            val iconAngleRad = Math.toRadians(iconAngleDeg.toDouble())
+
+            val iconX = center.x + (iconRadius * cos(iconAngleRad)).toFloat()
+            val iconY = center.y + (iconRadius * sin(iconAngleRad)).toFloat()
+
+
+            translate(
+                left = iconX - innerIconSize.toPx() / 2,
+                top = iconY - innerIconSize.toPx() / 2
+            ) {
+                with(bolt) {
+                    draw(
+                        size = Size(innerIconSize.toPx(), innerIconSize.toPx()),
+                        colorFilter = ColorFilter.tint(contentColor.copy(.2f))
+                    )
+                }
+            }
+        }
+
+        // sparkles
+        run {
+            val targetMinute = listOf(40)
+            for (minute in targetMinute) {
+                val iconAngleDeg = minute * 6f - 90f
+                val iconAngleRad = Math.toRadians(iconAngleDeg.toDouble())
+
+                val iconX = center.x + (iconRadius * cos(iconAngleRad)).toFloat()
+                val iconY = center.y + (iconRadius * sin(iconAngleRad)).toFloat()
+
+
+                translate(
+                    left = iconX - innerIconSize.toPx() / 2,
+                    top = iconY - innerIconSize.toPx() / 2
+                ) {
+                    with(sparkles) {
+                        draw(
+                            size = Size(innerIconSize.toPx(), innerIconSize.toPx()),
+                            colorFilter = ColorFilter.tint(contentColor.copy(.2f))
+                        )
+                    }
+                }
+            }
+        }
+        val textRadius = innerClockRadius - offsetDistance - innerIconSize.toPx() / 4
+        val keyPoints = listOf(0, 15, 30, 45)
+
+        run {
+            for (minute in keyPoints) {
+                val angleDeg = minute * 6f - 90f
+                val angleRad = Math.toRadians(angleDeg.toDouble())
+
+                val textCx = center.x + (textRadius * cos(angleRad)).toFloat()
+                val textCy = center.y + (textRadius * sin(angleRad)).toFloat()
+
+                val text = minute.toString()
+
+                val textSize = textMeasurer.measure(
+                    text = text,
+                    style = textStyle
+                ).size
+
+                drawText(
+                    textMeasurer = textMeasurer,
+                    text = text,
+                    style = textStyle,
+                    topLeft = Offset(
+                        textCx - textSize.width / 2,
+                        textCy - textSize.height / 2
+                    )
+                )
+            }
+        }
+
+        drawCircle(
+            color = trackColor,
+            radius = radius,
+            center = center,
+            style = Stroke(width = strokeWidth.toPx())
+        )
+        drawArc(
+            color = progressColor,
+            startAngle = -90f,
+            sweepAngle = angleAnimatable.value,
+            useCenter = false,
+            style = Stroke(width = thumbWidth.toPx(), cap = StrokeCap.Round),
+            topLeft = Offset(center.x - radius, center.y - radius),
+            size = Size(radius * 2, radius * 2)
+        )
+
+        for (i in 0 until 60) {
+            val angleInDegrees = i * 6f - 90f
+            val angleInRad = Math.toRadians(angleInDegrees.toDouble())
+
+            val tickLength = 12.dp.toPx()
+            val tickWidth = 2.dp.toPx()
+
+            val isHighlighted = i * 6f <= angleAnimatable.value && currentMinutes != 0
+            val color = if (isHighlighted) contentColor.copy(.1f) else Color.Transparent
+
+            val lineStartRadius = radius + tickLength / 2
+            val lineEndRadius = radius - tickLength / 2
+
+            val startX = center.x + (lineStartRadius * cos(angleInRad)).toFloat()
+            val startY = center.y + (lineStartRadius * sin(angleInRad)).toFloat()
+
+            val endX = center.x + (lineEndRadius * cos(angleInRad)).toFloat()
+            val endY = center.y + (lineEndRadius * sin(angleInRad)).toFloat()
+
+            drawLine(
+                color = color,
+                start = Offset(startX, startY),
+                end = Offset(endX, endY),
+                strokeWidth = tickWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+        val knobSize = knobSize.toPx()
+        val iconSize = iconSize.toPx()
+
+        drawKnobWithIcon(
+            center = center,
+            radius = radius,
+            angleDegrees = 0f,
+            knobColor = progressColor,
+            iconPainter = startIcon,
+            knobSize = knobSize,
+            iconSize = iconSize,
+            iconTint = iconColor
+        )
+
+        drawKnobWithIcon(
+            center = center,
+            radius = radius,
+            angleDegrees = angleAnimatable.value,
+            knobColor = progressColor,
+            iconPainter = endIcon,
+            knobSize = knobSize,
+            iconSize = iconSize,
+            iconTint = iconColor
+        )
+    }
+}
+
+private fun DrawScope.drawKnobWithIcon(
+    center: Offset,
+    radius: Float,
+    angleDegrees: Float,
+    knobColor: Color,
+    iconPainter: Painter,
+    knobSize: Float,
+    iconSize: Float,
+    iconTint: Color
+) {
+    val angleRad = Math.toRadians((angleDegrees - 90).toDouble())
+    val knobCx = center.x + (radius * cos(angleRad)).toFloat()
+    val knobCy = center.y + (radius * sin(angleRad)).toFloat()
+
+    drawCircle(
+        color = knobColor,
+        radius = knobSize / 2,
+        center = Offset(knobCx, knobCy)
+    )
+
+    translate(left = knobCx - iconSize / 2, top = knobCy - iconSize / 2) {
+        with(iconPainter) {
+            draw(
+                size = Size(iconSize, iconSize),
+                colorFilter = ColorFilter.tint(iconTint)
+            )
+        }
+    }
+}
