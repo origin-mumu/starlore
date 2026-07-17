@@ -1,0 +1,125 @@
+package com.starlore.app.feature.main
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.starlore.app.R
+import com.starlore.app.theme.getFlagColor
+import com.starlore.app.ui.components.glasense.GlasenseMenuItem
+import com.starlore.app.ui.components.glasense.MenuDivider
+import com.starlore.app.ui.components.glasense.MenuItemData
+
+@Composable
+fun rememberMoreMenuItems(
+    onDuplicateSelected: () -> Unit,
+    onMergeSelected: () -> Unit,
+    onShareSelected: () -> Unit,
+    canMerge: Boolean
+): List<GlasenseMenuItem> {
+    val combineIcon = painterResource(R.drawable.ic_combine_as_one)
+    val shareIcon = painterResource(R.drawable.ic_share)
+    val duplicateIcon = painterResource(R.drawable.ic_duplicate)
+    val duplicateText = stringResource(R.string.duplicate_todo)
+    val mergeTodosText = stringResource(R.string.merge_todos)
+    val shareText = stringResource(R.string.share)
+
+    return remember(
+        onDuplicateSelected,
+        onMergeSelected,
+        onShareSelected,
+        canMerge,
+        duplicateText,
+        mergeTodosText,
+        shareText
+    ) {
+        buildList {
+            add(
+                MenuItemData(
+                    duplicateText,
+                    duplicateIcon,
+                    onClick = onDuplicateSelected
+                )
+            )
+            if (canMerge) {
+                add(MenuDivider)
+                add(
+                    MenuItemData(
+                        mergeTodosText,
+                        combineIcon,
+                        onClick = onMergeSelected
+                    )
+                )
+            }
+            add(MenuDivider)
+            add(
+                MenuItemData(
+                    shareText,
+                    shareIcon,
+                    onClick = onShareSelected
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun rememberFlagMenuItems(
+    noneFirst: Boolean = false,
+    onFlagSelected: (Int) -> Unit
+): List<GlasenseMenuItem> {
+    val flagIcon = painterResource(R.drawable.ic_flag_fill)
+    val noFlagIcon = painterResource(R.drawable.ic_flag)
+    val flagNames = listOf(
+        stringResource(R.string.flag_red),
+        stringResource(R.string.flag_orange),
+        stringResource(R.string.flag_yellow),
+        stringResource(R.string.flag_green),
+        stringResource(R.string.flag_blue),
+        stringResource(R.string.flag_purple),
+        stringResource(R.string.flag_gray)
+    )
+
+    val flagColors = List(8) { i -> getFlagColor(i) }
+
+    val noneText = stringResource(R.string.none)
+    return remember(onFlagSelected, flagIcon, noFlagIcon, flagNames, noneText, flagColors) {
+        buildList {
+            if (noneFirst) {
+                add(
+                    MenuItemData(
+                        text = noneText,
+                        icon = noFlagIcon,
+                        onClick = { onFlagSelected(0) }
+                    )
+                )
+                add(
+                    MenuDivider
+                )
+            }
+            flagNames.forEachIndexed { index, flagName ->
+                val flagIndex = index + 1
+                add(
+                    MenuItemData(
+                        text = flagName,
+                        icon = flagIcon,
+                        iconColor = flagColors[flagIndex],
+                        onClick = { onFlagSelected(flagIndex) }
+                    )
+                )
+            }
+            if (!noneFirst) {
+                add(
+                    MenuDivider
+                )
+                add(
+                    MenuItemData(
+                        text = noneText,
+                        icon = noFlagIcon,
+                        onClick = { onFlagSelected(0) }
+                    )
+                )
+            }
+        }
+    }
+}

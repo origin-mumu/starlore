@@ -258,8 +258,10 @@ public class ArticleServiceImpl implements ArticleService {
             try { articleEmbeddingService.indexArticle(article); } catch (Exception e) { log.warn("[RAG] 重新索引文章失败: {}", e.getMessage()); }
         }
         if (!oldCategory.equals(article.getCategory())) {
-            updateCategoryCount(oldCategory, null);
-            updateCategoryCount(article.getCategory(), null);
+            // Categories belong to a user.  Counting by name alone can match several
+            // users' identically named categories and makes selectOne throw at runtime.
+            updateCategoryCount(oldCategory, article.getUserId());
+            updateCategoryCount(article.getCategory(), article.getUserId());
         }
 
         return toArticleDetail(article);
@@ -279,7 +281,7 @@ public class ArticleServiceImpl implements ArticleService {
         if (articleEmbeddingService != null) {
             try { articleEmbeddingService.removeArticle(id); } catch (Exception e) { log.warn("[RAG] 删除文章向量失败: {}", e.getMessage()); }
         }
-        updateCategoryCount(category, null);
+        updateCategoryCount(category, article.getUserId());
         return Map.of("message", "文章删除成功");
     }
 
