@@ -65,9 +65,11 @@ fun ArticleDetailScreen(
     articleId: Int,
     backdrop: LayerBackdrop,
     onBack: () -> Unit,
+    onEdit: (Int) -> Unit,
     viewModel: ArticleDetailViewModel = koinViewModel()
 ) {
     val detailState by remember { viewModel.detailState }
+    val deleteState by remember { viewModel.deleteState }
     val context = LocalContext.current
     var menuState by remember { mutableStateOf(MenuState()) }
     var moreButtonBounds by remember { mutableStateOf(Rect.Zero) }
@@ -77,6 +79,16 @@ fun ArticleDetailScreen(
 
     LaunchedEffect(articleId) {
         viewModel.loadArticle(articleId)
+    }
+
+    LaunchedEffect(deleteState) {
+        if (deleteState is ArticleDeleteUiState.Error) {
+            Toast.makeText(
+                context,
+                (deleteState as ArticleDeleteUiState.Error).message,
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     val scrollState = rememberScrollState()
@@ -257,7 +269,7 @@ fun ArticleDetailScreen(
                                     icon = editIcon,
                                     onClick = {
                                         menuState = menuState.copy(isVisible = false)
-                                        Toast.makeText(context, "编辑功能暂未开放", Toast.LENGTH_SHORT).show()
+                                        onEdit(articleId)
                                     }
                                 ),
                                 MenuItemData(

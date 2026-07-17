@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -440,18 +442,26 @@ private fun DialogTextField(
     singleLine: Boolean = true,
     visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val fieldShape = RoundedCornerShape(18.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .background(AppColors.pageBackground.copy(alpha = 0.5f), AppSpecs.cardShape)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart
+            .height(if (singleLine) 58.dp else 108.dp)
+            .clip(fieldShape)
+            .background(AppColors.elevatedCardBackground)
+            .border(
+                width = if (focused) 1.5.dp else 1.dp,
+                color = if (focused) AppColors.primary else AppColors.contentVariant.copy(alpha = .22f),
+                shape = fieldShape
+            )
+            .padding(horizontal = 18.dp, vertical = if (singleLine) 0.dp else 14.dp),
+        contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
     ) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
             singleLine = singleLine,
             visualTransformation = visualTransformation,
             cursorBrush = androidx.compose.ui.graphics.SolidColor(AppColors.primary),
@@ -501,8 +511,8 @@ private fun EditDialog(
         Box(
             modifier = Modifier
                 .width(screenWidth - 48.dp * 2)
-                .clip(AppSpecs.dialogShape)
-                .background(AppColors.cardBackground.copy(alpha = 0.95f))
+                .clip(RoundedCornerShape(28.dp))
+                .background(AppColors.elevatedPageBackground)
                 .glasenseHighlight(AppSpecs.dialogCorner)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -515,7 +525,9 @@ private fun EditDialog(
                     text = title,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.primary
+                    color = AppColors.content,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
                 DialogTextField(
@@ -525,34 +537,11 @@ private fun EditDialog(
                     singleLine = singleLine
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        enabled = !isUpdating
-                    ) {
-                        Text("取消", color = AppColors.contentVariant)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Button(
-                        onClick = { onConfirm(textValue) },
-                        enabled = !isUpdating,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
-                    ) {
-                        if (isUpdating) {
-                            CircularProgressIndicator(
-                                color = AppColors.onPrimary,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("确定", color = AppColors.onPrimary)
-                        }
-                    }
-                }
+                AccountDialogActionRow(
+                    isUpdating = isUpdating,
+                    onDismiss = onDismiss,
+                    onConfirm = { onConfirm(textValue) }
+                )
             }
         }
     }
@@ -585,8 +574,8 @@ private fun PasswordEditDialog(
         Box(
             modifier = Modifier
                 .width(screenWidth - 48.dp * 2)
-                .clip(AppSpecs.dialogShape)
-                .background(AppColors.cardBackground.copy(alpha = 0.95f))
+                .clip(RoundedCornerShape(28.dp))
+                .background(AppColors.elevatedPageBackground)
                 .glasenseHighlight(AppSpecs.dialogCorner)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -599,7 +588,9 @@ private fun PasswordEditDialog(
                     text = "修改密码",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AppColors.primary
+                    color = AppColors.content,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -632,35 +623,47 @@ private fun PasswordEditDialog(
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        enabled = !isUpdating
-                    ) {
-                        Text("取消", color = AppColors.contentVariant)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Button(
-                        onClick = { onConfirm(oldPassword, newPassword, confirmPassword) },
-                        enabled = !isUpdating,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.primary)
-                    ) {
-                        if (isUpdating) {
-                            CircularProgressIndicator(
-                                color = AppColors.onPrimary,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("确定", color = AppColors.onPrimary)
-                        }
-                    }
-                }
+                AccountDialogActionRow(
+                    isUpdating = isUpdating,
+                    onDismiss = onDismiss,
+                    onConfirm = { onConfirm(oldPassword, newPassword, confirmPassword) }
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun AccountDialogActionRow(
+    isUpdating: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier.weight(1f).height(52.dp).clip(CircleShape)
+                .background(AppColors.elevatedCardBackground)
+                .clickable(enabled = !isUpdating, onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("取消", color = AppColors.content, fontWeight = FontWeight.Medium)
+        }
+        Box(
+            Modifier.weight(1f).height(52.dp).clip(CircleShape)
+                .background(AppColors.primary)
+                .clickable(enabled = !isUpdating, onClick = onConfirm),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isUpdating) {
+                CircularProgressIndicator(
+                    color = AppColors.onPrimary,
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
+                )
+            } else Text("确定", color = AppColors.onPrimary, fontWeight = FontWeight.Bold)
         }
     }
 }

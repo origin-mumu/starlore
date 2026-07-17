@@ -6,6 +6,7 @@ import com.starlore.app.data.api.ArticleApi
 import com.starlore.app.data.api.AiApi
 import com.starlore.app.feature.article.ArticleDetailViewModel
 import com.starlore.app.feature.article.ArticlesViewModel
+import com.starlore.app.feature.article.ArticleManageViewModel
 import com.starlore.app.feature.auth.AuthViewModel
 import com.starlore.app.feature.chat.ChatViewModel
 import com.starlore.app.feature.diverge.DivergeViewModel
@@ -22,6 +23,7 @@ val starloreAppModule = module {
     viewModelOf(::AuthViewModel)
     viewModelOf(::ArticlesViewModel)
     viewModelOf(::ArticleDetailViewModel)
+    viewModelOf(::ArticleManageViewModel)
     viewModelOf(::ChatViewModel)
     viewModelOf(::DivergeViewModel)
 }

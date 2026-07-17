@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -25,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.starlore.app.theme.AppSpecs
+import com.starlore.app.R
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
 import com.starlore.app.ui.components.glasense.isScrolledPast
 import com.starlore.app.ui.components.glasense.glasenseHighlight
@@ -39,6 +42,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun ArticlesScreen(
     onArticleClick: (Int) -> Unit,
+    onCreateArticle: () -> Unit,
+    onManageCategories: () -> Unit,
     isOverlayOpen: Boolean = false,
     accountSessionKey: Int = 0,
     viewModel: ArticlesViewModel = koinViewModel(key = "articles-$accountSessionKey")
@@ -46,6 +51,8 @@ fun ArticlesScreen(
     val articlesState by remember { viewModel.articlesState }
     val categoriesState by remember { viewModel.categoriesState }
     val selectedCategory by remember { viewModel.selectedCategory }
+    val isRefreshing by remember { viewModel.isRefreshing }
+    val pullToRefreshState = rememberPullToRefreshState()
 
     val lazyListState = rememberLazyListState()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -67,11 +74,21 @@ fun ArticlesScreen(
             .fillMaxSize()
             .background(backgroundColor)
     ) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.fillMaxSize(),
+            state = pullToRefreshState,
+            indicator = {
+                StarRefreshIndicator(
+                    progress = pullToRefreshState.distanceFraction,
+                    refreshing = isRefreshing
+                )
+            }
+        ) {
         LazyColumn(
             state = lazyListState,
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(backdrop),
+            modifier = Modifier.fillMaxSize().layerBackdrop(backdrop),
             contentPadding = PaddingValues(
                 top = statusBarHeight + 12.dp,
                 bottom = 100.dp,
@@ -171,6 +188,7 @@ fun ArticlesScreen(
                 }
             }
         }
+        }
 
         // 5. Collapsing Header Small Title Bar
         GlasenseDynamicSmallTitle(
@@ -181,6 +199,52 @@ fun ArticlesScreen(
             backdrop = backdrop,
             surfaceColor = backgroundColor
         ) {}
+
+        Row(
+            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 8.dp, end = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ArticleActionButton(R.drawable.ic_folder, "管理分类", onManageCategories)
+            ArticleActionButton(R.drawable.ic_add, "新建星记", onCreateArticle)
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.StarRefreshIndicator(progress: Float, refreshing: Boolean) {
+    val visible = refreshing || progress > 0f
+    if (!visible) return
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    Box(
+        Modifier.align(Alignment.TopCenter)
+            .padding(top = 10.dp)
+            .size((34 + 14 * clampedProgress).dp)
+            .clip(CircleShape)
+            .background(AppColors.cardBackground.copy(alpha = .96f))
+            .glasenseHighlight(CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(
+            progress = { if (refreshing) 0.72f else clampedProgress },
+            modifier = Modifier.size(20.dp),
+            color = AppColors.primary,
+            strokeWidth = 2.dp
+        )
+    }
+}
+
+@Composable
+private fun ArticleActionButton(icon: Int, description: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.size(44.dp).clip(CircleShape)
+            .background(AppColors.cardBackground.copy(alpha = .8f))
+            .glasenseHighlight(CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        com.starlore.glasense.core.component.Icon(
+            painter = androidx.compose.ui.res.painterResource(icon), contentDescription = description,
+            modifier = Modifier.size(20.dp), tint = AppColors.primary
+        )
     }
 }
 

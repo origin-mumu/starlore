@@ -45,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.toRect
@@ -677,7 +679,8 @@ fun NotificationPage() {
                     .padding(horizontal = 24.dp)
                     .aspectRatio(4f / 3f)
                     .fillMaxWidth()
-                    .clip(shape = AppSpecs.cardShape)
+                    .clip(RoundedCornerShape(24.dp)),
+                contentScale = ContentScale.Crop
             )
         }
         item { Spacer(modifier = Modifier.height(24.dp)) }

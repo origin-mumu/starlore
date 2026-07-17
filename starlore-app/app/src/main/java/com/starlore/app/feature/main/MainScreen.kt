@@ -26,6 +26,9 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.starlore.app.R
 import com.starlore.app.feature.article.ArticleDetailScreen
 import com.starlore.app.feature.article.ArticlesScreen
+import com.starlore.app.feature.article.ArticleEditorScreen
+import com.starlore.app.feature.article.CategoryManageScreen
+import com.starlore.app.feature.article.CategoryArticlesScreen
 import com.starlore.app.feature.auth.LoginScreen
 import com.starlore.app.feature.chat.EchobotScreen
 import com.starlore.app.feature.diverge.DivergeScreen
@@ -107,9 +110,21 @@ fun MainScreen() {
 fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
     var currentRoute by rememberSaveable { mutableStateOf(Screen.Articles.route) }
     var selectedArticleId by remember { mutableStateOf<Int?>(null) }
+    var editingArticleId by remember { mutableStateOf<Int?>(null) }
+    var isCreatingArticle by remember { mutableStateOf(false) }
+    var isManagingCategories by remember { mutableStateOf(false) }
+    var openedCategoryName by remember { mutableStateOf<String?>(null) }
+    var contentVersion by remember { mutableIntStateOf(0) }
+    val hasOverlay = selectedArticleId != null || editingArticleId != null || isCreatingArticle || isManagingCategories || openedCategoryName != null
 
-    BackHandler(enabled = selectedArticleId != null) {
-        selectedArticleId = null
+    BackHandler(enabled = hasOverlay) {
+        when {
+            editingArticleId != null -> editingArticleId = null
+            isCreatingArticle -> isCreatingArticle = false
+            openedCategoryName != null -> { openedCategoryName = null; isManagingCategories = true }
+            isManagingCategories -> isManagingCategories = false
+            else -> selectedArticleId = null
+        }
     }
 
     val items = listOf(
@@ -148,8 +163,10 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
             when (currentRoute) {
                 Screen.Articles.route -> ArticlesScreen(
                     onArticleClick = { selectedArticleId = it },
-                    isOverlayOpen = selectedArticleId != null,
-                    accountSessionKey = authSessionVersion
+                    onCreateArticle = { isCreatingArticle = true },
+                    onManageCategories = { isManagingCategories = true },
+                    isOverlayOpen = hasOverlay,
+                    accountSessionKey = authSessionVersion + contentVersion
                 )
                 Screen.Chat.route -> EchobotScreen(accountSessionKey = authSessionVersion)
                 Screen.Diverge.route -> DivergeScreen()
@@ -162,11 +179,49 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
             ArticleDetailScreen(
                 articleId = articleId,
                 backdrop = backdrop,
-                onBack = { selectedArticleId = null }
+                onBack = { selectedArticleId = null },
+                onEdit = {
+                    selectedArticleId = null
+                    editingArticleId = it
+                }
             )
         }
 
-        if (selectedArticleId == null) {
+        if (isCreatingArticle || editingArticleId != null) {
+            ArticleEditorScreen(
+                articleId = editingArticleId,
+                onBack = { isCreatingArticle = false; editingArticleId = null },
+                onSaved = {
+                    isCreatingArticle = false
+                    editingArticleId = null
+                    contentVersion++
+                    selectedArticleId = it
+                }
+            )
+        }
+
+        if (isManagingCategories) {
+            CategoryManageScreen(onBack = {
+                isManagingCategories = false
+                contentVersion++
+            }, onOpenCategory = { categoryName ->
+                isManagingCategories = false
+                openedCategoryName = categoryName
+            })
+        }
+
+        openedCategoryName?.let { categoryName ->
+            CategoryArticlesScreen(
+                categoryName = categoryName,
+                onBack = {
+                    openedCategoryName = null
+                    isManagingCategories = true
+                },
+                onArticleClick = { selectedArticleId = it }
+            )
+        }
+
+        if (!hasOverlay) {
             // Unified Floating bottom navigation bar
             val liquidGlass = LocalGlasenseSettings.current.liquidGlass
             val materialEffect = rememberMaterialRenderEffectOrNull(MaterialRecipes.thin())

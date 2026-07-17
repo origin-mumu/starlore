@@ -31,6 +31,9 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
     var selectedCategory = mutableStateOf<String?>(null)
     var searchQuery = mutableStateOf("")
 
+    var isRefreshing = mutableStateOf(false)
+        private set
+
     init {
         loadData()
     }
@@ -38,6 +41,38 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
     fun loadData() {
         fetchCategories()
         fetchArticles()
+    }
+
+    fun refresh() {
+        if (isRefreshing.value) return
+        isRefreshing.value = true
+        viewModelScope.launch {
+            try {
+                val categories = try {
+                    articleApi.getCategories()
+                } catch (_: Exception) {
+                    articleApi.getPublicCategories()
+                }
+                categoriesState.value = CategoriesUiState.Success(categories.data)
+
+                val articles = try {
+                    articleApi.getAllArticles(
+                        category = selectedCategory.value,
+                        search = searchQuery.value.takeIf { it.isNotEmpty() }
+                    )
+                } catch (_: Exception) {
+                    articleApi.getPublicArticles(
+                        category = selectedCategory.value,
+                        search = searchQuery.value.takeIf { it.isNotEmpty() }
+                    )
+                }
+                articlesState.value = ArticlesUiState.Success(articles.data)
+            } catch (e: Exception) {
+                articlesState.value = ArticlesUiState.Error(e.message ?: "刷新失败")
+            } finally {
+                isRefreshing.value = false
+            }
+        }
     }
 
     fun selectCategory(categoryName: String?) {

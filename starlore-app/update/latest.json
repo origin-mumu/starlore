@@ -2,35 +2,35 @@
   "schemaVersion": 1,
   "platform": "android",
   "channel": "stable",
-  "versionCode": 1082,
-  "versionName": "1.0.0-beta.4",
+  "versionCode": 1083,
+  "versionName": "1.0.0-beta.5",
   "minSupportedVersionCode": 1079,
   "forceUpdate": false,
-  "publishedAt": "2026-07-16T10:00:00+08:00",
-  "downloadUrl": "https://www.starlore.cn/minio/my-files/releases/android/starlore-1.0.0-beta.4-1082.apk",
-  "fallbackDownloadUrl": "https://www.starlore.cn/minio/my-files/releases/starlore-alpha1082-debug.apk",
+  "publishedAt": "2026-07-17T00:00:00+08:00",
+  "downloadUrl": "https://www.starlore.cn/minio/my-files/releases/android/starlore-1.0.0-beta.5-1083.apk",
+  "fallbackDownloadUrl": "https://www.starlore.cn/minio/my-files/releases/android/starlore-1.0.0-beta.5-1083.apk",
   "description": {
-    "zh": "修复智能助手 SSE 阻塞问题，实时显示多智能体执行过程，并增强 Markdown 格式渲染。",
-    "en": "Fixes blocked SSE rendering, shows live multi-agent progress, and improves Markdown formatting."
+    "zh": "新增星记文章与分类管理，支持分类浏览、文章编辑与应用内更新体验优化。",
+    "en": "Adds article and category management, category browsing, article editing, and update experience improvements."
   },
   "releaseNotes": {
     "zh": [
       {
         "type": "new",
         "title": "新增",
-        "items": ["Planner、Executor、Reviewer 执行过程实时刷新", "使用旋转加载动画展示回答生成状态"]
+        "items": ["星记文章创建、编辑与发布设置", "分类新增、编辑、删除及分类文章浏览"]
       },
       {
         "type": "improved",
         "title": "优化",
-        "items": ["SSE 网络读取移至 IO 线程，避免阻塞界面重绘", "支持粗体、斜体、列表、引用、代码和分隔线等 Markdown 格式"]
+        "items": ["首页支持下拉刷新", "账户管理弹窗与分类页面交互优化"]
       }
     ],
     "en": [
       {
         "type": "new",
         "title": "New",
-        "items": ["Live multi-agent progress", "Animated answer loading state", "Improved Markdown rendering"]
+        "items": ["Article and category management", "Browse articles by category"]
       }
     ]
   }

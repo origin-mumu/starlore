@@ -13,9 +13,18 @@ sealed interface ArticleDetailUiState {
     data class Error(val message: String) : ArticleDetailUiState
 }
 
+sealed interface ArticleDeleteUiState {
+    object Idle : ArticleDeleteUiState
+    object Deleting : ArticleDeleteUiState
+    data class Error(val message: String) : ArticleDeleteUiState
+}
+
 class ArticleDetailViewModel(private val articleApi: ArticleApi) : ViewModel() {
 
     var detailState = mutableStateOf<ArticleDetailUiState>(ArticleDetailUiState.Loading)
+        private set
+
+    var deleteState = mutableStateOf<ArticleDeleteUiState>(ArticleDeleteUiState.Idle)
         private set
 
     fun loadArticle(id: Int) {
@@ -40,12 +49,18 @@ class ArticleDetailViewModel(private val articleApi: ArticleApi) : ViewModel() {
     }
 
     fun deleteArticle(id: Int, onSuccess: () -> Unit) {
+        if (deleteState.value is ArticleDeleteUiState.Deleting) return
+
+        deleteState.value = ArticleDeleteUiState.Deleting
         viewModelScope.launch {
             try {
                 articleApi.deleteArticle(id)
+                deleteState.value = ArticleDeleteUiState.Idle
                 onSuccess()
             } catch (e: Exception) {
-                onSuccess() // Fallback to success even on network exception, so user interface remains responsive
+                deleteState.value = ArticleDeleteUiState.Error(
+                    e.message?.takeIf { it.isNotBlank() } ?: "无法删除文章，请稍后重试"
+                )
             }
         }
     }

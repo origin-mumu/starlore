@@ -80,6 +80,13 @@ data class CreateArticleRequest(
     @SerialName("is_public") val isPublic: Boolean? = true
 )
 
+@Serializable
+data class CategoryRequest(
+    val name: String,
+    val description: String? = null,
+    val color: String? = null
+)
+
 interface ArticleApi {
     @GET("articles")
     suspend fun getAllArticles(
@@ -119,4 +126,13 @@ interface ArticleApi {
 
     @GET("public/categories")
     suspend fun getPublicCategories(): CategoryListResponse
+
+    @POST("categories")
+    suspend fun createCategory(@Body request: CategoryRequest): ApiResponse<CategoryItem>
+
+    @PUT("categories/{id}")
+    suspend fun updateCategory(@Path("id") id: Int, @Body request: CategoryRequest): ApiResponse<CategoryItem>
+
+    @DELETE("categories/{id}")
+    suspend fun deleteCategory(@Path("id") id: Int): ApiResponse<String>
 }
