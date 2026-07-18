@@ -1,5 +1,7 @@
 package com.robin.blogback.agent;
 
+import com.robin.blogback.config.SseContextHolder;
+import com.robin.blogback.config.UserContext;
 import com.robin.blogback.graph.AgentState;
 import com.robin.blogback.graph.AgentNode;
 import com.robin.blogback.observability.BadCaseCollector;
@@ -11,6 +13,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -216,14 +219,21 @@ public class ExecutorAgent implements AgentNode {
     private void executeSubtasksParallel(List<AgentState.Subtask> batch, AgentState state) {
         log.info("[Executor] Parallel execution of {} subtasks", batch.size());
 
+        Integer userId = state.getUserId();
+        SseEmitter emitter = SseContextHolder.getEmitter();
         List<Future<?>> futures = new ArrayList<>();
         for (AgentState.Subtask subtask : batch) {
             futures.add(parallelExecutor.submit(() -> {
+                UserContext.setUserId(userId);
+                if (emitter != null) SseContextHolder.setEmitter(emitter);
                 try {
                     executeSubtask(subtask, state);
                 } catch (Exception e) {
                     log.error("[Executor] Parallel subtask {} failed: {}", subtask.getId(), e.getMessage());
                     state.addExecutionResult(subtask.getId(), "ERROR: " + e.getMessage());
+                } finally {
+                    UserContext.clear();
+                    SseContextHolder.clear("executor-parallel");
                 }
             }));
         }

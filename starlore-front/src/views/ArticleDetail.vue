@@ -6,6 +6,7 @@ import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { List, Hash } from '@lucide/vue'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const userStore = useUserStore()
 
@@ -208,7 +209,7 @@ const formatDate = (dateString: string) => {
             <main class="main-content">
               <div class="detail-card-enter">
                 <div class="typography">
-                  <div v-html="article?.content || '星记内容为空'"></div>
+                  <div v-html="sanitizeHtml(article?.content || '星记内容为空')"></div>
                 </div>
                 <div class="back-action">
                   <button @click="$router.back()" class="btn-primary">返回星记列表</button>

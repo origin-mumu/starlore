@@ -17,8 +17,8 @@ public class AgentState {
 
     // ── Executor 状态 ──
     private int currentSubtaskIndex = 0;
-    private final Map<Integer, String> executionResults = new LinkedHashMap<>();
-    private final List<String> toolCallsLog = new ArrayList<>();
+    private final Map<Integer, String> executionResults = new java.util.concurrent.ConcurrentSkipListMap<>();
+    private final List<String> toolCallsLog = Collections.synchronizedList(new ArrayList<>());
 
     // ── Reviewer 状态 ──
     private String reviewDecision;   // PASS / REVISE / FAIL
@@ -31,7 +31,7 @@ public class AgentState {
 
     // ── 可观测性 ──
     private String traceId;
-    private final Map<String, Long> nodeTimings = new LinkedHashMap<>();
+    private final Map<String, Long> nodeTimings = new java.util.concurrent.ConcurrentHashMap<>();
     private int totalTokensIn = 0;
     private int totalTokensOut = 0;
 
@@ -122,7 +122,7 @@ public class AgentState {
     public void recordNodeTiming(String nodeId, long ms) { nodeTimings.put(nodeId, ms); }
     public Map<String, Long> getNodeTimings() { return nodeTimings; }
 
-    public void addTokens(int in, int out) {
+    public synchronized void addTokens(int in, int out) {
         this.totalTokensIn += in;
         this.totalTokensOut += out;
     }

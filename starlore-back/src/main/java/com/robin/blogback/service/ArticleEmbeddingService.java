@@ -10,9 +10,16 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import jakarta.annotation.PreDestroy;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,6 +27,13 @@ public class ArticleEmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(ArticleEmbeddingService.class);
     private static final File STORE_FILE = new File("./data/vector-store.json");
+    private final ScheduledExecutorService persistenceExecutor =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "vector-store-persistence");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private ScheduledFuture<?> pendingSave;
 
     @Autowired(required = false)
     private VectorStore vectorStore;
@@ -30,7 +44,7 @@ public class ArticleEmbeddingService {
     /**
      * 索引单篇文章到向量存储
      */
-    public void indexArticle(Article article) {
+    public synchronized void indexArticle(Article article) {
         if (vectorStore == null) return;
         if (article == null || article.getId() == null) return;
 
@@ -43,24 +57,24 @@ public class ArticleEmbeddingService {
 
         Document doc = new Document("article_" + article.getId(), text, metadata);
         vectorStore.add(List.of(doc));
-        saveToFile();
+        scheduleSave();
         log.info("[RAG] 已索引文章: id={}, title={}", article.getId(), article.getTitle());
     }
 
     /**
      * 从向量存储中移除文章
      */
-    public void removeArticle(Integer articleId) {
+    public synchronized void removeArticle(Integer articleId) {
         if (vectorStore == null) return;
         vectorStore.delete(List.of("article_" + articleId));
-        saveToFile();
+        scheduleSave();
         log.info("[RAG] 已移除文章向量: id={}", articleId);
     }
 
     /**
      * 重新索引指定用户的所有已发布文章
      */
-    public int reindexAll(Integer userId) {
+    public synchronized int reindexAll(Integer userId) {
         if (vectorStore == null) {
             log.warn("[RAG] VectorStore 不可用，跳过索引");
             return 0;
@@ -84,7 +98,7 @@ public class ArticleEmbeddingService {
 
         if (!documents.isEmpty()) {
             vectorStore.add(documents);
-            saveToFile();
+            scheduleSave();
         }
         log.info("[RAG] 已重新索引 {} 篇文章 (userId={})", documents.size(), userId);
         return documents.size();
@@ -93,7 +107,7 @@ public class ArticleEmbeddingService {
     /**
      * 语义搜索相关文章
      */
-    public List<Article> searchSimilar(String query, Integer userId, int topK) {
+    public synchronized List<Article> searchSimilar(String query, Integer userId, int topK) {
         if (vectorStore == null) return Collections.emptyList();
 
         try {
@@ -199,11 +213,33 @@ public class ArticleEmbeddingService {
         return sb.toString();
     }
 
-    private void saveToFile() {
+    private synchronized void scheduleSave() {
+        if (pendingSave != null) pendingSave.cancel(false);
+        pendingSave = persistenceExecutor.schedule(this::saveToFile, 500, TimeUnit.MILLISECONDS);
+    }
+
+    private synchronized void saveToFile() {
         try {
-            ((org.springframework.ai.vectorstore.SimpleVectorStore) vectorStore).save(STORE_FILE);
+            File parent = STORE_FILE.getAbsoluteFile().getParentFile();
+            if (parent != null) Files.createDirectories(parent.toPath());
+            File temporaryFile = new File(STORE_FILE.getPath() + ".tmp");
+            ((org.springframework.ai.vectorstore.SimpleVectorStore) vectorStore).save(temporaryFile);
+            try {
+                Files.move(temporaryFile.toPath(), STORE_FILE.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                Files.move(temporaryFile.toPath(), STORE_FILE.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (Exception e) {
             log.warn("[RAG] 保存向量存储失败: {}", e.getMessage());
         }
+    }
+
+    @PreDestroy
+    public synchronized void shutdownPersistence() {
+        if (pendingSave != null && !pendingSave.isDone()) pendingSave.cancel(false);
+        if (vectorStore != null) saveToFile();
+        persistenceExecutor.shutdown();
     }
 }

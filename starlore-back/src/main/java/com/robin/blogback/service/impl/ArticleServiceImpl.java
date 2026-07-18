@@ -8,6 +8,7 @@ import com.robin.blogback.entity.Article;
 import com.robin.blogback.entity.Category;
 import com.robin.blogback.entity.User;
 import com.robin.blogback.exception.NotFoundException;
+import com.robin.blogback.exception.ForbiddenException;
 import com.robin.blogback.mapper.ArticleMapper;
 import com.robin.blogback.mapper.CategoryMapper;
 import com.robin.blogback.mapper.UserMapper;
@@ -234,10 +235,13 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
-    public ArticleDetail updateArticle(Integer id, UpdateArticleRequest request) {
+    public ArticleDetail updateArticle(Integer userId, boolean isAdmin, Integer id, UpdateArticleRequest request) {
         Article article = articleMapper.selectById(id);
         if (article == null) {
             throw new NotFoundException("文章不存在");
+        }
+        if (!isAdmin && !Objects.equals(article.getUserId(), userId)) {
+            throw new ForbiddenException("无权修改其他用户的文章");
         }
 
         String oldCategory = article.getCategory();
@@ -269,10 +273,13 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     @Transactional
-    public Map<String, Object> deleteArticle(Integer id) {
+    public Map<String, Object> deleteArticle(Integer userId, boolean isAdmin, Integer id) {
         Article article = articleMapper.selectById(id);
         if (article == null) {
             throw new NotFoundException("文章不存在");
+        }
+        if (!isAdmin && !Objects.equals(article.getUserId(), userId)) {
+            throw new ForbiddenException("无权删除其他用户的文章");
         }
         String category = article.getCategory();
         articleMapper.deleteById(id);

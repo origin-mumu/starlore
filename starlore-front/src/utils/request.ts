@@ -1,7 +1,7 @@
 import axios from 'axios'
+import { clearAuthToken, getAuthToken } from '@/utils/authToken'
 
 const baseURL = '/api'
-const TOKEN_KEY = 'ro_blog_token'
 const GUEST_ALLOWED_PATHS = ['/', '/categories', '/vr']
 const instance = axios.create({ baseURL })
 
@@ -11,7 +11,7 @@ instance.interceptors.request.use(
       config.headers = config.headers ?? {}
 
       // 附加 JWT token
-      const token = localStorage.getItem(TOKEN_KEY)
+      const token = getAuthToken()
       if (token) {
         ; (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
       }
@@ -30,7 +30,7 @@ instance.interceptors.response.use(
   (err) => {
     // 401 未授权 -> 清除登录状态
     if (err.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY)
+      clearAuthToken()
       const path = window.location.pathname
       // 访客允许的页面不跳转，仅清除 token
       const isGuestAllowed = GUEST_ALLOWED_PATHS.some(p => path === p || path.startsWith(p + '/'))
@@ -50,7 +50,8 @@ instance.interceptors.response.use(
         window.location.href = '/'
       }
     }
-    return Promise.reject(new Error(err.response?.data?.message || '网络错误'))
+    if (err.response?.data?.message) err.message = err.response.data.message
+    return Promise.reject(err)
   },
 )
 

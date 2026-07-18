@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.toArgb
 import com.starlore.glasense.theme.tokens.Blue500
 import com.tencent.mmkv.MMKV
+import com.starlore.app.security.SecureTokenStore
 
 /**
  * A singleton object for managing app settings using MMKV.
@@ -278,7 +279,6 @@ object SettingsManager {
             appIconState.value = value
         }
 
-    private const val KEY_AUTH_TOKEN = "auth_token"
     private const val KEY_USER_NICKNAME = "user_nickname"
     private const val KEY_USER_ROLE = "user_role"
     private const val KEY_USER_AVATAR = "user_avatar"
@@ -290,10 +290,10 @@ object SettingsManager {
     val authSessionVersionState = mutableIntStateOf(0)
 
     var authToken: String
-        get() = mmkv.decodeString(KEY_AUTH_TOKEN, "") ?: ""
+        get() = SecureTokenStore.get()
         set(value) {
             val changed = value != authToken
-            mmkv.encode(KEY_AUTH_TOKEN, value)
+            SecureTokenStore.put(value)
             if (changed) authSessionVersionState.intValue++
         }
 

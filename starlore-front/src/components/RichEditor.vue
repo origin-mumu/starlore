@@ -2,6 +2,7 @@
 import { ref, shallowRef, onBeforeUnmount, watch } from 'vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
+import { getAuthToken } from '@/utils/authToken'
 
 const props = withDefaults(
   defineProps<{
@@ -23,8 +24,7 @@ const emit = defineEmits<{
 const editorRef = shallowRef<any>()
 const editorReady = ref(false)
 
-const TOKEN_KEY = 'ro_blog_token'
-const token = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+const token = getAuthToken()
 
 const editorConfig = {
   placeholder: props.placeholder,

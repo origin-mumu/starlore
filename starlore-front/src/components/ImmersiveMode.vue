@@ -5,6 +5,8 @@ import hljs from 'highlight.js'
 import { buildMultiAgentSseUrl, type CharacterCard } from '@/api/ai'
 import { guestChat } from '@/api/guest-ai'
 import { useUserStore } from '@/stores/user'
+import { sanitizeHtml } from '@/utils/sanitize'
+import { getAuthToken } from '@/utils/authToken'
 import {
   Bot,
   Image,
@@ -343,7 +345,7 @@ async function transcribeAndSend(audioBlob: Blob) {
     const wav = await convertToWav(audioBlob)
     const b64 = arrayBufToB64(await wav.arrayBuffer())
     const dataUri = `data:audio/wav;base64,${b64}`
-    const token = localStorage.getItem('ro_blog_token')
+    const token = getAuthToken()
 
     const res = await fetch('/api/ai/transcribe/stream', {
       method: 'POST',
@@ -520,7 +522,7 @@ async function onFileUpload(e: Event) {
     // docx/pdf 等需要后端解析
     isParsingFile.value = true
     try {
-      const token = localStorage.getItem('ro_blog_token')
+      const token = getAuthToken()
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch('/api/ai/parse-file', {
@@ -674,7 +676,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   abortCtrl = new AbortController()
 
   try {
-    const token = localStorage.getItem('ro_blog_token')
+    const token = getAuthToken()
     const authHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -1610,7 +1612,7 @@ function shouldShowMessage(msg: ChatMsg) {
             </div>
             <!-- 图片消息 -->
             <img v-if="msg.imageUrl" :src="msg.imageUrl" class="imm-msg-image" />
-            <div v-if="msg.content && msg.content.trim()" class="text" v-html="fmt(msg.content)"></div>
+            <div v-if="msg.content && msg.content.trim()" class="text" v-html="sanitizeHtml(fmt(msg.content))"></div>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">

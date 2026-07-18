@@ -23,7 +23,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Multi-Agent SSE 端点。
@@ -62,11 +65,9 @@ public class MultiAgentController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final ExecutorService agentExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "multi-agent-stream");
-        t.setDaemon(true);
-        return t;
-    });
+    @Autowired
+    @Qualifier("multiAgentExecutor")
+    private ExecutorService agentExecutor;
 
     /**
      * Multi-Agent SSE 流式接口。
@@ -99,10 +100,11 @@ public class MultiAgentController {
         }
 
         SseEmitter emitter = new SseEmitter(300_000L);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        AtomicReference<Future<?>> taskRef = new AtomicReference<>();
 
-        agentExecutor.execute(() -> {
+        Runnable task = () -> {
             UserContext.setUserId(userId);
-            UserContext.setCrossThreadUser("multi-agent-stream", userId);
             SseContextHolder.setEmitter("multi-agent-stream", emitter);
             aiQuotaService.tryConsume(userId);
 
@@ -162,6 +164,7 @@ public class MultiAgentController {
 
                 // 发送每个子任务的结果
                 for (var entry : finalState.getExecutionResults().entrySet()) {
+                    if (cancelled.get() || Thread.currentThread().isInterrupted()) return;
                     sendSseEvent(emitter, "subtask_result", Map.of(
                             "subtask_id", entry.getKey(),
                             "result", entry.getValue()
@@ -183,6 +186,7 @@ public class MultiAgentController {
                     // 模拟流式输出：按段落分块发送
                     String[] chunks = finalAnswer.split("(?<=\\n\\n)|(?<=。)|(?<=！)|(?<=？)");
                     for (String chunk : chunks) {
+                        if (cancelled.get() || Thread.currentThread().isInterrupted()) return;
                         if (!chunk.isEmpty()) {
                             sendSseEvent(emitter, "content", Map.of("content", chunk));
                             Thread.sleep(50); // 模拟流式延迟
@@ -236,12 +240,31 @@ public class MultiAgentController {
             } finally {
                 multiAgentGraph.clearEvents();
                 UserContext.clear();
-                UserContext.clearCrossThread("multi-agent-stream");
                 SseContextHolder.clear("multi-agent-stream");
             }
-        });
+        };
 
-        emitter.onTimeout(() -> completeEmitter(emitter));
+        try {
+            taskRef.set(agentExecutor.submit(task));
+        } catch (RejectedExecutionException e) {
+            try {
+                sendSseEvent(emitter, "error", Map.of("error", "Agent 服务繁忙，请稍后重试"));
+            } catch (IOException ignored) {}
+            emitter.complete();
+            return emitter;
+        }
+
+        Runnable cancelTask = () -> {
+            cancelled.set(true);
+            Future<?> future = taskRef.get();
+            if (future != null && !future.isDone()) future.cancel(true);
+        };
+        emitter.onCompletion(cancelTask);
+        emitter.onTimeout(() -> {
+            cancelTask.run();
+            completeEmitter(emitter);
+        });
+        emitter.onError(error -> cancelTask.run());
         return emitter;
     }
 
