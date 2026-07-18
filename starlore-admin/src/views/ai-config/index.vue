@@ -79,7 +79,10 @@ const saveConfig = async () => {
   try {
     loading.value = true
     if (currentId.value) {
-      await updateAiConfigService(currentId.value, form.value)
+      const payload: Record<string, unknown> = { ...form.value }
+      // The API never returns stored secrets. A blank value keeps the existing key unchanged.
+      if (!form.value.apiKey) delete payload.apiKey
+      await updateAiConfigService(currentId.value, payload)
     } else {
       await createAiConfigService(form.value)
     }

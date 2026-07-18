@@ -62,14 +62,17 @@ public class CategoryController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateCategory(@PathVariable Integer id, @Valid @RequestBody UpdateCategoryRequest request) {
-        CategoryListResponse.CategoryItem item = categoryService.updateCategory(id, request);
+    public ResponseEntity<?> updateCategory(HttpServletRequest httpRequest, @PathVariable Integer id,
+                                             @Valid @RequestBody UpdateCategoryRequest request) {
+        Integer userId = (Integer) httpRequest.getAttribute("userId");
+        CategoryListResponse.CategoryItem item = categoryService.updateCategory(userId, isAdmin(userId), id, request);
         return ResponseEntity.ok(Map.of("message", "分类更新成功", "data", item));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteCategory(@PathVariable Integer id) {
-        Map<String, Object> result = categoryService.deleteCategory(id);
+    public ResponseEntity<?> deleteCategory(HttpServletRequest httpRequest, @PathVariable Integer id) {
+        Integer userId = (Integer) httpRequest.getAttribute("userId");
+        Map<String, Object> result = categoryService.deleteCategory(userId, isAdmin(userId), id);
         return ResponseEntity.ok(result);
     }
 }

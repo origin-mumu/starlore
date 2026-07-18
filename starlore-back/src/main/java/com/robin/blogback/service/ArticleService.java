@@ -11,8 +11,8 @@ public interface ArticleService {
     BlogStatsResponse getBlogStats(Integer userId, boolean isAdmin);
     DailyStatsResponse getDailyStats(Integer userId, boolean isAdmin);
     ArticleDetail createArticle(Integer userId, CreateArticleRequest request);
-    ArticleDetail updateArticle(Integer id, UpdateArticleRequest request);
-    Map<String, Object> deleteArticle(Integer id);
+    ArticleDetail updateArticle(Integer userId, boolean isAdmin, Integer id, UpdateArticleRequest request);
+    Map<String, Object> deleteArticle(Integer userId, boolean isAdmin, Integer id);
 
     ArticleListResponse getPublicArticles(int page, int limit, String category, String search, String tag);
     ArticleDetail getPublicArticleById(Integer id);

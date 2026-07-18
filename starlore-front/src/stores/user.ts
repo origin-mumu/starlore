@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { clearAuthToken, getAuthToken, setAuthToken } from '@/utils/authToken'
 import {
     loginService,
     registerService,
@@ -11,11 +12,9 @@ import {
     type UserInfo,
 } from '@/api/auth'
 
-const TOKEN_KEY = 'ro_blog_token'
-
 export const useUserStore = defineStore('user', () => {
     const user = ref<UserInfo | null>(null)
-    const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
+    const token = ref<string>(getAuthToken())
     const loading = ref(false)
 
     const isLoggedIn = computed(() => !!token.value)
@@ -25,14 +24,14 @@ export const useUserStore = defineStore('user', () => {
     // 设置 token
     const setToken = (newToken: string) => {
         token.value = newToken
-        localStorage.setItem(TOKEN_KEY, newToken)
+        setAuthToken(newToken)
     }
 
     // 清除登录状态
     const clearAuth = () => {
         token.value = ''
         user.value = null
-        localStorage.removeItem(TOKEN_KEY)
+        clearAuthToken()
     }
 
     // 登录

@@ -86,7 +86,6 @@ public class AgentStreamController {
 
         agentExecutor.execute(() -> {
             UserContext.setUserId(userId);
-            UserContext.setCrossThreadUser("agent-stream", userId);
             SseContextHolder.setEmitter("agent-stream", emitter);
             // 消耗一次配额
             aiQuotaService.tryConsume(userId);
@@ -185,7 +184,6 @@ public class AgentStreamController {
                                 // 忽略
                             }
                             UserContext.clear();
-                            UserContext.clearCrossThread("agent-stream");
                         })
                         .doOnComplete(() -> {
                             try {
@@ -195,7 +193,6 @@ public class AgentStreamController {
                             }
                             completeEmitter(emitter);
                             UserContext.clear();
-                            UserContext.clearCrossThread("agent-stream");
                             SseContextHolder.clear("agent-stream");
                         })
                         .subscribe();
@@ -209,7 +206,6 @@ public class AgentStreamController {
                 }
                 completeEmitter(emitter);
                 UserContext.clear();
-                UserContext.clearCrossThread("agent-stream");
                 SseContextHolder.clear("agent-stream");
             }
         });

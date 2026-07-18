@@ -237,13 +237,28 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (animationId !== null) cancelAnimationFrame(animationId)
+  if (scene) {
+    scene.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      mesh.geometry?.dispose()
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      materials.filter(Boolean).forEach((material) => material.dispose())
+    })
+    scene.clear()
+  }
   if (renderer) {
     renderer.dispose()
+    renderer.forceContextLoss()
+    renderer.domElement.remove()
   }
   if (composer) {
     composer.dispose()
   }
   window.removeEventListener('resize', handleResize)
+  renderer = null
+  composer = null
+  scene = null
+  camera = null
 })
 </script>
 

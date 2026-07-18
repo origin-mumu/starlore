@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { getAuthToken } from '@/utils/authToken'
 
 /**
  * TTS 语音合成与播放 composable
@@ -46,7 +47,7 @@ export function useTTS() {
 
   /** 纯获取 TTS 音频（不播放），用于预加载 */
   async function fetchTtsAudio(text: string): Promise<ArrayBuffer> {
-    const token = localStorage.getItem('ro_blog_token')
+    const token = getAuthToken()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -121,7 +122,7 @@ export function useTTS() {
   /** 通过后端 MiMo TTS API 获取音频并播放 */
   async function playViaApi(text: string): Promise<boolean> {
     try {
-      const token = localStorage.getItem('ro_blog_token')
+      const token = getAuthToken()
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

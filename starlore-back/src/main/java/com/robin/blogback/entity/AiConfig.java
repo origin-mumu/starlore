@@ -1,5 +1,7 @@
 package com.robin.blogback.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -16,6 +18,7 @@ public class AiConfig {
     private String modelName;
     private String apiUrl;
     private String modelId;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String apiKey;
     private Boolean enabled;
     private LocalDateTime createdAt;

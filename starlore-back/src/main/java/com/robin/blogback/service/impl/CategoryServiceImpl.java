@@ -7,6 +7,7 @@ import com.robin.blogback.entity.Category;
 import com.robin.blogback.exception.BadRequestException;
 import com.robin.blogback.exception.ConflictException;
 import com.robin.blogback.exception.NotFoundException;
+import com.robin.blogback.exception.ForbiddenException;
 import com.robin.blogback.mapper.ArticleMapper;
 import com.robin.blogback.mapper.CategoryMapper;
 import com.robin.blogback.service.CategoryService;
@@ -18,6 +19,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class CategoryServiceImpl implements CategoryService {
@@ -107,10 +109,13 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryListResponse.CategoryItem updateCategory(Integer id, UpdateCategoryRequest request) {
+    public CategoryListResponse.CategoryItem updateCategory(Integer userId, boolean isAdmin, Integer id, UpdateCategoryRequest request) {
         Category category = categoryMapper.selectById(id);
         if (category == null) {
             throw new NotFoundException("分类不存在");
+        }
+        if (!isAdmin && !Objects.equals(category.getUserId(), userId)) {
+            throw new ForbiddenException("无权修改其他用户的分类");
         }
 
         if (StringUtils.hasText(request.getName()) && !request.getName().equals(category.getName())) {
@@ -139,10 +144,13 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public Map<String, Object> deleteCategory(Integer id) {
+    public Map<String, Object> deleteCategory(Integer userId, boolean isAdmin, Integer id) {
         Category category = categoryMapper.selectById(id);
         if (category == null) {
             throw new NotFoundException("分类不存在");
+        }
+        if (!isAdmin && !Objects.equals(category.getUserId(), userId)) {
+            throw new ForbiddenException("无权删除其他用户的分类");
         }
         Long articleCount = articleMapper.selectCount(
                 new LambdaQueryWrapper<Article>().eq(Article::getCategory, category.getName()));

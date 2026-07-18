@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { clearAuthToken, getAuthToken } from '@/utils/authToken'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -143,15 +145,24 @@ const router = createRouter({
   }
 })
 
-const TOKEN_KEY = 'ro_blog_token'
+function isExpiredJwt(token: string): boolean {
+  try {
+    const payloadPart = token.split('.')[1]
+    if (!payloadPart) return true
+    const payload = JSON.parse(atob(payloadPart.replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()
+  } catch {
+    return true
+  }
+}
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const title = to.meta.title as string
   if (title) {
     document.title = title
   }
 
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = getAuthToken()
   const requiresAuth = to.meta.requiresAuth !== false
   const guestAllowed = to.meta.guestAllowed === true
 
@@ -161,12 +172,22 @@ router.beforeEach((to) => {
   }
 
   // 未登录且访问需要认证的页面 -> 跳转登录
-  if (requiresAuth && !token) {
+  if (requiresAuth && (!token || isExpiredJwt(token))) {
+    clearAuthToken()
     return { name: 'login' }
   }
 
+  const requiredRoles = to.meta.requiredRole as string[] | undefined
+  if (requiredRoles?.length && token) {
+    const userStore = useUserStore()
+    if (!userStore.user) await userStore.fetchCurrentUser()
+    if (!userStore.user || !requiredRoles.includes(userStore.role)) {
+      return { name: 'home' }
+    }
+  }
+
   // 已登录且访问登录页 -> 跳转首页
-  if (to.name === 'login' && token) {
+  if (to.name === 'login' && token && !isExpiredJwt(token)) {
     return { name: 'home' }
   }
 })

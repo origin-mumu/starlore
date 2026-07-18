@@ -11,6 +11,7 @@ import {
 import RichEditor from '@/components/RichEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useUserStore } from '@/stores/user'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const route = useRoute()
 const router = useRouter()
@@ -434,7 +435,7 @@ const spacingStyle = computed(() => ({
                         >
                         <span class="item-date text-secondary">{{ item.period }}</span>
                       </div>
-                      <div class="rp-edu-content" v-html="item.detail || ''"></div>
+                      <div class="rp-edu-content" v-html="sanitizeHtml(item.detail || '')"></div>
                     </div>
                   </section>
 
@@ -455,7 +456,7 @@ const spacingStyle = computed(() => ({
                         >
                         <span class="item-date text-secondary">{{ item.period }}</span>
                       </div>
-                      <div class="rp-exp-content" v-html="item.detail" v-if="item.detail"></div>
+                      <div class="rp-exp-content" v-html="sanitizeHtml(item.detail)" v-if="item.detail"></div>
                     </div>
                   </section>
 
@@ -475,7 +476,7 @@ const spacingStyle = computed(() => ({
                         >
                         <span class="item-date text-secondary">{{ item.period }}</span>
                       </div>
-                      <div class="rp-project-content" v-html="item.detail" v-if="item.detail"></div>
+                      <div class="rp-project-content" v-html="sanitizeHtml(item.detail)" v-if="item.detail"></div>
                     </div>
                   </section>
 
@@ -486,7 +487,7 @@ const spacingStyle = computed(() => ({
                     @click="activeModule = 'skills'"
                   >
                     <div class="rp-section-title">专业技能</div>
-                    <div class="rp-skills-content" v-html="previewData.skills"></div>
+                    <div class="rp-skills-content" v-html="sanitizeHtml(previewData.skills)"></div>
                   </section>
                 </div>
               </div>
@@ -783,7 +784,7 @@ const spacingStyle = computed(() => ({
                 >
                 <span>{{ item.period }}</span>
               </div>
-              <div class="rp-edu-content" v-html="item.detail || ''"></div>
+              <div class="rp-edu-content" v-html="sanitizeHtml(item.detail || '')"></div>
             </div>
           </section>
           <section v-if="previewData.experience.length" class="rp-section">
@@ -793,7 +794,7 @@ const spacingStyle = computed(() => ({
                 <span>{{ item.company || '(公司)' }} -- {{ item.position || '(职位)' }}</span>
                 <span>{{ item.period }}</span>
               </div>
-              <div class="rp-exp-content" v-html="item.detail" v-if="item.detail"></div>
+              <div class="rp-exp-content" v-html="sanitizeHtml(item.detail)" v-if="item.detail"></div>
             </div>
           </section>
           <section v-if="previewData.projects.length" class="rp-section">
@@ -803,12 +804,12 @@ const spacingStyle = computed(() => ({
                 <span>{{ item.name || '(项目名称)' }} -- {{ item.role || '(角色)' }}</span>
                 <span>{{ item.period }}</span>
               </div>
-              <div class="rp-project-content" v-html="item.detail" v-if="item.detail"></div>
+              <div class="rp-project-content" v-html="sanitizeHtml(item.detail)" v-if="item.detail"></div>
             </div>
           </section>
           <section v-if="previewData.skills" class="rp-section">
             <div class="rp-section-title">专业技能</div>
-            <div class="rp-skills-content" v-html="previewData.skills"></div>
+            <div class="rp-skills-content" v-html="sanitizeHtml(previewData.skills)"></div>
           </section>
         </div>
       </div>

@@ -37,7 +37,9 @@ public class AgentGraph {
     private final Map<String, AgentNode> nodes = new LinkedHashMap<>();
     private final Map<String, String> staticEdges = new LinkedHashMap<>();
     private final Map<String, ConditionalEdge> conditionalEdges = new LinkedHashMap<>();
-    private final List<GraphEvent> eventListeners = new ArrayList<>();
+    private final List<GraphEvent> permanentEventListeners = new ArrayList<>();
+    private final ThreadLocal<List<GraphEvent>> requestEventListeners =
+            ThreadLocal.withInitial(ArrayList::new);
     private String entryNode;
 
     private AgentGraph() {}
@@ -46,7 +48,7 @@ public class AgentGraph {
      * 运行时添加事件监听器（用于 SSE 流式推送等场景）。
      */
     public AgentGraph addEvent(GraphEvent listener) {
-        this.eventListeners.add(listener);
+        this.requestEventListeners.get().add(listener);
         return this;
     }
 
@@ -54,7 +56,7 @@ public class AgentGraph {
      * 移除所有事件监听器。每次请求结束后必须调用，防止监听器泄漏。
      */
     public void clearEvents() {
-        this.eventListeners.clear();
+        this.requestEventListeners.remove();
     }
 
     // ========== Builder ==========
@@ -80,7 +82,7 @@ public class AgentGraph {
         }
 
         public Builder onEvent(GraphEvent listener) {
-            graph.eventListeners.add(listener);
+            graph.permanentEventListeners.add(listener);
             return this;
         }
 
@@ -173,7 +175,9 @@ public class AgentGraph {
     // ========== 事件 ==========
 
     private void emitEvent(String type, AgentState state, String nodeId) {
-        for (GraphEvent listener : eventListeners) {
+        List<GraphEvent> listeners = new ArrayList<>(permanentEventListeners);
+        listeners.addAll(requestEventListeners.get());
+        for (GraphEvent listener : listeners) {
             try {
                 listener.onEvent(type, state, nodeId);
             } catch (Exception e) {

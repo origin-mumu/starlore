@@ -83,14 +83,17 @@ public class ArticleController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateArticle(@PathVariable Integer id, @Valid @RequestBody UpdateArticleRequest request) {
-        ArticleDetail article = articleService.updateArticle(id, request);
+    public ResponseEntity<?> updateArticle(HttpServletRequest httpRequest, @PathVariable Integer id,
+                                           @Valid @RequestBody UpdateArticleRequest request) {
+        Integer userId = (Integer) httpRequest.getAttribute("userId");
+        ArticleDetail article = articleService.updateArticle(userId, isAdmin(userId), id, request);
         return ResponseEntity.ok(Map.of("message", "文章更新成功", "data", article));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteArticle(@PathVariable Integer id) {
-        Map<String, Object> result = articleService.deleteArticle(id);
+    public ResponseEntity<?> deleteArticle(HttpServletRequest httpRequest, @PathVariable Integer id) {
+        Integer userId = (Integer) httpRequest.getAttribute("userId");
+        Map<String, Object> result = articleService.deleteArticle(userId, isAdmin(userId), id);
         return ResponseEntity.ok(result);
     }
 }

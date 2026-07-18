@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { getAuthToken } from '@/utils/authToken'
 import ImmersiveMode from '@/components/ImmersiveMode.vue'
 const userStore = useUserStore()
 import {
@@ -321,7 +322,7 @@ async function sendMessage() {
       toolStatus.value = '正在识别图片...'
       imageRecognitionContent.value = ''
       imageRecognitionCollapsed.value = false
-      const token = localStorage.getItem('ro_blog_token')
+      const token = getAuthToken()
       const analyzeRes = await fetch('/api/ai/analyze-image/stream', {
         method: 'POST',
         headers: {
@@ -381,7 +382,7 @@ async function sendMessage() {
     abortController = new AbortController()
     toolStatus.value = null
 
-    const token = localStorage.getItem('ro_blog_token')
+    const token = getAuthToken()
     const authHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -777,7 +778,7 @@ async function transcribeAudio(audioBlob: Blob) {
     const base64 = arrayBufferToBase64(arrayBuffer)
     const dataUri = `data:audio/wav;base64,${base64}`
 
-    const token = localStorage.getItem('ro_blog_token')
+    const token = getAuthToken()
     const res = await fetch('/api/ai/transcribe/stream', {
       method: 'POST',
       headers: {
@@ -929,10 +930,12 @@ watch(selectedCharacterKey, async () => {
   }
 })
 
+const closeCharacterPicker = () => {
+  charPickerOpen.value = false
+}
+
 onMounted(async () => {
-  document.addEventListener('click', () => {
-    charPickerOpen.value = false
-  })
+  document.addEventListener('click', closeCharacterPicker)
   document.documentElement.classList.add('echobot-route')
 
   if (!userStore.isLoggedIn) {
@@ -974,6 +977,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('click', closeCharacterPicker)
   document.documentElement.classList.remove('echobot-route')
   document.documentElement.classList.remove('echobot-streaming')
   cancelStream()

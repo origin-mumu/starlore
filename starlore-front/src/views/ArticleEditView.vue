@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getAuthToken } from '@/utils/authToken'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import {
   getArticleByIdService,
@@ -58,8 +59,7 @@ const closeAllDropdowns = (e: MouseEvent) => {
 // wangEditor
 const editorRef = shallowRef()
 const editorReady = ref(true)
-const TOKEN_KEY = 'ro_blog_token'
-const token = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+const token = getAuthToken()
 
 const editorConfig = {
   placeholder: '请输入星记内容...',
