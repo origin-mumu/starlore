@@ -23,6 +23,9 @@ services:
       - SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL=${AI_MODEL}
       # JWT 配置
       - APP_JWT_SECRET=${JWT_SECRET}
+      # Production browser origins allowed by Spring Security CORS.
+      # Override this from /opt/starlore/.env when adding another domain.
+      - APP_CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS:-https://www.starlore.cn,https://starlore.cn}
       # LangSmith 配置
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       # PDF 服务配置：指回宿主机的 PM2 端口 (通常是 Docker 默认网桥网关 172.17.0.1)
