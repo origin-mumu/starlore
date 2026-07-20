@@ -73,9 +73,10 @@ async def multi_agent_sse(
     )
 
 
-@router.post("/agent-traces")
+@router.get("/agent-traces")
 async def get_agent_traces(
-    request: Request,
+    page: int = 1,
+    size: int = 20,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -87,7 +88,8 @@ async def get_agent_traces(
         select(AgentTraceLog)
         .where(AgentTraceLog.user_id == user.id)
         .order_by(AgentTraceLog.created_at.desc())
-        .limit(50)
+        .offset((max(page, 1) - 1) * min(max(size, 1), 100))
+        .limit(min(max(size, 1), 100))
     )
     traces = result.scalars().all()
     return {

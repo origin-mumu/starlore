@@ -34,6 +34,62 @@ async def get_all_categories(db: AsyncSession, user_id: int | None = None) -> li
     return [_to_item(c) for c in result.scalars().all()]
 
 
+async def get_public_categories(db: AsyncSession) -> list[CategoryItem]:
+    categories = (await db.execute(select(Category))).scalars().all()
+    items: list[CategoryItem] = []
+    for category in categories:
+        count = (
+            await db.execute(
+                select(func.count()).where(
+                    Article.category == category.name,
+                    Article.status == "published",
+                    Article.is_public.is_(True),
+                )
+            )
+        ).scalar() or 0
+        if count:
+            item = _to_item(category)
+            item.article_count = count
+            items.append(item)
+    return sorted(items, key=lambda item: item.article_count, reverse=True)
+
+
+async def get_public_category_by_id(db: AsyncSession, category_id: int) -> dict:
+    category = (await db.execute(select(Category).where(Category.id == category_id))).scalar_one_or_none()
+    if category is None:
+        raise NotFoundException("分类不存在")
+    result = await db.execute(
+        select(Article).where(
+            Article.category == category.name,
+            Article.status == "published",
+            Article.is_public.is_(True),
+        ).order_by(Article.createdAt.desc())
+    )
+    articles = [_to_public_summary(article) for article in result.scalars().all()]
+    return {
+        "id": category.id,
+        "name": category.name,
+        "description": category.description,
+        "color": category.color,
+        "article_count": len(articles),
+        "createdAt": category.createdAt,
+        "updatedAt": category.updatedAt,
+        "articles": articles,
+    }
+
+
+def _to_public_summary(article: Article) -> ArticleSummary:
+    return ArticleSummary(
+        id=article.id,
+        title=article.title,
+        description=article.description,
+        cover_image=article.cover_image,
+        view_count=article.view_count,
+        is_public=article.is_public,
+        createdAt=article.createdAt,
+    )
+
+
 async def get_category_by_id(db: AsyncSession, user_id: int, category_id: int) -> dict:
     result = await db.execute(
         select(Category).where(Category.id == category_id, Category.user_id == user_id)

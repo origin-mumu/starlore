@@ -10,6 +10,7 @@ from jose import JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.security import parse_token
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ _PUBLIC_PATHS = (
     "/api/auth/login",
     "/api/auth/register",
     "/api/health",
+    "/api/public/",
     "/api/upload/",
     "/docs",
     "/openapi.json",
@@ -29,10 +31,12 @@ def setup_middleware(app: FastAPI) -> None:
     """注册所有中间件。"""
 
     # CORS（allow_origins=["*"] 时 allow_credentials 必须为 False）
+    origins = [origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()]
+    allow_all = origins == ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
+        allow_origins=origins,
+        allow_credentials=not allow_all,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )

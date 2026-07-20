@@ -3,7 +3,7 @@
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.schemas.ai import (
     AICharacterCardsResponse,
     AIMessageListResponse,
     AIModelsResponse,
+    AIQuotaResponse,
     AISessionListResponse,
     AISessionResponse,
     AppendPairRequest,
@@ -26,6 +27,22 @@ from app.services import ai_service, ai_stream_service, ai_quota_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+
+@router.post("/parse-file")
+async def parse_file(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    from app.services.file_parse_service import extract_text
+
+    try:
+        return {"success": True, "filename": file.filename, "text": await extract_text(file)}
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
+    except Exception as exc:
+        logger.exception("Failed to parse uploaded file")
+        return {"success": False, "error": f"文件解析失败: {exc}"}
 
 
 # ---------- 模型 & 角色卡 ----------

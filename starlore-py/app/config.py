@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # ---------- 服务 ----------
     app_port: int = 5000
     app_host: str = "0.0.0.0"
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # ---------- 数据库 ----------
     db_host: str = "127.0.0.1"
@@ -18,14 +19,14 @@ class Settings(BaseSettings):
     db_pool_min_idle: int = 2
 
     # ---------- JWT ----------
-    jwt_secret: str = "ro-blog-secret-key-2024"
+    jwt_secret: str = "change-me-in-env"
     jwt_expiration: int = 604800000  # 毫秒，7 天
 
     # ---------- MinIO ----------
-    minio_endpoint: str = "http://47.94.128.65:9000"
-    minio_public_url: str = "https://www.robin-blog.cn/minio"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin123456"
+    minio_endpoint: str = "http://127.0.0.1:9000"
+    minio_public_url: str = "http://127.0.0.1:9000"
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
     minio_bucket: str = "my-files"
 
     # ---------- AI 默认配置 (本地回退) ----------
@@ -37,6 +38,15 @@ class Settings(BaseSettings):
     langchain_tracing_v2: bool = False
     langchain_api_key: str = ""
     langchain_project: str = "starlore"
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+
+    # ---------- Agent executor ----------
+    agent_executor_core_size: int = 4
+    agent_executor_max_size: int = 8
+    agent_executor_queue_capacity: int = 100
+
+    # ---------- Optional MCP servers (JSON array) ----------
+    mcp_servers: str = "[]"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

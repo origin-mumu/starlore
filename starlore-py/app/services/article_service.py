@@ -126,6 +126,88 @@ async def get_all_articles(
     )
 
 
+async def get_public_articles(
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 10,
+    category: str | None = None,
+    search: str | None = None,
+    tag: str | None = None,
+) -> ArticleListResponse:
+    """List only published articles explicitly marked as public."""
+    query = select(Article).where(Article.status == "published", Article.is_public.is_(True))
+    if category and category != "全部":
+        query = query.where(Article.category == category)
+    if search:
+        query = query.where(or_(Article.title.ilike(f"%{search}%"), Article.description.ilike(f"%{search}%")))
+    if tag:
+        query = query.where(text("JSON_CONTAINS(tags, JSON_ARRAY(:tag))").bindparams(tag=tag))
+
+    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    pages = math.ceil(total / limit) if limit else 0
+    result = await db.execute(
+        query.order_by(Article.createdAt.desc()).offset((page - 1) * limit).limit(limit)
+    )
+    articles = list(result.scalars().all())
+    user_ids = {article.user_id for article in articles}
+    author_map: dict[int, str] = {}
+    if user_ids:
+        users = await db.execute(select(User).where(User.id.in_(user_ids)))
+        author_map = {user.id: user.nickname or user.username for user in users.scalars().all()}
+    return ArticleListResponse(
+        data=[_to_summary(article, author_map.get(article.user_id)) for article in articles],
+        pagination=PaginationInfo(current=page, total=total, pages=pages),
+    )
+
+
+async def get_public_article_by_id(db: AsyncSession, article_id: int) -> ArticleDetail:
+    result = await db.execute(
+        select(Article).where(
+            Article.id == article_id,
+            Article.status == "published",
+            Article.is_public.is_(True),
+        )
+    )
+    article = result.scalar_one_or_none()
+    if article is None:
+        raise NotFoundException("文章不存在或非公开")
+    article.view_count = (article.view_count or 0) + 1
+    await db.flush()
+    return _to_detail(article)
+
+
+async def get_public_stats(db: AsyncSession) -> dict:
+    public_filter = (Article.status == "published", Article.is_public.is_(True))
+    total_articles = (await db.execute(select(func.count()).where(*public_filter))).scalar() or 0
+    total_views = (
+        await db.execute(select(func.coalesce(func.sum(Article.view_count), 0)).where(*public_filter))
+    ).scalar() or 0
+    category_rows = (
+        await db.execute(
+            select(Article.category, func.count(Article.id))
+            .where(*public_filter, Article.category.is_not(None))
+            .group_by(Article.category)
+            .order_by(func.count(Article.id).desc())
+        )
+    ).all()
+    recent = await db.execute(
+        select(Article).where(*public_filter).order_by(Article.createdAt.desc()).limit(4)
+    )
+    categories = await db.execute(select(Category))
+    category_ids = {category.name: category.id for category in categories.scalars().all()}
+    popular_categories = [
+        {"id": category_ids.get(name, 0), "name": name, "article_count": count}
+        for name, count in category_rows[:5]
+    ]
+    return {
+        "totalArticles": total_articles,
+        "totalCategories": len(category_rows),
+        "totalViews": total_views,
+        "popularArticles": [_to_summary(article) for article in recent.scalars().all()],
+        "popularCategories": popular_categories,
+    }
+
+
 async def get_article_by_id(db: AsyncSession, user_id: int, article_id: int) -> ArticleDetail:
     """获取文章详情（同时增加浏览量）。"""
     result = await db.execute(select(Article).where(Article.id == article_id, Article.user_id == user_id))

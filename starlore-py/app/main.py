@@ -20,6 +20,7 @@ from app.routers import (
     health,
     multi_agent,
     projects,
+    public,
     public_ai,
     resume,
     upload,
@@ -61,6 +62,7 @@ app.include_router(bookmarks.router)
 app.include_router(ai.router)
 app.include_router(agent.router)
 app.include_router(multi_agent.router)
+app.include_router(public.router)
 app.include_router(public_ai.router)
 app.include_router(ai_config.router)
 app.include_router(resume.router)
