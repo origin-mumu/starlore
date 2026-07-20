@@ -268,6 +268,11 @@ ul, ol {
   --nav-bg: oklch(0.96 0.02 150 / 0.72);
 }
 
+/* 沉浸模式复用全局背景，但不显示普通页面的页脚层。 */
+html.immersive-mode-active .site-footer {
+  visibility: hidden;
+}
+
 /* ── 晴空（Clear Sky） ── */
 [data-theme="blue"] {
   --canvas: #D4E8F3;

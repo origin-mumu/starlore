@@ -1353,6 +1353,7 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  document.documentElement.classList.add('immersive-mode-active')
   orbParticles = Array.from({ length: PARTICLE_COUNT }, () => new OrbP())
   resizeMain()
   resizeWave()
@@ -1369,6 +1370,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  document.documentElement.classList.remove('immersive-mode-active')
   cancelAnimationFrame(animId)
   window.removeEventListener('resize', resizeMain)
   window.removeEventListener('resize', resizeWave)

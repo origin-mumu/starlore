@@ -216,9 +216,16 @@ function updatePhysics(t: number) {
 function draw(ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, width, height)
 
-  // 深色主题下气泡需要更亮一些
-  const isDark = themeStore.current === 'dark'
-  const alpha = isDark ? 0.6 : 0.8
+  // 配色来自主题预设，但背景只承担氛围层，避免大色块压过正文。
+  const themeAlpha: Record<string, number> = {
+    default: 0.32,
+    white: 0.2,
+    dark: 0.45,
+    green: 0.28,
+    blue: 0.3,
+    pink: 0.3,
+  }
+  const alpha = themeAlpha[themeStore.current] ?? 0.3
 
   for (const b of bubbles) {
     ctx.save()
