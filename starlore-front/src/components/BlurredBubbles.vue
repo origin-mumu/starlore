@@ -5,7 +5,7 @@ import { useThemeStore } from '@/stores/theme'
 const themeStore = useThemeStore()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
-// 每个主题的气泡颜色
+// 全局背景使用的主题气泡颜色
 const themeBubbles: Record<string, string[]> = {
   default: ['#FCC841', '#DFEFFC', '#DEDE92', '#DE4331', '#FE9750', '#FCC841'],
   white: ['#C0C0C0', '#D8D8D8', '#E8E8E8'],
