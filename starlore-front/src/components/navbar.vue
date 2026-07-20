@@ -32,14 +32,14 @@ const mobileMenuOpen = ref(false)
 const themeStore = useThemeStore()
 
 const themes: {
-  name: 'default' | 'dark' | 'green' | 'pink'
+  name: 'default' | 'dark' | 'green' | 'blue'
   label: string
   color: string
 }[] = [
-  { name: 'default', label: '暖雅', color: '#E85D2A' },
-  { name: 'dark', label: '深空', color: '#7B9AFF' },
-  { name: 'green', label: '青黛', color: '#4A8C5C' },
-  { name: 'pink', label: '晚樱', color: '#D4638F' },
+  { name: 'green', label: '春暖', color: '#35BFAB' },
+  { name: 'default', label: '秋实', color: '#DE4331' },
+  { name: 'blue', label: '晴空', color: '#2FCBE7' },
+  { name: 'dark', label: '深夜', color: '#2A48F3' },
 ]
 
 const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr']

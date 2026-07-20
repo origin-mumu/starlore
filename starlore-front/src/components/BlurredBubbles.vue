@@ -7,10 +7,10 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 
 // 每个主题的气泡颜色
 const themeBubbles: Record<string, string[]> = {
-  default: ['#FFD4A8', '#FFB8C8', '#FFFACD'],
+  default: ['#FCC841', '#DFEFFC', '#DEDE92', '#DE4331', '#FE9750', '#FCC841'],
   white: ['#C0C0C0', '#D8D8D8', '#E8E8E8'],
-  dark: ['#1e3a5f', '#2d1b4e', '#0d3b3b'],
-  green: ['#a8e6cf', '#dcedc1', '#ffd3b6'],
+  dark: ['#16007B'],
+  green: ['#EDDD62', '#9EE7D1', '#84D68A', '#EDDD62', '#88E6E5', '#A7F3D0'],
   blue: ['#f7da3987', '#8fdbe9', '#fffef8'],
   pink: ['#ff9a9e', '#fecfef', '#ffd93d'],
 }

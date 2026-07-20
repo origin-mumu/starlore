@@ -72,8 +72,6 @@ const emit = defineEmits<{
   refreshQuota: []
 }>()
 
-
-
 /* ─── 状态 ─── */
 type Mode = 'idle' | 'listening' | 'thinking' | 'speaking'
 const currentMode = ref<Mode>('idle')
@@ -633,7 +631,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
         trace.planSummary = '已通过语义搜索成功检索公开知识库内容，正在进行推理回答。'
         trace.subtasks = [
           { id: 1, desc: 'Planner: 检索公开内容', status: 'done' },
-          { id: 2, desc: 'Executor: 生成推理回复', status: 'done' }
+          { id: 2, desc: 'Executor: 生成推理回复', status: 'done' },
         ]
         trace.reviewDecision = 'PASS'
         trace.metrics = { tokensIn: 150, tokensOut: res.content.length, latencyMs: 500 }
@@ -659,14 +657,14 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           currentLen += 2
         }
       }, 30)
-
     } catch (e: any) {
       toolStatus.value = null
       isLocalSending.value = false
       setMode('idle')
-      const errorMsg = e?.response?.status === 429
-        ? '今日访客体验额度（20次）已用尽，登录后即可体验更多哦！'
-        : (e?.message || '发送失败，请稍后重试')
+      const errorMsg =
+        e?.response?.status === 429
+          ? '今日访客体验额度（20次）已用尽，登录后即可体验更多哦！'
+          : e?.message || '发送失败，请稍后重试'
       props.messages[aiIdx].content = errorMsg
       scrollChat(true)
     }
@@ -709,7 +707,9 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
               try {
                 const data = JSON.parse(trimmed.slice(5).trim())
                 if (data.content) imageDescription += data.content
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
             }
           }
         }
@@ -873,7 +873,10 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   // 持久化：通知父组件保存本轮对话
   const aiContent = props.messages[aiIdx]?.content || ''
   const trace = props.messages[aiIdx]?.agentTrace
-  const agentTraceStr = trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision) ? JSON.stringify(trace) : undefined
+  const agentTraceStr =
+    trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision)
+      ? JSON.stringify(trace)
+      : undefined
   if (aiContent && !aiContent.startsWith('错误：')) {
     emit('send', pendingApiText || text, aiContent, agentTraceStr)
   }
@@ -957,7 +960,9 @@ function fmt(s: string): string {
    ═══════════════════════════════════════════ */
 const SPHERE_RADIUS = 180
 const PARTICLE_COUNT = 800
-const BG_STAR_COUNT = 250
+// The app already has a soft nebula background. Keep the immersive surface
+// consistent instead of adding a second, noisy full-screen star field.
+const BG_STAR_COUNT = 0
 
 let animId = 0
 let width = 0
@@ -1381,24 +1386,20 @@ watch(
   { deep: true }
 )
 
-watch(
-  toolStatus,
-  () => scrollChat()
-)
+watch(toolStatus, () => scrollChat())
 
 function shouldShowMessage(msg: ChatMsg) {
   if (msg.content && msg.content.trim()) return true
   if (msg.imageUrl) return true
   if (msg.attachmentName) return true
-  if (msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length > 0)) return true
+  if (msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length > 0))
+    return true
   return false
 }
 </script>
 
 <template>
   <div class="immersive-overlay">
-    <div class="glow-bg" :style="{ backgroundColor: modeColorMap[currentMode] || '#ef4444' }"></div>
-
     <canvas
       ref="mainCanvasRef"
       class="main-canvas"
@@ -1424,8 +1425,6 @@ function shouldShowMessage(msg: ChatMsg) {
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     </button>
-
-
 
     <div class="mic-wrapper">
       <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
@@ -1498,11 +1497,20 @@ function shouldShowMessage(msg: ChatMsg) {
         </div>
 
         <div ref="chatScrollRef" class="chat-messages">
-          <div v-for="(msg, i) in messages" :key="i" class="msg" :class="msg.role" v-show="shouldShowMessage(msg)">
+          <div
+            v-for="(msg, i) in messages"
+            :key="i"
+            class="msg"
+            :class="msg.role"
+            v-show="shouldShowMessage(msg)"
+          >
             <!-- Agent 追踪信息（流式步骤节点） -->
             <div
               v-if="
-                msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length || msg.agentTrace.reviewDecision)
+                msg.agentTrace &&
+                (msg.agentTrace.planSummary ||
+                  msg.agentTrace.subtasks.length ||
+                  msg.agentTrace.reviewDecision)
               "
               class="imm-trace-stepper"
             >
@@ -1519,14 +1527,14 @@ function shouldShowMessage(msg: ChatMsg) {
               </div>
 
               <!-- 2. Subtask Nodes (when subtasks exist) -->
-              <div 
-                v-for="st in msg.agentTrace.subtasks" 
-                :key="st.id" 
+              <div
+                v-for="st in msg.agentTrace.subtasks"
+                :key="st.id"
                 class="imm-step-node"
-                :class="{ 
+                :class="{
                   'is-pending': st.status === 'pending',
                   'is-running': st.status === 'running',
-                  'is-done': st.status === 'done'
+                  'is-done': st.status === 'done',
                 }"
               >
                 <div class="imm-step-line"></div>
@@ -1538,23 +1546,32 @@ function shouldShowMessage(msg: ChatMsg) {
                 <div class="imm-step-content">
                   <div class="imm-step-title">子任务 {{ st.id }}</div>
                   <div class="imm-step-desc">
-                    {{ toolLabelMap[st.desc] || agentNodeLabelMap[st.desc] || st.desc || '等待获取执行内容...' }}
+                    {{
+                      toolLabelMap[st.desc] ||
+                      agentNodeLabelMap[st.desc] ||
+                      st.desc ||
+                      '等待获取执行内容...'
+                    }}
                   </div>
                 </div>
               </div>
 
               <!-- 2b. Direct Executor Node (when no subtasks exist) -->
-              <div 
-                v-if="msg.agentTrace && msg.agentTrace.subtasks.length === 0" 
+              <div
+                v-if="msg.agentTrace && msg.agentTrace.subtasks.length === 0"
                 class="imm-step-node"
-                :class="{ 
+                :class="{
                   'is-done': msg.agentTrace.reviewDecision || msg.content,
-                  'is-running': !msg.agentTrace.reviewDecision && !msg.content
+                  'is-running': !msg.agentTrace.reviewDecision && !msg.content,
                 }"
               >
                 <div class="imm-step-line"></div>
                 <div class="imm-step-icon-container">
-                  <span v-if="msg.agentTrace.reviewDecision || msg.content" class="imm-step-dot done">✓</span>
+                  <span
+                    v-if="msg.agentTrace.reviewDecision || msg.content"
+                    class="imm-step-dot done"
+                    >✓</span
+                  >
                   <span v-else class="imm-step-dot running"></span>
                 </div>
                 <div class="imm-step-content">
@@ -1564,29 +1581,48 @@ function shouldShowMessage(msg: ChatMsg) {
               </div>
 
               <!-- 3. Reviewer Node -->
-              <div 
-                v-if="msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.length > 0 || msg.content"
+              <div
+                v-if="
+                  msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.length > 0 || msg.content
+                "
                 class="imm-step-node"
-                :class="{ 
+                :class="{
                   'is-pending': !msg.agentTrace.reviewDecision,
                   'is-done': msg.agentTrace.reviewDecision === 'PASS',
                   'is-warning': msg.agentTrace.reviewDecision === 'REVISE',
-                  'is-error': msg.agentTrace.reviewDecision === 'FAIL'
+                  'is-error': msg.agentTrace.reviewDecision === 'FAIL',
                 }"
               >
                 <div class="imm-step-line" v-if="msg.agentTrace.metrics"></div>
                 <div class="imm-step-icon-container">
-                  <CheckCircle v-if="msg.agentTrace.reviewDecision === 'PASS'" :size="11" class="imm-step-icon" />
-                  <RotateCcw v-else-if="msg.agentTrace.reviewDecision === 'REVISE'" :size="11" class="imm-step-icon" />
-                  <XCircle v-else-if="msg.agentTrace.reviewDecision === 'FAIL'" :size="11" class="imm-step-icon" />
+                  <CheckCircle
+                    v-if="msg.agentTrace.reviewDecision === 'PASS'"
+                    :size="11"
+                    class="imm-step-icon"
+                  />
+                  <RotateCcw
+                    v-else-if="msg.agentTrace.reviewDecision === 'REVISE'"
+                    :size="11"
+                    class="imm-step-icon"
+                  />
+                  <XCircle
+                    v-else-if="msg.agentTrace.reviewDecision === 'FAIL'"
+                    :size="11"
+                    class="imm-step-icon"
+                  />
                   <Bot v-else :size="11" class="imm-step-icon" />
                 </div>
                 <div class="imm-step-content">
                   <div class="imm-step-title">结果审核 (Reviewer)</div>
                   <div class="imm-step-desc">
                     <span v-if="msg.agentTrace.reviewDecision">
-                      决策: <strong :class="msg.agentTrace.reviewDecision.toLowerCase()">{{ msg.agentTrace.reviewDecision }}</strong>
-                      <span v-if="msg.agentTrace.reviewFeedback"> ({{ msg.agentTrace.reviewFeedback }})</span>
+                      决策:
+                      <strong :class="msg.agentTrace.reviewDecision.toLowerCase()">{{
+                        msg.agentTrace.reviewDecision
+                      }}</strong>
+                      <span v-if="msg.agentTrace.reviewFeedback">
+                        ({{ msg.agentTrace.reviewFeedback }})</span
+                      >
                     </span>
                     <span v-else>正在评估执行结果的质量和完整性...</span>
                   </div>
@@ -1600,7 +1636,9 @@ function shouldShowMessage(msg: ChatMsg) {
                 </div>
                 <div class="imm-step-content">
                   <div class="imm-step-desc metrics-data">
-                    Token 消耗: {{ msg.agentTrace.metrics.tokensIn }}↓ / {{ msg.agentTrace.metrics.tokensOut }}↑ · 耗时: {{ msg.agentTrace.metrics.latencyMs }}ms
+                    Token 消耗: {{ msg.agentTrace.metrics.tokensIn }}↓ /
+                    {{ msg.agentTrace.metrics.tokensOut }}↑ · 耗时:
+                    {{ msg.agentTrace.metrics.latencyMs }}ms
                   </div>
                 </div>
               </div>
@@ -1612,7 +1650,11 @@ function shouldShowMessage(msg: ChatMsg) {
             </div>
             <!-- 图片消息 -->
             <img v-if="msg.imageUrl" :src="msg.imageUrl" class="imm-msg-image" />
-            <div v-if="msg.content && msg.content.trim()" class="text" v-html="sanitizeHtml(fmt(msg.content))"></div>
+            <div
+              v-if="msg.content && msg.content.trim()"
+              class="text"
+              v-html="sanitizeHtml(fmt(msg.content))"
+            ></div>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
@@ -1755,7 +1797,7 @@ function shouldShowMessage(msg: ChatMsg) {
               <button
                 type="button"
                 class="imm-sess-confirm-yes"
-                @click.stop="emit('deleteSession', s.id); showDeleteConfirm = null"
+                @click.stop="(emit('deleteSession', s.id), (showDeleteConfirm = null))"
               >
                 确认
               </button>
@@ -1788,28 +1830,10 @@ function shouldShowMessage(msg: ChatMsg) {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background-color: var(--canvas);
-  background-image:
-    radial-gradient(circle at 15% 25%, var(--orb-1) 0%, transparent 40%),
-    radial-gradient(circle at 85% 75%, var(--orb-2) 0%, transparent 40%);
+  isolation: isolate;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--ink);
   overflow: hidden;
-}
-
-.glow-bg {
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.3;
-  pointer-events: none;
-  transition: background-color 0.8s ease;
-  z-index: 5;
 }
 
 .main-canvas {
@@ -1846,8 +1870,6 @@ function shouldShowMessage(msg: ChatMsg) {
   color: var(--ink);
   border-color: var(--border-interactive);
 }
-
-
 
 .mic-wrapper {
   position: absolute;
@@ -2281,7 +2303,8 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }
@@ -2632,7 +2655,10 @@ function shouldShowMessage(msg: ChatMsg) {
   font-size: 14px;
   font-family: inherit;
   resize: none;
-  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
   box-sizing: border-box;
 }
 .imm-textarea::placeholder {

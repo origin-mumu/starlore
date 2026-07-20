@@ -72,8 +72,8 @@ ul, ol {
   --ink-muted: #8A7A6A;
 
   /* Accent — dynamic sunset pairing */
-  --accent-1: #E85D2A; /* Coral Orange */
-  --accent-2: #FFAE19; /* Amber Gold */
+  --accent-1: #DE4331;
+  --accent-2: #FCC841;
   --accent: var(--accent-1);
   --accent-hover: var(--accent-2);
   --accent-gradient: linear-gradient(135deg, var(--accent-1), var(--accent-2));
@@ -91,7 +91,7 @@ ul, ol {
   /* Borders — lighter */
   --border: #F0E6D8;
   --border-interactive: #E0D0C0;
-  --border-focus: #E85D2A;
+  --border-focus: #DE4331;
 
   /* Tags & badges — brighter */
   --tag-bg: #FFE8D8;
@@ -178,23 +178,23 @@ ul, ol {
 
 /* ── 黑色/深色（Dark Mode） ── */
 [data-theme="dark"] {
-  --canvas: #090B11;
-  --canvas-deep: #0F121C;
+  --canvas: #0A051F;
+  --canvas-deep: #10082D;
 
   /* Background orbs — soft celestial sapphire & star amber glow */
-  --orb-1: rgba(99, 133, 255, 0.12);
-  --orb-2: rgba(229, 184, 105, 0.08);
-  --orb-3: rgba(147, 197, 253, 0.06);
-  --orb-glow: rgba(99, 133, 255, 0.18);
+  --orb-1: rgba(22, 0, 123, 0.38);
+  --orb-2: rgba(42, 72, 243, 0.18);
+  --orb-3: rgba(81, 208, 185, 0.1);
+  --orb-glow: rgba(42, 72, 243, 0.22);
   --star-color: rgba(235, 240, 255, 0.5);
 
-  --ink: #F2F4FA;
-  --ink-soft: #A2A9B8;
-  --ink-muted: #6E7582;
+  --ink: #E6E8E8;
+  --ink-soft: #ACADAE;
+  --ink-muted: #85868A;
 
   /* Accent — Celestial Sapphire & Starlight Gold */
-  --accent-1: #6385FF;
-  --accent-2: #E5B869;
+  --accent-1: #2A48F3;
+  --accent-2: #51D0B9;
   --accent: var(--accent-1);
   --accent-hover: var(--accent-2);
   --accent-gradient: linear-gradient(135deg, var(--accent-1), var(--accent-2));
@@ -203,9 +203,9 @@ ul, ol {
   --warm: #E5B869;
   --warm-soft: rgba(229, 184, 105, 0.15);
 
-  --surface: #121520;
-  --surface-hover: #181C2B;
-  --glass-bg: rgba(18, 21, 32, 0.6);
+  --surface: rgba(255, 255, 255, 0.055);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --glass-bg: rgba(255, 255, 255, 0.055);
 
   --border: rgba(99, 133, 255, 0.15);
   --border-interactive: rgba(99, 133, 255, 0.25);
@@ -227,23 +227,23 @@ ul, ol {
 
 /* ── 绿色（Nature Green） ── */
 [data-theme="green"] {
-  --canvas: #F0F7EE;
-  --canvas-deep: #E4F0DF;
+  --canvas: #EEEEEE;
+  --canvas-deep: #E4F2ED;
 
   /* Background orbs — emerald-gold glow */
-  --orb-1: rgba(74, 140, 92, 0.14);
-  --orb-2: rgba(196, 154, 58, 0.09);
-  --orb-3: rgba(220, 232, 216, 0.12);
-  --orb-glow: rgba(168,208,176,0.2);
+  --orb-1: rgba(237, 221, 98, 0.28);
+  --orb-2: rgba(158, 231, 209, 0.24);
+  --orb-3: rgba(132, 214, 138, 0.18);
+  --orb-glow: rgba(53, 191, 171, 0.2);
   --star-color: rgba(80,120,90,0.35);
 
-  --ink: #1A3A2D;
-  --ink-soft: #4A6B5A;
-  --ink-muted: #7A9B8A;
+  --ink: #334F52;
+  --ink-soft: #7B888E;
+  --ink-muted: #94A0A4;
 
   /* Accent — emerald/gold pairing */
-  --accent-1: #4A8C5C; /* Emerald Green */
-  --accent-2: #C49A3A; /* Olive Gold */
+  --accent-1: #35BFAB;
+  --accent-2: #1FC9E7;
   --accent: var(--accent-1);
   --accent-hover: var(--accent-2);
   --accent-gradient: linear-gradient(135deg, var(--accent-1), var(--accent-2));
@@ -252,9 +252,9 @@ ul, ol {
   --warm: #C49A3A;
   --warm-soft: #F0E6C8;
 
-  --surface: #F9FCF7;
-  --surface-hover: #F0F7EE;
-  --glass-bg: rgba(249, 252, 247, 0.68);
+  --surface: #FFFFFF;
+  --surface-hover: #F4FAF8;
+  --glass-bg: rgba(255, 255, 255, 0.4);
 
   --border: #DCE8D8;
   --border-interactive: #C4D4BE;
@@ -266,6 +266,39 @@ ul, ol {
   --badge-border: #DCE8D8;
 
   --nav-bg: oklch(0.96 0.02 150 / 0.72);
+}
+
+/* ── 晴空（Clear Sky） ── */
+[data-theme="blue"] {
+  --canvas: #D4E8F3;
+  --canvas-deep: #C5DDEA;
+  --orb-1: rgba(247, 218, 57, 0.28);
+  --orb-2: rgba(143, 219, 233, 0.4);
+  --orb-3: rgba(255, 254, 248, 0.7);
+  --orb-glow: rgba(47, 203, 231, 0.2);
+  --star-color: rgba(91, 66, 63, 0.3);
+  --ink: #5B423F;
+  --ink-soft: #8B7667;
+  --ink-muted: #A39386;
+  --accent-1: #2FCBE7;
+  --accent-2: #EEC25E;
+  --accent: var(--accent-1);
+  --accent-hover: var(--accent-2);
+  --accent-gradient: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  --accent-soft: rgba(47, 203, 231, 0.16);
+  --warm: #EEC25E;
+  --warm-soft: rgba(238, 194, 94, 0.18);
+  --surface: rgba(255, 255, 255, 0.6);
+  --surface-hover: rgba(255, 255, 255, 0.76);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --border: rgba(255, 255, 255, 0.76);
+  --border-interactive: rgba(91, 66, 63, 0.18);
+  --border-focus: #2FCBE7;
+  --tag-bg: rgba(47, 203, 231, 0.14);
+  --tag-hover: rgba(47, 203, 231, 0.22);
+  --badge-bg: rgba(238, 194, 94, 0.18);
+  --badge-border: rgba(238, 194, 94, 0.3);
+  --nav-bg: rgba(255, 255, 255, 0.66);
 }
 
 /* ── 粉色（Rose Pink） ── */
