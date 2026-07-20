@@ -521,6 +521,13 @@ const handleRegister = async () => {
   color: var(--ink-muted);
 }
 
+/* Edge provides its own password reveal control. The page already renders a
+   cross-browser toggle, so hide the native control to avoid overlapping eyes. */
+.input-wrapper input::-ms-reveal,
+.input-wrapper input::-ms-clear {
+  display: none;
+}
+
 .input-wrapper input:focus {
   border-color: var(--border-interactive);
   background: var(--surface);

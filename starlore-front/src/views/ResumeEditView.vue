@@ -62,7 +62,11 @@ const content = reactive<ResumeContent>({
 
 const photoPreview = ref('')
 
-const A4_PX_H = 1138 // 1123 + 42px 浏览器渲染补偿
+// Keep this identical to starlore-pdf/templates/classic.html.
+const A4_PX_H = 1123
+// Client and server Chromium can differ slightly in CJK font metrics. A short
+// tail at the boundary is layout noise rather than a meaningful second page.
+const PAGE_TAIL_TOLERANCE = 96
 
 // 测量用容器ref
 const contentMeasurer = ref<HTMLElement>()
@@ -73,7 +77,7 @@ const pageCount = computed(() => {
   // 最后一页溢出不足50px时忽略（仅为残留margin/padding），避免出现几乎空白的页面
   if (pages > 1) {
     const lastPageContent = totalContentHeight.value - (pages - 1) * A4_PX_H
-    if (lastPageContent <= 50) return pages - 1
+    if (lastPageContent <= PAGE_TAIL_TOLERANCE) return pages - 1
   }
   return pages
 })
@@ -942,7 +946,7 @@ const spacingStyle = computed(() => ({
 /* 每页 frame */
 .page-frame {
   width: 794px;
-  height: 1138px;
+  height: 1123px;
   overflow: hidden;
   margin: 0 auto 24px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -957,7 +961,7 @@ const spacingStyle = computed(() => ({
 /* 简历页面内容 */
 .resume-page {
   width: 794px;
-  min-height: 1138px; /* A4高度 + 28px底部补偿 */
+  min-height: 1123px;
   padding: 28px 45px 28px 30px;
   font-family:
     Inter,
