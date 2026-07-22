@@ -25,6 +25,9 @@
         <item quantity="other">将永久删除选定的待办事项。此操作无法撤消。</item>
     </plurals>
     <string name="appearance">外观</string>
+    <string name="background_style">背景样式</string>
+    <string name="macaron_background">马卡龙混色背景</string>
+    <string name="macaron_background_description">在玻璃界面下呈现柔和的蜜桃、薄荷与雾蓝混色。</string>
     <string name="data_storage">数据与存储</string>
     <string name="general">通用</string>
     <string name="credits">致谢</string>

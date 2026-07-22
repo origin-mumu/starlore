@@ -30,6 +30,8 @@ import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
 import com.starlore.app.ui.components.glasense.glasenseHighlight
 import com.starlore.app.R
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
+import com.starlore.app.theme.appPageBackground
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
 import org.koin.androidx.compose.koinViewModel
@@ -47,7 +49,7 @@ fun DivergeScreen(
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isSmallTitleVisible = scrollState.value > 100
 
-    val backgroundColor = AppColors.pageBackground
+    val backgroundColor = AppPageColor
     val panelShape = RoundedCornerShape(24.dp)
     val nodeShape = RoundedCornerShape(20.dp)
     val backdrop = rememberLayerBackdrop {
@@ -62,7 +64,7 @@ fun DivergeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .appPageBackground()
     ) {
         Column(
             modifier = Modifier

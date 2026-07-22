@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, shallowRef, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAuthToken } from '@/utils/authToken'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
+import { articleContentToMarkdown } from '@/utils/articleContent'
 import {
   getArticleByIdService,
   createArticleService,
@@ -11,9 +12,7 @@ import {
   uploadImage,
   type CreateArticleData,
 } from '@/api/article'
-import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
-import { ArrowLeft, Save, FileText, Globe, Lock, LayoutGrid, Image, Tag, Plus, X, Sparkles, Settings, ChevronDown } from '@lucide/vue'
-import '@wangeditor/editor/dist/css/style.css'
+import { ArrowLeft, Save, FileText, Globe, Lock, LayoutGrid, Image, Tag, Plus, X, Settings, ChevronDown } from '@lucide/vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,33 +55,6 @@ const closeAllDropdowns = (e: MouseEvent) => {
   }
 }
 
-// wangEditor
-const editorRef = shallowRef()
-const editorReady = ref(true)
-const token = getAuthToken()
-
-const editorConfig = {
-  placeholder: '请输入星记内容...',
-  MENU_CONF: {
-    uploadImage: {
-      server: '/api/upload/image',
-      fieldName: 'file',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      customInsert(res: any, insertFn: any) {
-        const url = res.data?.url
-        if (url) insertFn(url)
-      },
-    },
-  },
-}
-const toolbarConfig = {
-  excludeKeys: ['fullScreen'],
-}
-
-const handleCreated = (editor: any) => {
-  editorRef.value = editor
-}
-
 onMounted(async () => {
   window.addEventListener('click', closeAllDropdowns)
   try {
@@ -94,7 +66,7 @@ onMounted(async () => {
       const data = res.data || res
       form.value = {
         title: data.title || '',
-        content: data.content || '',
+        content: articleContentToMarkdown(data.content || ''),
         description: data.description || '',
         category: data.category || '',
         tags: data.tags || [],
@@ -112,9 +84,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('click', closeAllDropdowns)
-  editorReady.value = false
-  const editor = editorRef.value
-  if (editor) editor.destroy()
 })
 
 const addTag = () => {
@@ -240,35 +209,8 @@ function handleNotifyConfirm() {
                 <input v-model="form.title" class="input-title" placeholder="请输入星记标题，让思想在星空中闪耀..." />
               </div>
               
-              <div class="form-group">
-                <label class="form-label">
-                  <FileText class="field-icon" />
-                  <span>星记摘要</span>
-                </label>
-                <textarea
-                  v-model="form.description"
-                  class="input-desc"
-                  rows="3"
-                  placeholder="在此写下星记的简短摘要，便于在星轨中浏览与快速阅读..."
-                ></textarea>
-              </div>
-              
               <div class="form-group editor-editor-group">
-                <label class="form-label">
-                  <Sparkles class="field-icon" />
-                  <span>正文书写</span>
-                </label>
-                <div class="wangeditor-box">
-                  <Toolbar v-if="editorReady" :editor="editorRef" :defaultConfig="toolbarConfig" class="we-toolbar" />
-                  <Editor
-                    v-if="editorReady"
-                    :defaultConfig="editorConfig"
-                    v-model="form.content"
-                    mode="simple"
-                    class="we-editor"
-                    @onCreated="handleCreated"
-                  />
-                </div>
+                <MarkdownEditor v-model="form.content" />
               </div>
             </div>
           </div>
@@ -279,6 +221,19 @@ function handleNotifyConfirm() {
               <div class="sidebar-header">
                 <Settings class="icon-settings" />
                 <h4>发布参数</h4>
+              </div>
+
+              <div class="field">
+                <label class="field-label">
+                  <FileText class="field-icon-sm" />
+                  <span>文章摘要</span>
+                </label>
+                <textarea
+                  v-model="form.description"
+                  class="input-desc"
+                  rows="3"
+                  placeholder="为这篇星记写一段简短摘要..."
+                ></textarea>
               </div>
               
               <div class="field">
@@ -477,8 +432,11 @@ function handleNotifyConfirm() {
 .editor-page {
   position: relative;
   min-height: 100vh;
-  padding-bottom: 80px;
+  padding-bottom: 56px;
 }
+.editor-page .container { max-width: 1280px; }
+.editor-page .page-header { padding: 104px 0 22px; }
+.section-editor { padding: 0 0 48px; }
 
 /* Background Glowing Orbs */
 .glow-orb {
@@ -513,7 +471,7 @@ function handleNotifyConfirm() {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 .btn-back {
   display: inline-flex;
@@ -556,7 +514,7 @@ function handleNotifyConfirm() {
 }
 .header-title {
   margin: 0;
-  font-size: 1.6rem;
+  font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -610,8 +568,8 @@ function handleNotifyConfirm() {
 
 .editor-layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 32px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
   align-items: flex-start;
   position: relative;
   z-index: 1;
@@ -622,22 +580,19 @@ function handleNotifyConfirm() {
 }
 
 .main-card {
-  background: var(--glass-bg);
+  background: color-mix(in oklch, var(--surface) 68%, transparent);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 36px;
+  border-radius: 24px;
+  padding: 20px;
   box-shadow: var(--shadow-card);
   transition: all var(--transition);
 }
-.main-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-interactive);
-}
+.main-card:hover { border-color: var(--border-interactive); }
 
 .form-group {
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 .form-group:last-child {
   margin-bottom: 0;
@@ -661,12 +616,13 @@ function handleNotifyConfirm() {
 
 .input-title {
   width: 100%;
-  padding: 16px 20px;
-  font-size: 1.45rem;
+  padding: 15px 18px;
+  font-size: 1.35rem;
   font-weight: 700;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--glass-bg);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--ink);
@@ -676,8 +632,8 @@ function handleNotifyConfirm() {
 }
 .input-title:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  background: var(--surface);
+  box-shadow: none;
+  background: transparent;
 }
 
 .input-desc {
@@ -702,118 +658,28 @@ function handleNotifyConfirm() {
   background: var(--surface);
 }
 
-/* wangEditor transparent styling */
-.wangeditor-box {
-  --w-e-textarea-bg-color: transparent;
-  --w-e-toolbar-bg-color: transparent;
-  --w-e-border-color: var(--border);
-  --w-e-textarea-color: var(--ink);
-  
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.03);
-  transition: all var(--transition);
-}
-.wangeditor-box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  background: var(--surface);
-}
-
-.we-toolbar {
-  border-bottom: 1px solid var(--border) !important;
-  background: transparent !important;
-  padding: 4px !important;
-}
-.we-editor {
-  min-height: 680px;
-}
-.we-editor :deep(.w-e-text-container) {
-  height: 680px !important;
-  min-height: 680px !important;
-  overflow-y: auto !important;
-  background-color: transparent !important;
-}
-.wangeditor-box :deep(.w-e-toolbar button) {
-  color: var(--ink-soft) !important;
-}
-.wangeditor-box :deep(.w-e-toolbar button:hover) {
-  color: var(--ink) !important;
-  background-color: var(--surface-hover) !important;
-}
-.wangeditor-box :deep(.w-e-active) {
-  color: var(--accent) !important;
-}
-.wangeditor-box :deep(.w-e-bar) {
-  background-color: transparent !important;
-}
-.wangeditor-box :deep(.w-e-select-list),
-.wangeditor-box :deep(.w-e-drop-panel),
-.wangeditor-box :deep(.w-e-menu-panel),
-.wangeditor-box :deep(.w-e-panel-container),
-.wangeditor-box :deep(.w-e-toolbar-select-list) {
-  background: var(--surface) !important;
-  background-color: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-card-hover) !important;
-  z-index: 10000 !important;
-}
-.wangeditor-box :deep(.w-e-select-list *),
-.wangeditor-box :deep(.w-e-drop-panel *),
-.wangeditor-box :deep(.w-e-menu-panel *) {
-  color: var(--ink) !important;
-}
-.wangeditor-box :deep(.w-e-select-list ul li:hover),
-.wangeditor-box :deep(.w-e-select-list li:hover),
-.wangeditor-box :deep(.w-e-menu-panel button:hover) {
-  background-color: var(--surface-hover) !important;
-  color: var(--accent) !important;
-}
-.wangeditor-box :deep(.w-e-panel-content-color ul li) {
-  border: 1px solid var(--border) !important;
-}
-.wangeditor-box :deep(.w-e-text-placeholder) {
-  font-family: inherit !important;
-  color: var(--ink-muted) !important;
-  top: 20px !important;
-  left: 24px !important;
-}
-.we-editor :deep(.w-e-text-container [contenteditable="true"]) {
-  padding: 20px 24px !important;
-  font-family: 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif !important;
-  font-size: 1.05rem !important;
-  line-height: 1.85 !important;
-}
-
 /* Sidebar styling */
 .editor-sidebar {
   position: sticky;
-  top: 100px;
+  top: 96px;
 }
+.editor-editor-group { margin-top: 20px; }
 .sidebar-card {
-  background: var(--glass-bg);
+  background: color-mix(in oklch, var(--surface) 70%, transparent);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px;
+  border-radius: 24px;
+  padding: 22px;
   box-shadow: var(--shadow-card);
   transition: all var(--transition);
 }
-.sidebar-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--border-interactive);
-}
+.sidebar-card:hover { border-color: var(--border-interactive); }
 .sidebar-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 14px;
 }
@@ -830,7 +696,7 @@ function handleNotifyConfirm() {
 }
 
 .field {
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 .field:last-child {
   margin-bottom: 0;
@@ -1180,6 +1046,7 @@ function handleNotifyConfirm() {
 }
 
 @media (max-width: 900px) {
+  .editor-page .page-header { padding-top: 82px; }
   .editor-layout {
     grid-template-columns: 1fr;
     gap: 24px;
@@ -1187,5 +1054,6 @@ function handleNotifyConfirm() {
   .editor-sidebar {
     position: static;
   }
+  .main-card, .sidebar-card { padding: 18px; border-radius: 20px; }
 }
 </style>

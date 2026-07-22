@@ -3,7 +3,12 @@ package com.starlore.app.feature.chat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,18 +21,30 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.Backdrop
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
+import com.starlore.app.ui.components.glasense.GlasensePopup
+import com.starlore.app.ui.components.glasense.PopupDirection
+import com.starlore.app.ui.components.glasense.PopupState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
 import com.starlore.app.R
 import com.starlore.app.data.api.AiMessageRow
@@ -35,14 +52,22 @@ import com.starlore.app.data.api.AiSessionRow
 import com.starlore.app.data.api.CharacterCard
 import com.starlore.app.feature.article.MarkdownText
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
+import com.starlore.app.ui.components.liquid.LiquidGlassButton
+import com.starlore.app.ui.components.liquid.liquidGlass
+import com.starlore.app.ui.components.liquid.liquidGlassCapsule
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EchobotScreen(
     accountSessionKey: Int = 0,
+    initialPrompt: String? = null,
+    promptToken: Int = 0,
+    onBack: (() -> Unit)? = null,
     viewModel: ChatViewModel = koinViewModel(key = "chat-$accountSessionKey")
 ) {
     val messages = viewModel.messages
@@ -50,10 +75,10 @@ fun EchobotScreen(
     val isLoadingSession by remember { viewModel.isLoadingSession }
     val inputText = viewModel.inputText
     val selectedCharacterKey by remember { viewModel.selectedCharacterKey }
-    val quota by remember { viewModel.quota }
     val errorMessage by remember { viewModel.errorMessage }
     var showSessions by remember { mutableStateOf(false) }
     var showCharacters by remember { mutableStateOf(false) }
+    var characterAnchorBounds by remember { mutableStateOf(Rect.Zero) }
 
     val listState = rememberLazyListState()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -61,6 +86,12 @@ fun EchobotScreen(
     val latestMessageLength = messages.lastOrNull()?.let {
         it.content.length + (it.agentTrace?.length ?: 0)
     } ?: 0
+
+    LaunchedEffect(promptToken) {
+        initialPrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
+            inputText.value = prompt
+        }
+    }
 
     // Follow both new messages and incremental SSE updates.
     LaunchedEffect(messages.size, latestMessageLength) {
@@ -79,196 +110,63 @@ fun EchobotScreen(
         drawContent()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(backdrop)
-        ) {
-            // Messages area
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                if (messages.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = statusBarHeight + 56.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_sparkle_viewfinder),
-                                contentDescription = null,
-                                tint = AppColors.primary.copy(alpha = 0.4f),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "向 Echobot 提问以启动多智能体协作计划...",
-                                color = AppColors.contentVariant,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            top = statusBarHeight + 56.dp + 12.dp,
-                            bottom = 12.dp,
-                            start = 20.dp,
-                            end = 20.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(messages) { message ->
-                            MessageBubble(
-                                message = message,
-                                isLoading = isSending && message.id == -2 && message.content.isBlank()
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Input bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val characterName = viewModel.characterCards
-                    .firstOrNull { it.key == selectedCharacterKey }?.name ?: "默认助手"
-                AssistChip(
-                    onClick = { showCharacters = true },
-                    label = { Text(characterName, fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_character),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    enabled = !isSending
+    Box(Modifier.fillMaxSize().appPageBackground()) {
+        Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+            if (messages.isEmpty()) {
+                EmptyChannel(
+                    modifier = Modifier.fillMaxSize(),
+                    topPadding = statusBarHeight + 92.dp,
+                    bottomPadding = 112.dp,
+                    onPrompt = { inputText.value = it }
                 )
-                quota?.let {
-                    Text(
-                        text = if (it.isAdmin) "无限额度" else "剩余 ${it.remaining}/${it.dailyLimit}",
-                        color = AppColors.contentVariant,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 12.dp, bottom = 100.dp)
-                    .navigationBarsPadding(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = inputText.value,
-                    onValueChange = { inputText.value = it },
-                    placeholder = { androidx.compose.material3.Text("写下你的思考...", color = AppColors.contentVariant) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = AppColors.cardBackground.copy(alpha = 0.5f),
-                        unfocusedContainerColor = AppColors.cardBackground.copy(alpha = 0.3f),
-                        focusedBorderColor = AppColors.primary,
-                        unfocusedBorderColor = AppColors.scrimMedium,
-                        cursorColor = AppColors.primary
+            } else {
+                LazyColumn(
+                    state = listState,
+                    overscrollEffect = rememberOverscrollEffect(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 14.dp,
+                        end = 14.dp,
+                        top = statusBarHeight + 92.dp,
+                        bottom = 116.dp
                     ),
-                    maxLines = 4,
-                    enabled = !isSending && !isLoadingSession
-                )
-
-                IconButton(
-                    onClick = { viewModel.sendMessage() },
-                    enabled = !isSending && inputText.value.trim().isNotEmpty(),
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(if (inputText.value.trim().isNotEmpty() && !isSending) AppColors.primary else AppColors.scrimNormal)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_up),
-                        contentDescription = "Send",
-                        tint = if (inputText.value.trim().isNotEmpty() && !isSending) AppColors.onPrimary else AppColors.contentVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    item { PinnedIntro() }
+                    items(messages) { message ->
+                        MessageBubble(
+                            message = message,
+                            isLoading = isSending && message.id == -2 && message.content.isBlank()
+                        )
+                    }
                 }
             }
         }
 
-        // Overlay top app bar with blurred glass texture
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(statusBarHeight + 56.dp)
-        ) {
-            val isSmallTitleVisible by remember {
-                derivedStateOf {
-                    if (messages.isEmpty()) true else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 10
-                }
-            }
-            GlasenseDynamicSmallTitle(
-                modifier = Modifier.fillMaxSize(),
-                title = "智能助手",
-                statusBarHeight = statusBarHeight,
-                isVisible = isSmallTitleVisible,
-                backdrop = backdrop,
-                surfaceColor = backgroundColor
-            ) {}
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { showSessions = true }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_clock_cycle),
-                        contentDescription = "会话记录",
-                        tint = AppColors.content,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                IconButton(onClick = viewModel::newSession, enabled = !isSending) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_folder_plus),
-                        contentDescription = "新建会话",
-                        tint = AppColors.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        }
+        ChannelHeader(
+            modifier = Modifier.align(Alignment.TopCenter),
+            backdrop = backdrop,
+            statusBarHeight = statusBarHeight,
+            onBack = onBack,
+            onOpenHistory = { showSessions = true }
+        )
+
+        ChannelComposer(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            backdrop = backdrop,
+            value = inputText.value,
+            enabled = !isSending && !isLoadingSession,
+            canSend = !isSending && inputText.value.trim().isNotEmpty(),
+            onValueChange = { inputText.value = it },
+            onCharacter = { showCharacters = true },
+            onCharacterAnchorChanged = { characterAnchorBounds = it },
+            onSend = viewModel::sendMessage
+        )
 
         errorMessage?.let { message ->
             Snackbar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 20.dp, vertical = 116.dp),
-                action = {
-                    TextButton(onClick = viewModel::clearError) { Text("知道了") }
-                }
+                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 104.dp),
+                action = { TextButton(onClick = viewModel::clearError) { Text("知道了") } }
             ) { Text(message) }
         }
     }
@@ -291,16 +189,243 @@ fun EchobotScreen(
         )
     }
 
-    if (showCharacters) {
-        CharacterPickerSheet(
-            cards = viewModel.characterCards,
-            selectedKey = selectedCharacterKey,
-            onDismiss = { showCharacters = false },
-            onSelect = {
-                viewModel.selectCharacter(it)
-                showCharacters = false
-            }
+    GlasensePopup(
+        popupState = PopupState(showCharacters, characterAnchorBounds),
+        onDismiss = { showCharacters = false },
+        width = 270.dp,
+        direction = PopupDirection.UpLeft,
+        contentPadding = PaddingValues(8.dp)
+    ) {
+        Text(
+            "选择助手",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
         )
+        viewModel.characterCards.forEach { card ->
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(if (card.key == selectedCharacterKey) AppColors.primary.copy(alpha = .12f) else Color.Transparent)
+                    .clickable {
+                        viewModel.selectCharacter(card.key)
+                        showCharacters = false
+                    }.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    painterResource(if (card.key == selectedCharacterKey) R.drawable.ic_checkmark_circle else R.drawable.ic_wand_and_rays),
+                    null,
+                    Modifier.size(18.dp),
+                    if (card.key == selectedCharacterKey) AppColors.primary else AppColors.contentVariant
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(card.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(card.description, color = AppColors.contentVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelHeader(
+    modifier: Modifier = Modifier,
+    backdrop: Backdrop,
+    statusBarHeight: androidx.compose.ui.unit.Dp,
+    onBack: (() -> Unit)?,
+    onOpenHistory: () -> Unit
+) {
+    Row(
+        modifier = modifier.fillMaxWidth()
+            .padding(top = statusBarHeight + 8.dp, start = 12.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircleIconButton(R.drawable.ic_chevron_forward_compact, "返回", onBack, backdrop, rotate = 180f)
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp).weight(1f).height(58.dp)
+                .liquidGlassCapsule(backdrop, surfaceColor = AppColors.cardBackground.copy(alpha = .24f))
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Starlore AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                Text("与你的知识一起思考", color = AppColors.contentVariant, fontSize = 12.sp)
+            }
+        }
+        CircleIconButton(R.drawable.ic_ellipsis, "会话与更多", onOpenHistory, backdrop)
+    }
+}
+
+@Composable
+private fun CircleIconButton(
+    icon: Int,
+    label: String,
+    onClick: (() -> Unit)?,
+    backdrop: Backdrop,
+    rotate: Float = 0f
+) {
+    LiquidGlassButton(
+        onClick = { onClick?.invoke() },
+        enabled = onClick != null,
+        backdrop = backdrop,
+        modifier = Modifier.size(52.dp),
+        surfaceColor = AppColors.cardBackground.copy(alpha = .2f)
+    ) {
+        Icon(
+            painterResource(icon), label, Modifier.size(21.dp).graphicsLayer { rotationZ = rotate }, AppColors.content
+        )
+    }
+}
+
+@Composable
+private fun EmptyChannel(
+    modifier: Modifier,
+    topPadding: androidx.compose.ui.unit.Dp,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    onPrompt: (String) -> Unit
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        overscrollEffect = rememberOverscrollEffect(),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = topPadding, bottom = bottomPadding),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { PinnedIntro() }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                    .background(AppColors.cardBackground.copy(alpha = .82f)).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("从一个问题开始", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "我可以梳理想法、解读星记，也可以调用多个智能体一起完成复杂问题。",
+                    color = AppColors.contentVariant,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp
+                )
+                listOf(
+                    "帮我整理最近记录的主题",
+                    "把一个模糊想法变成文章提纲",
+                    "从不同角度分析这个问题"
+                ).forEach { prompt ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .background(AppColors.primary.copy(alpha = .08f))
+                            .clickable { onPrompt(prompt) }.padding(13.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(prompt, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Icon(painterResource(R.drawable.ic_chevron_forward_compact), null, Modifier.size(16.dp), AppColors.primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PinnedIntro() {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(AppColors.primary.copy(alpha = .1f)).padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(painterResource(R.drawable.ic_pin), null, Modifier.size(18.dp), AppColors.primary)
+        Column(Modifier.weight(1f)) {
+            Text("置顶说明", color = AppColors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("内容仅用于辅助思考，重要结论请自行核对", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun ChannelComposer(
+    modifier: Modifier = Modifier,
+    backdrop: Backdrop,
+    value: String,
+    enabled: Boolean,
+    canSend: Boolean,
+    onValueChange: (String) -> Unit,
+    onCharacter: () -> Unit,
+    onCharacterAnchorChanged: (Rect) -> Unit,
+    onSend: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(Unit) {
+        delay(220)
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .imePadding()
+            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+            .navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                Modifier.size(52.dp)
+            ) {
+                LiquidGlassButton(
+                    onClick = onCharacter,
+                    enabled = enabled,
+                    backdrop = backdrop,
+                    modifier = Modifier.fillMaxSize().onGloballyPositioned { onCharacterAnchorChanged(it.boundsInWindow()) },
+                    surfaceColor = AppColors.cardBackground.copy(alpha = .2f)
+                ) {
+                Icon(painterResource(R.drawable.ic_wand_and_rays), "选择助手", Modifier.size(22.dp), AppColors.primary)
+                }
+            }
+            Row(
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp)
+                    .liquidGlassCapsule(
+                        backdrop,
+                        surfaceColor = AppColors.cardBackground.copy(alpha = .24f),
+                        tint = Color.Unspecified
+                    )
+                    .padding(start = 18.dp, top = 5.dp, bottom = 5.dp, end = 5.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.weight(1f).padding(vertical = 10.dp).focusRequester(focusRequester),
+                    enabled = enabled,
+                    textStyle = LocalTextStyle.current.copy(color = AppColors.content, fontSize = 15.sp),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(AppColors.primary),
+                    maxLines = 4,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
+                    decorationBox = { inner ->
+                        if (value.isEmpty()) Text("写下你的问题…", color = AppColors.contentVariant, fontSize = 15.sp)
+                        inner()
+                    }
+                )
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape)
+                        .background(if (canSend) AppColors.primary else AppColors.scrimNormal)
+                        .clickable(enabled = canSend, onClick = onSend),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_arrow_up), "发送", Modifier.size(19.dp),
+                        if (canSend) AppColors.onPrimary else AppColors.contentVariant
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -418,45 +543,36 @@ private fun CharacterPickerSheet(
 @Composable
 fun MessageBubble(message: AiMessageRow, isLoading: Boolean = false) {
     val isUser = message.role == "user"
-    Box(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .align(if (isUser) Alignment.TopEnd else Alignment.TopStart)
-                .fillMaxWidth(0.85f),
-            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
-        ) {
-            // Label removed as requested
-
-            // Bubble shape & background
-            val bubbleShape = RoundedCornerShape(20.dp)
+    if (isUser) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             Box(
-                modifier = Modifier
-                    .clip(bubbleShape)
-                    .background(
-                        if (isUser) AppColors.primary.copy(alpha = 0.15f) else AppColors.cardBackground.copy(alpha = 0.5f)
-                    )
-                    .then(
-                        if (!isUser) Modifier.glasenseHighlight(bubbleShape) else Modifier
-                    )
-                    .padding(14.dp)
+                modifier = Modifier.widthIn(max = 320.dp)
+                    .clip(RoundedCornerShape(22.dp, 22.dp, 6.dp, 22.dp))
+                    .background(AppColors.primary).padding(horizontal = 16.dp, vertical = 13.dp)
                     .animateContentSize(animationSpec = tween(200))
             ) {
+                Text(text = message.content, color = AppColors.onPrimary, fontSize = 15.sp, lineHeight = 22.sp)
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                .background(AppColors.cardBackground.copy(alpha = .84f)).padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f).animateContentSize(animationSpec = tween(200)),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Reasoning traces (observability expansion block!) displayed ABOVE the final answer
-                    if (!isUser) {
-                        message.agentTrace?.let { trace ->
-                            if (trace.isNotEmpty()) {
-                                TraceExpandBlock(trace = trace)
-                            }
+                    message.agentTrace?.let { trace ->
+                        if (trace.isNotEmpty()) {
+                            TraceExpandBlock(trace = trace)
                         }
                     }
-
                     if (isLoading) {
                         AssistantLoadingIndicator()
                     } else {
-                        // Answer text (Markdown rendered!)
                         MarkdownText(text = message.content)
                     }
                 }

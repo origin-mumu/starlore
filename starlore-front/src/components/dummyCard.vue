@@ -175,14 +175,14 @@ const formatDate = (dateString: string) => {
 }
 
 .public-badge {
-  background: rgba(74, 140, 92, 0.08);
-  color: #4A8C5C;
-  border: 1px solid rgba(74, 140, 92, 0.15);
+  background: color-mix(in oklch, var(--accent-soft) 58%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, transparent);
 }
 
 .private-badge {
-  background: rgba(184, 92, 56, 0.08);
-  color: #B85C38;
-  border: 1px solid rgba(184, 92, 56, 0.15);
+  background: color-mix(in oklch, var(--accent-soft) 82%, var(--surface));
+  color: var(--accent);
+  border: 1px solid color-mix(in oklch, var(--accent) 24%, transparent);
 }
 </style>

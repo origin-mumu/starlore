@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.starlore.app.data.api.ArticleApi
 import com.starlore.app.data.api.ArticleSummary
 import com.starlore.app.data.api.CategoryItem
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 sealed interface ArticlesUiState {
@@ -34,6 +36,8 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
     var isRefreshing = mutableStateOf(false)
         private set
 
+    private var articleRequest: Job? = null
+
     init {
         loadData()
     }
@@ -46,7 +50,8 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
     fun refresh() {
         if (isRefreshing.value) return
         isRefreshing.value = true
-        viewModelScope.launch {
+        articleRequest?.cancel()
+        articleRequest = viewModelScope.launch {
             try {
                 val categories = try {
                     articleApi.getCategories()
@@ -67,6 +72,8 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
                     )
                 }
                 articlesState.value = ArticlesUiState.Success(articles.data)
+            } catch (_: CancellationException) {
+                // A newer filter request superseded this refresh.
             } catch (e: Exception) {
                 articlesState.value = ArticlesUiState.Error(e.message ?: "刷新失败")
             } finally {
@@ -86,8 +93,9 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
     }
 
     fun fetchArticles() {
+        articleRequest?.cancel()
         articlesState.value = ArticlesUiState.Loading
-        viewModelScope.launch {
+        articleRequest = viewModelScope.launch {
             try {
                 // Try fetching auth articles, fallback to public articles if needed
                 val response = try {
@@ -102,6 +110,8 @@ class ArticlesViewModel(private val articleApi: ArticleApi) : ViewModel() {
                     )
                 }
                 articlesState.value = ArticlesUiState.Success(response.data)
+            } catch (_: CancellationException) {
+                // Do not replace the current filter with an obsolete response.
             } catch (e: Exception) {
                 articlesState.value = ArticlesUiState.Error(e.message ?: "Failed to load articles")
             }

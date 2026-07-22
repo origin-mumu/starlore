@@ -29,6 +29,8 @@ import com.starlore.app.feature.settings.SettingsDestination
 import com.starlore.app.feature.settings.util.SettingsManager
 import com.starlore.app.feature.settings.util.SettingsViewModel
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.harmonize
@@ -81,7 +83,7 @@ fun ProfileScreen(
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isSmallTitleVisible = scrollState.value > 100
 
-    val backgroundColor = AppColors.pageBackground
+    val backgroundColor = AppPageColor
     val backdrop = rememberLayerBackdrop {
         drawRect(
             color = backgroundColor,
@@ -96,7 +98,7 @@ fun ProfileScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .appPageBackground()
     ) {
         Column(
             modifier = Modifier

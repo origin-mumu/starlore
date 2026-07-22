@@ -179,7 +179,8 @@ fun GlasenseMenu(
     menuState: MenuState,
     backdrop: LayerBackdrop,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    forceSafeSurface: Boolean = false
 ) {
     var menuSize by remember { mutableStateOf(IntSize.Zero) }
     val windowInfo = LocalWindowInfo.current
@@ -347,7 +348,7 @@ fun GlasenseMenu(
                 .cachedClip(shape)
                 // Core of the blur effect, drawing a blurred version of the content behind it.
                 .then(
-                    if (LocalGlasenseSettings.current.liteMode) Modifier
+                    if (forceSafeSurface || LocalGlasenseSettings.current.liteMode) Modifier
                         .graphicsLayer {
                             this.alpha = alphaAni.value
                         }

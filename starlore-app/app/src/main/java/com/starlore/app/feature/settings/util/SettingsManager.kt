@@ -21,6 +21,7 @@ object SettingsManager {
     private const val KEY_USE_DYNAMIC_COLOR = "use_dynamic_color_enabled"
     private const val KEY_LITE_MODE = "lite_mode_enabled"
     private const val KEY_LIQUID_GLASS = "liquid_glass_enabled"
+    private const val KEY_MACARON_BACKGROUND = "macaron_background_enabled"
     private const val KEY_COLOR_MODE = "color_mode"
     private const val KEY_IS_FIRST_RUN = "is_first_run"
     private const val KEY_SORT_OPTION = "sort_option"
@@ -56,6 +57,7 @@ object SettingsManager {
     val isUseDynamicColorState = mutableStateOf(mmkv.decodeBool(KEY_USE_DYNAMIC_COLOR, false))
     val isLiteModeState = mutableStateOf(mmkv.decodeBool(KEY_LITE_MODE, false))
     val isLiquidGlassState = mutableStateOf(mmkv.decodeBool(KEY_LIQUID_GLASS, true))
+    val isMacaronBackgroundState = mutableStateOf(mmkv.decodeBool(KEY_MACARON_BACKGROUND, true))
     val sortOptionState =
         mutableIntStateOf(mmkv.decodeInt(KEY_SORT_OPTION, SortOption.DEFAULT.ordinal))
     val sortOrderState =
@@ -295,6 +297,13 @@ object SettingsManager {
             val changed = value != authToken
             SecureTokenStore.put(value)
             if (changed) authSessionVersionState.intValue++
+        }
+
+    var isMacaronBackground: Boolean
+        get() = mmkv.decodeBool(KEY_MACARON_BACKGROUND, true)
+        set(value) {
+            mmkv.encode(KEY_MACARON_BACKGROUND, value)
+            isMacaronBackgroundState.value = value
         }
 
     fun clearAccountSession() {

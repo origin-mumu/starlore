@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.starlore.app.R
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
 import org.koin.androidx.compose.koinViewModel
@@ -42,9 +43,6 @@ import androidx.compose.ui.graphics.toArgb
 import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.core.text.HtmlCompat
-import android.webkit.WebView
-import android.view.ViewGroup
-import android.graphics.Color
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -58,6 +56,7 @@ import com.starlore.app.ui.components.glasense.GlasenseMenu
 import com.starlore.app.ui.components.glasense.MenuItemData
 import com.starlore.app.ui.components.glasense.MenuState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
+import com.starlore.app.data.api.ArticleDetail
 import androidx.compose.ui.draw.clip
 
 @Composable
@@ -66,15 +65,18 @@ fun ArticleDetailScreen(
     backdrop: LayerBackdrop,
     onBack: () -> Unit,
     onEdit: (Int) -> Unit,
+    onDeleted: () -> Unit,
+    onAskAi: (ArticleDetail) -> Unit = {},
     viewModel: ArticleDetailViewModel = koinViewModel()
 ) {
     val detailState by remember { viewModel.detailState }
     val deleteState by remember { viewModel.deleteState }
     val context = LocalContext.current
     var menuState by remember { mutableStateOf(MenuState()) }
-    var moreButtonBounds by remember { mutableStateOf(Rect.Zero) }
+    var moreButtonCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val editIcon = painterResource(R.drawable.ic_square_and_pencil)
     val deleteIcon = painterResource(R.drawable.ic_trash)
+    val aiIcon = painterResource(R.drawable.ic_nav_sparkle_filled)
     val errorColor = AppColors.error
 
     LaunchedEffect(articleId) {
@@ -103,7 +105,7 @@ fun ArticleDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(pageBgColor)
+            .appPageBackground()
     ) {
 
         when (val state = detailState) {
@@ -248,7 +250,6 @@ fun ArticleDetailScreen(
             }
 
             // More button on the right
-            var moreButtonCoordinates: LayoutCoordinates? = null
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -259,17 +260,21 @@ fun ArticleDetailScreen(
                     .background(btnBgColor)
                     .glasenseHighlight(CircleShape)
                     .clickable {
-                        moreButtonBounds = moreButtonCoordinates?.boundsInWindow() ?: Rect.Zero
+                        val anchor = moreButtonCoordinates?.boundsInWindow() ?: return@clickable
                         menuState = MenuState(
                             isVisible = true,
-                            anchorBounds = moreButtonBounds,
+                            anchorBounds = anchor,
                             items = listOf(
                                 MenuItemData(
                                     text = "编辑",
                                     icon = editIcon,
+                                    onClick = { onEdit(articleId) }
+                                ),
+                                MenuItemData(
+                                    text = "AI 解读此篇",
+                                    icon = aiIcon,
                                     onClick = {
-                                        menuState = menuState.copy(isVisible = false)
-                                        onEdit(articleId)
+                                        (detailState as? ArticleDetailUiState.Success)?.let { onAskAi(it.article) }
                                     }
                                 ),
                                 MenuItemData(
@@ -277,12 +282,7 @@ fun ArticleDetailScreen(
                                     icon = deleteIcon,
                                     iconColor = errorColor,
                                     isDestructive = true,
-                                    onClick = {
-                                        menuState = menuState.copy(isVisible = false)
-                                        viewModel.deleteArticle(articleId) {
-                                            onBack()
-                                        }
-                                    }
+                                    onClick = { viewModel.deleteArticle(articleId) { onDeleted() } }
                                 )
                             )
                         )
@@ -302,7 +302,10 @@ fun ArticleDetailScreen(
     GlasenseMenu(
         menuState = menuState,
         backdrop = backdrop,
-        onDismiss = { menuState = menuState.copy(isVisible = false) }
+        onDismiss = { menuState = menuState.copy(isVisible = false) },
+        // 部分设备的 HWUI 在菜单实时玻璃背景与详情页渲染树叠加时会递归崩溃。
+        // 仅关闭该菜单的运行时背景采样，保留 Glasense 的圆角、阴影和动效。
+        forceSafeSurface = true
     )
 }
 
@@ -474,284 +477,25 @@ private fun markdownInline(source: String): AnnotatedString {
 
 @Composable
 fun ArticleContentViewer(content: String, modifier: Modifier = Modifier) {
-    val isDark = GlasenseTheme.darkTheme
-    val textColor = if (isDark) "#E5E7EB" else "#333333"
-    val tableHeaderBg = if (isDark) "#1F2937" else "#F3F4F6"
-    val borderColor = if (isDark) "#374151" else "#E5E7EB"
-    val codeBg = if (isDark) "#1F2937" else "#F9FAFB"
-    val inlineCodeBg = if (isDark) "rgba(255,255,255,0.1)" else "rgba(0,0,0,0.05)"
-
-    // Check if original content is HTML or Markdown.
-    // Pure HTML articles always start with an HTML tag (e.g. <div or <p).
-    // Markdown files might contain tags inside code blocks but start with markdown text.
     val isHtml = content.trim().startsWith("<")
-    val htmlContent = if (isHtml) {
-        content
+    if (isHtml) {
+        val textColor = AppColors.content.toArgb()
+        AndroidView(
+            modifier = modifier.fillMaxWidth(),
+            factory = { context ->
+                TextView(context).apply {
+                    setTextColor(textColor)
+                    textSize = 15f
+                    setLineSpacing(0f, 1.35f)
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                }
+            },
+            update = { textView ->
+                textView.text = HtmlCompat.fromHtml(content, HtmlCompat.FROM_HTML_MODE_LEGACY)
+            }
+        )
     } else {
-        markdownToHtml(content)
+        MarkdownText(text = content, modifier = modifier.fillMaxWidth())
     }
-
-    val fullHtml = """
-        <html>
-        <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                font-size: 15px;
-                line-height: 1.6;
-                color: $textColor;
-                background-color: transparent;
-                margin: 0;
-                padding: 0;
-            }
-            h1, h2, h3, h4, h5, h6 {
-                font-weight: 700;
-                margin-top: 24px;
-                margin-bottom: 12px;
-                color: $textColor;
-            }
-            h1 { font-size: 1.5em; border-bottom: 1px solid $borderColor; padding-bottom: 6px; }
-            h2 { font-size: 1.3em; }
-            h3 { font-size: 1.1em; }
-            p { margin-top: 0; margin-bottom: 16px; }
-            a { color: #2563EB; text-decoration: none; }
-            a:hover { text-decoration: underline; }
-            ul, ol { margin-top: 0; margin-bottom: 16px; padding-left: 20px; }
-            li { margin-bottom: 6px; }
-            
-            /* Table Styling */
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 16px;
-                margin-bottom: 16px;
-                font-size: 14px;
-            }
-            table th {
-                background-color: $tableHeaderBg;
-                font-weight: 600;
-                text-align: left;
-            }
-            table td, table th {
-                border: 1px solid $borderColor;
-                padding: 8px 12px;
-                color: $textColor;
-            }
-            
-            /* Code Block Styling */
-            pre {
-                background-color: $codeBg;
-                border-radius: 8px;
-                padding: 12px;
-                overflow-x: auto;
-                margin-top: 16px;
-                margin-bottom: 16px;
-                border: 1px solid $borderColor;
-            }
-            code {
-                font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
-                font-size: 13px;
-                background-color: $inlineCodeBg;
-                padding: 2px 4px;
-                border-radius: 4px;
-                color: $textColor;
-            }
-            pre code {
-                background-color: transparent;
-                padding: 0;
-                border-radius: 0;
-                display: block;
-                white-space: pre;
-            }
-        </style>
-        </head>
-        <body>
-            $htmlContent
-        </body>
-        </html>
-    """.trimIndent()
-
-    AndroidView(
-        modifier = modifier.fillMaxWidth(),
-        factory = { context ->
-            WebView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-                settings.javaScriptEnabled = false
-                setBackgroundColor(Color.TRANSPARENT)
-                isVerticalScrollBarEnabled = false
-                isHorizontalScrollBarEnabled = false
-            }
-        },
-        update = { webView ->
-            webView.loadDataWithBaseURL(null, fullHtml, "text/html", "UTF-8", null)
-        }
-    )
-}
-
-fun markdownToHtml(markdown: String): String {
-    val lines = markdown.split("\n")
-    val html = StringBuilder()
-    var inCodeBlock = false
-    var codeContent = StringBuilder()
-    var inTable = false
-    var tableHeaders = listOf<String>()
-    var tableRows = mutableListOf<List<String>>()
-    var inList = false
-
-    fun closeTable() {
-        if (inTable) {
-            html.append("<table>")
-            if (tableHeaders.isNotEmpty()) {
-                html.append("<thead><tr>")
-                for (h in tableHeaders) {
-                    html.append("<th>").append(parseInlineMarkdown(h)).append("</th>")
-                }
-                html.append("</tr></thead>")
-            }
-            html.append("<tbody>")
-            for (row in tableRows) {
-                html.append("<tr>")
-                for (cell in row) {
-                    html.append("<td>").append(parseInlineMarkdown(cell)).append("</td>")
-                }
-                html.append("</tr>")
-            }
-            html.append("</tbody></table>")
-            inTable = false
-            tableHeaders = emptyList()
-            tableRows.clear()
-        }
-    }
-
-    fun closeList() {
-        if (inList) {
-            html.append("</ul>")
-            inList = false
-        }
-    }
-
-    for (line in lines) {
-        val trimmed = line.trim()
-
-        // 1. Code Block state machine
-        if (trimmed.startsWith("```")) {
-            closeTable()
-            closeList()
-            if (inCodeBlock) {
-                // End code block
-                html.append("<pre><code>")
-                html.append(escapeHtml(codeContent.toString().trimEnd()))
-                html.append("</code></pre>")
-                codeContent = StringBuilder()
-                inCodeBlock = false
-            } else {
-                inCodeBlock = true
-            }
-            continue
-        }
-
-        if (inCodeBlock) {
-            codeContent.append(line).append("\n")
-            continue
-        }
-
-        // 2. Table state machine
-        if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-            closeList()
-            val cells = trimmed.split("|").map { it.trim() }.drop(1).dropLast(1)
-            // Check if separator row like |---|---|
-            val isSeparator = cells.isNotEmpty() && cells.all { cell -> cell.all { it == '-' || it == ':' } }
-            if (isSeparator) {
-                continue
-            }
-            if (!inTable) {
-                inTable = true
-                tableHeaders = cells
-            } else {
-                tableRows.add(cells)
-            }
-            continue
-        } else {
-            closeTable()
-        }
-
-        // 3. List state machine
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-            if (!inList) {
-                inList = true
-                html.append("<ul>")
-            }
-            html.append("<li>").append(parseInlineMarkdown(trimmed.substring(2))).append("</li>")
-            continue
-        } else {
-            closeList()
-        }
-
-        if (trimmed.isEmpty()) {
-            html.append("<p></p>")
-            continue
-        }
-
-        // 4. Headers and plain text
-        when {
-            trimmed.startsWith("# ") -> {
-                html.append("<h1>").append(parseInlineMarkdown(trimmed.substring(2))).append("</h1>")
-            }
-            trimmed.startsWith("## ") -> {
-                html.append("<h2>").append(parseInlineMarkdown(trimmed.substring(3))).append("</h2>")
-            }
-            trimmed.startsWith("### ") -> {
-                html.append("<h3>").append(parseInlineMarkdown(trimmed.substring(4))).append("</h3>")
-            }
-            trimmed.startsWith("#### ") -> {
-                html.append("<h4>").append(parseInlineMarkdown(trimmed.substring(5))).append("</h4>")
-            }
-            else -> {
-                html.append("<p>").append(parseInlineMarkdown(line)).append("</p>")
-            }
-        }
-    }
-
-    closeTable()
-    closeList()
-    return html.toString()
-}
-
-fun escapeHtml(text: String): String {
-    return text.replace("&", "&amp;")
-               .replace("<", "&lt;")
-               .replace(">", "&gt;")
-               .replace("\"", "&quot;")
-               .replace("'", "&#039;")
-}
-
-fun parseInlineMarkdown(text: String): String {
-    var result = text
-    result = escapeHtml(result)
-    
-    // Bold: **text**
-    val boldRegex = "\\*\\*(.*?)\\*\\*".toRegex()
-    result = boldRegex.replace(result) { "<strong>${it.groupValues[1]}</strong>" }
-    
-    // Italic: *text*
-    val italicRegex = "\\*(.*?)\\*".toRegex()
-    result = italicRegex.replace(result) { "<em>${it.groupValues[1]}</em>" }
-    
-    // Inline code: `code`
-    val codeRegex = "`(.*?)`".toRegex()
-    result = codeRegex.replace(result) { "<code>${it.groupValues[1]}</code>" }
-    
-    // Images: ![alt](url)
-    val imgRegex = "!\\[(.*?)\\]\\((.*?)\\)".toRegex()
-    result = imgRegex.replace(result) { "<img src=\"${it.groupValues[2]}\" alt=\"${it.groupValues[1]}\" style=\"max-width:100%;\" />" }
-    
-    // Links: [text](url)
-    val linkRegex = "\\[(.*?)\\]\\((.*?)\\)".toRegex()
-    result = linkRegex.replace(result) { "<a href=\"${it.groupValues[2]}\">${it.groupValues[1]}</a>" }
-    
-    return result
 }

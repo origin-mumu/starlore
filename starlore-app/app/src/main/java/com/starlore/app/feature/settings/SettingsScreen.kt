@@ -34,6 +34,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.starlore.app.R
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.harmonize
 import com.starlore.app.ui.components.glasense.GlasenseButtonToolBar
 import com.starlore.app.ui.components.glasense.GlasenseBackButton
@@ -67,14 +68,9 @@ fun SettingsScreen() {
 
     val backgroundColor = AppColors.pageBackground
     val backdrop = rememberLayerBackdrop {
-        drawRect(
-            color = backgroundColor,
-            size = Size(this.size.width * 3, this.size.height * 3),
-            topLeft = Offset(-this.size.width, -this.size.height)
-        )
         drawContent()
     }
-    Box(modifier = Modifier.background(AppColors.pageBackground)) {
+    Box(modifier = Modifier.appPageBackground()) {
         PageContent(
             state = lazyListState,
             modifier = Modifier

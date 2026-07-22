@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.starlore.app.data.api.*
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
@@ -227,12 +228,6 @@ class ChatViewModel(private val aiApi: AiApi) : ViewModel() {
                 var retryCount = 0
 
                 ApiClient.parseSseFlow(responseBody)
-                    .catch { e ->
-                        messages[assistantMessageIndex] = assistantPlaceholder.copy(
-                            content = "星空深处信号被遮蔽: ${e.message}"
-                        )
-                        isSending.value = false
-                    }
                     .onCompletion {
                         isSending.value = false
                     }
@@ -331,12 +326,52 @@ class ChatViewModel(private val aiApi: AiApi) : ViewModel() {
                         }
                     }
             } catch (e: Exception) {
-                messages[assistantMessageIndex] = assistantPlaceholder.copy(
-                    content = "通信断开，请检查网络: ${e.message}"
-                )
+                isSending.value = true
+                val recovered = recoverSavedAnswer(sessionId)
+                if (!recovered) {
+                    val hasUsableStreamedAnswer = assistantMessageIndex < messages.size &&
+                        messages[assistantMessageIndex].content.isNotBlank()
+                    if (!hasUsableStreamedAnswer) {
+                        if (assistantMessageIndex < messages.size) messages.removeAt(assistantMessageIndex)
+                        errorMessage.value = "连接中断，回答可能仍在生成，请稍后重试"
+                    } else {
+                        // The answer reached the UI before HTTP/2 closed the stream. Keep it;
+                        // transport completion is not a user-visible failure.
+                        errorMessage.value = null
+                    }
+                }
                 isSending.value = false
             }
         }
+    }
+
+    /**
+     * HTTP/2 may reset an SSE stream after the server has already persisted the answer.
+     * Re-read the session before presenting a failure so a completed answer is never
+     * replaced by a transport error.
+     */
+    private suspend fun recoverSavedAnswer(sessionId: Int): Boolean {
+        repeat(3) { attempt ->
+            delay(700L + attempt * 800L)
+            try {
+                val response = aiApi.getSessionMessages(sessionId)
+                val restored = response.messages
+                    .filter { it.role == "user" || it.role == "assistant" }
+                    .map { it.copy(agentTrace = formatStoredTrace(it.agentTrace)) }
+                if (restored.lastOrNull()?.role == "assistant" && restored.last().content.isNotBlank()) {
+                    activeSessionId.value = sessionId
+                    messages.clear()
+                    messages.addAll(restored)
+                    refreshSessionsInternal()
+                    refreshQuota()
+                    errorMessage.value = null
+                    return true
+                }
+            } catch (_: Exception) {
+                // Retry briefly: persistence can complete just after the stream closes.
+            }
+        }
+        return false
     }
 
     private fun updateAssistantMessage(index: Int, content: String, trace: String) {

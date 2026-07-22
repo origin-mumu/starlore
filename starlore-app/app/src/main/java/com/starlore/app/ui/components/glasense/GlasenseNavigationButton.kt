@@ -28,6 +28,7 @@ import com.starlore.app.theme.NavigationButtonActiveColors
 import com.starlore.app.theme.NavigationButtonNormalColors
 import com.starlore.app.ui.components.glasense.material.MaterialRecipes
 import com.starlore.app.ui.components.glasense.material.rememberMaterialRenderEffectOrNull
+import com.starlore.app.ui.components.liquid.LiquidGlassButton
 import com.starlore.glasense.theme.GlasenseTheme
 
 /**
@@ -49,6 +50,19 @@ fun GlasenseNavigationButton(
     content: @Composable () -> Unit
 ) {
     val tint = AppColors.primary
+
+    if (liquidGlass) {
+        LiquidGlassButton(
+            onClick = onClick,
+            backdrop = backdrop,
+            modifier = modifier.fillMaxHeight(),
+            tint = if (isActive) tint else Color.Unspecified,
+            surfaceColor = if (isActive) Color.Unspecified else AppColors.cardBackground.copy(alpha = .22f)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+        }
+        return
+    }
 
     val materialEffect =
         rememberMaterialRenderEffectOrNull(

@@ -185,6 +185,7 @@ const paginationButtons = computed(() => {
               <button
                 class="filter-pill"
                 :class="{ active: activeCategory === '全部' }"
+                :aria-pressed="activeCategory === '全部'"
                 @click="filterCategory('全部')"
               >
                 全部
@@ -194,6 +195,7 @@ const paginationButtons = computed(() => {
                 :key="cat.id"
                 class="filter-pill"
                 :class="{ active: activeCategory === cat.name }"
+                :aria-pressed="activeCategory === cat.name"
                 @click="filterCategory(cat.name)"
               >
                 {{ cat.name }}
@@ -467,41 +469,51 @@ const paginationButtons = computed(() => {
 
 .filter-bar {
   display: flex;
-  gap: 8px;
-  padding: 0;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px;
   margin-bottom: 32px;
   overflow-x: auto;
-  background: transparent;
-  border: none;
+  background: color-mix(in oklch, var(--surface) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+  border: 1px solid color-mix(in oklch, var(--border) 74%, transparent);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 color-mix(in oklch, var(--surface) 72%, transparent);
+  scrollbar-width: none;
 }
+.filter-bar::-webkit-scrollbar { display: none; }
 
 .filter-pill {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  min-height: 36px;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
   color: var(--ink-soft);
   cursor: pointer;
-  font-weight: 500;
-  transition: all var(--transition);
+  font-weight: 600;
+  font-family: Inter, 'Noto Sans SC', system-ui, sans-serif;
+  transition: color var(--transition), background var(--transition), box-shadow var(--transition);
   white-space: nowrap;
-  padding: 8px 18px;
+  padding: 0 16px;
   border-radius: var(--radius-full);
-  background: var(--tag-bg);
+  background: transparent;
   border: 1px solid transparent;
 }
 
 .filter-pill:hover {
-  background: var(--tag-hover);
-  border-color: var(--border-interactive);
+  color: var(--ink);
+  background: color-mix(in oklch, var(--surface-hover) 74%, transparent);
 }
 
 .filter-pill.active {
-  background: var(--accent);
-  color: #ffffff;
-  border-color: var(--accent);
-  font-weight: 600;
-  box-shadow: var(--shadow-button);
+  background: color-mix(in oklch, var(--accent-soft) 82%, var(--surface));
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 20%, transparent);
+  box-shadow: 0 1px 4px color-mix(in oklch, var(--accent) 12%, transparent);
 }
+.filter-pill:focus-visible { outline: 3px solid color-mix(in oklch, var(--accent) 18%, transparent); outline-offset: 2px; }
 
 .pagination {
   display: flex;

@@ -6,7 +6,7 @@ import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { List, Hash } from '@lucide/vue'
-import { sanitizeHtml } from '@/utils/sanitize'
+import { renderArticleContent } from '@/utils/articleContent'
 
 const userStore = useUserStore()
 
@@ -209,7 +209,7 @@ const formatDate = (dateString: string) => {
             <main class="main-content">
               <div class="detail-card-enter">
                 <div class="typography">
-                  <div v-html="sanitizeHtml(article?.content || '星记内容为空')"></div>
+                  <div v-html="renderArticleContent(article?.content || '星记内容为空')"></div>
                 </div>
                 <div class="back-action">
                   <button @click="$router.back()" class="btn-primary">返回星记列表</button>
@@ -338,9 +338,10 @@ const formatDate = (dateString: string) => {
   letter-spacing: 0.06em;
   margin-bottom: 16px;
   padding: 5px 14px;
-  background: var(--badge-bg);
-  border: 1px solid var(--badge-border);
+  background: color-mix(in oklch, var(--accent-soft) 78%, var(--surface));
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
   border-radius: var(--radius-full);
+  box-shadow: 0 1px 4px color-mix(in oklch, var(--accent) 9%, transparent);
 }
 
 .article-title {
@@ -600,11 +601,13 @@ const formatDate = (dateString: string) => {
 
 .typography :deep(pre) {
   position: relative;
-  background: #292d35;
+  background: oklch(0.22 0.018 255);
   margin: 24px 0;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
+  border: 1px solid oklch(0.34 0.018 255 / 0.72);
+  box-shadow: 0 8px 24px oklch(0.12 0.015 255 / 0.16);
 }
 
 .typography :deep(code),
@@ -619,15 +622,89 @@ const formatDate = (dateString: string) => {
 .typography :deep(code) {
   flex: 1;
   overflow-x: auto;
-  color: #abb2bf;
+  color: oklch(0.84 0.018 255);
+}
+
+.typography :deep(pre code),
+.typography :deep(pre code.hljs) {
+  display: block;
+  min-width: 0;
+  padding: 16px 18px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: oklch(0.84 0.018 255);
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.58 0.04 255) transparent;
+}
+
+/* Atom One Dark tokens scoped to article code blocks. Keep these after the
+   generic code rule so prose/inline-code colours cannot wash out highlighting. */
+.typography :deep(pre code .hljs-comment),
+.typography :deep(pre code .hljs-quote) {
+  color: #7f848e !important;
+  font-style: italic;
+}
+.typography :deep(pre code .hljs-doctag),
+.typography :deep(pre code .hljs-keyword),
+.typography :deep(pre code .hljs-formula) {
+  color: #c678dd !important;
+}
+.typography :deep(pre code .hljs-section),
+.typography :deep(pre code .hljs-name),
+.typography :deep(pre code .hljs-selector-tag),
+.typography :deep(pre code .hljs-deletion),
+.typography :deep(pre code .hljs-subst) {
+  color: #e06c75 !important;
+}
+.typography :deep(pre code .hljs-literal) {
+  color: #56b6c2 !important;
+}
+.typography :deep(pre code .hljs-string),
+.typography :deep(pre code .hljs-regexp),
+.typography :deep(pre code .hljs-addition),
+.typography :deep(pre code .hljs-attribute),
+.typography :deep(pre code .hljs-meta-string) {
+  color: #98c379 !important;
+}
+.typography :deep(pre code .hljs-built_in),
+.typography :deep(pre code .hljs-class .hljs-title) {
+  color: #e6c07b !important;
+}
+.typography :deep(pre code .hljs-attr),
+.typography :deep(pre code .hljs-variable),
+.typography :deep(pre code .hljs-template-variable),
+.typography :deep(pre code .hljs-type),
+.typography :deep(pre code .hljs-selector-class),
+.typography :deep(pre code .hljs-selector-attr),
+.typography :deep(pre code .hljs-selector-pseudo),
+.typography :deep(pre code .hljs-number) {
+  color: #d19a66 !important;
+}
+.typography :deep(pre code .hljs-symbol),
+.typography :deep(pre code .hljs-bullet),
+.typography :deep(pre code .hljs-link),
+.typography :deep(pre code .hljs-meta),
+.typography :deep(pre code .hljs-selector-id),
+.typography :deep(pre code .hljs-title) {
+  color: #61aeee !important;
+}
+.typography :deep(pre code .hljs-emphasis) { font-style: italic; }
+.typography :deep(pre code .hljs-strong) { font-weight: 700; }
+.typography :deep(pre code::-webkit-scrollbar) { height: 7px; }
+.typography :deep(pre code::-webkit-scrollbar-track) { background: transparent; }
+.typography :deep(pre code::-webkit-scrollbar-thumb) {
+  background: oklch(0.52 0.035 255);
+  border-radius: var(--radius-full);
 }
 
 .typography :deep(.line-numbers-wrapper) {
   width: 40px;
+  flex: 0 0 40px;
   text-align: center;
-  color: #5c6370;
-  background: rgba(0, 0, 0, 0.2);
-  border-right: 1px solid #3e4451;
+  color: oklch(0.55 0.018 255);
+  background: oklch(0.18 0.018 255 / 0.72);
+  border-right: 1px solid oklch(0.36 0.018 255 / 0.68);
   user-select: none;
   display: flex;
   flex-direction: column;

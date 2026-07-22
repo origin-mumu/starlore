@@ -72,6 +72,7 @@ import com.starlore.app.feature.settings.update.UpdateInfo
 import com.starlore.app.feature.settings.util.SettingsViewModel
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.isAppInDarkTheme
 import com.starlore.app.ui.components.glasense.GlasenseButton
@@ -190,11 +191,6 @@ fun AboutScreen(settingsViewModel: SettingsViewModel = viewModel()) {
     }
 
     val backdrop = rememberLayerBackdrop {
-        drawRect(
-            color = backgroundColor,
-            size = Size(this.size.width * 3, this.size.height * 3),
-            topLeft = Offset(-this.size.width, -this.size.height)
-        )
         drawContent()
     }
 
@@ -204,6 +200,7 @@ fun AboutScreen(settingsViewModel: SettingsViewModel = viewModel()) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .appPageBackground()
     ) {
         ListStack(
             state = lazyListState,

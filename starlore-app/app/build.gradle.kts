@@ -132,6 +132,8 @@ dependencies {
     implementation(libs.shizuku.provider)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.gfm.tables)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)

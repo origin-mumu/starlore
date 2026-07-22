@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 fun BottomSheet(
     onDismissed: () -> Unit,
     onDismissRequest: (slideOut: () -> Unit) -> Unit = { slideOut -> slideOut() },
+    heightFraction: Float = 1f,
     content: @Composable BoxScope.(slideOut: () -> Unit) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -53,9 +54,9 @@ fun BottomSheet(
     var isVisible by remember { mutableStateOf(false) }
     var hasSlidIn by remember { mutableStateOf(false) }
 
-    val bottomSheetHeight =
-        windowInfo.containerDpSize.height - WindowInsets.statusBars.asPaddingValues()
-            .calculateTopPadding()
+    val availableHeight = windowInfo.containerDpSize.height - WindowInsets.statusBars
+        .asPaddingValues().calculateTopPadding()
+    val bottomSheetHeight = availableHeight * heightFraction.coerceIn(0.35f, 1f)
     val bottomSheetHeightPx = with(density) { bottomSheetHeight.toPx() }
 
     val offset = remember { Animatable(bottomSheetHeightPx) }

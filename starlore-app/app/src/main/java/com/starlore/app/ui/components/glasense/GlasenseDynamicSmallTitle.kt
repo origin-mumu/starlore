@@ -58,6 +58,14 @@ fun GlasenseDynamicSmallTitle(
     content: @Composable () -> Unit
 ) {
     val blur = !LocalGlasenseSettings.current.liteMode
+    // A page may now be transparent to reveal the global macaron canvas. The collapsing
+    // header still needs its own subtle material tint so scrolled content cannot bleed
+    // into the status bar and title.
+    val stableSurfaceColor = if (surfaceColor.alpha < 0.05f) {
+        AppColors.cardBackground.copy(alpha = 0.72f)
+    } else {
+        surfaceColor
+    }
 
     val alpha =
         animateFloatAsState(targetValue = if (isVisible) 1f else 0f, animationSpec = tween(300))
@@ -82,7 +90,7 @@ fun GlasenseDynamicSmallTitle(
                     backdrop = backdrop,
                     shape = { RectangleShape },
                     effects = {
-                        if (blur) blur(3f.dp.toPx())
+                        if (blur) blur(14f.dp.toPx())
                         runtimeShaderEffect(
                             "AlphaMask", """
 uniform shader content;
@@ -99,12 +107,12 @@ return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
                         ) {
                             apply {
                                 setFloatUniform("size", size.width, size.height)
-                                setColorUniform("tint", surfaceColor)
-                                setFloatUniform("tintIntensity", 0.7f)
+                                setColorUniform("tint", stableSurfaceColor)
+                                setFloatUniform("tintIntensity", 0.42f)
                             }
                         }
                     }
-                ) else Modifier.smoothGradientMask(surfaceColor, 1f, 0.6f, 0.7f))
+                ) else Modifier.smoothGradientMask(stableSurfaceColor, 1f, 0.6f, 0.52f))
     ) {}
     Box(
         modifier = modifier

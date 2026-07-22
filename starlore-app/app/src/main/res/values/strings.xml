@@ -20,6 +20,9 @@
     <string name="exit_selection_mode">Exit selection mode</string>
     <string name="ai" translatable="false">AI</string>
     <string name="appearance">Appearance</string>
+    <string name="background_style">Background</string>
+    <string name="macaron_background">Macaron color blend</string>
+    <string name="macaron_background_description">A soft peach, mint and sky color blend beneath the glass surfaces.</string>
     <string name="data_storage"><![CDATA[Data & Storage]]></string>
     <string name="general">General</string>
     <string name="credits">Credits</string>

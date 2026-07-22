@@ -57,6 +57,7 @@ import com.starlore.app.data.todo.DuplicatePolicy
 import com.starlore.app.data.todo.TodoViewModel
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.harmonize
 import com.starlore.app.ui.components.glasense.DialogItemData
@@ -159,7 +160,6 @@ fun DataStorageScreen() {
     val isSmallTitleVisible by lazyListState.isScrolledPast(statusBarHeight + 24.dp)
 
     val backdrop = rememberLayerBackdrop {
-        drawRect(surfaceColor)
         drawContent()
     }
 
@@ -424,6 +424,7 @@ fun DataStorageScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .appPageBackground()
             .layerBackdrop(backdrop)
     ) {
         ListStack(

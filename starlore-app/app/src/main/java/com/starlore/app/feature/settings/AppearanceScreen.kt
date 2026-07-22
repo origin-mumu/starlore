@@ -68,6 +68,7 @@ import com.starlore.app.feature.settings.util.AppIconManager
 import com.starlore.app.feature.settings.util.SettingsViewModel
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.harmonize
 import com.starlore.app.ui.components.glasense.GlasenseButton
@@ -132,6 +133,7 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
     var isUseDynamicColorScheme by settingsViewModel.isUseDynamicColor
     var isLiteMode by settingsViewModel.isLiteMode
     var isLiquidGlass by settingsViewModel.isLiquidGlass
+    var isMacaronBackground by settingsViewModel.isMacaronBackground
     val currentMode by settingsViewModel.colorMode
     val currentThemePrimaryColor by settingsViewModel.themePrimaryColor
     val currentAppIcon by settingsViewModel.appIcon
@@ -146,11 +148,6 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
     val overscrollFactory = rememberOffsetOverscrollFactory()
 
     val backdrop = rememberLayerBackdrop {
-        drawRect(
-            color = backgroundColor,
-            size = Size(this.size.width * 3, this.size.height * 3),
-            topLeft = Offset(-this.size.width, -this.size.height)
-        )
         drawContent()
     }
 
@@ -162,6 +159,7 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .appPageBackground()
     ) {
         // A vertically scrolling list that only composes and lays out the currently visible items
         ListStack(
@@ -255,6 +253,17 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
                         onCheckedChange = { settingsViewModel.onLiquidGlassChanged(it) }) {
                         Text(stringResource(R.string.liquid_glass))
                     }
+                }
+            }
+            Section(
+                header = { stringResource(R.string.background_style) },
+                footer = { stringResource(R.string.macaron_background_description) }
+            ) {
+                CustomSwitchRow(
+                    checked = isMacaronBackground,
+                    onCheckedChange = { settingsViewModel.onMacaronBackgroundChanged(it) }
+                ) {
+                    Text(stringResource(R.string.macaron_background))
                 }
             }
             NoPaddingSection(header = { stringResource(R.string.app_icon) }) {

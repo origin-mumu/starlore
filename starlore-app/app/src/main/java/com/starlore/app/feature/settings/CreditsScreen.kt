@@ -33,6 +33,7 @@ import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.starlore.app.R
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.harmonize
 import com.starlore.app.ui.components.glasense.GlasenseButton
@@ -64,11 +65,6 @@ fun CreditsScreen() {
 
     val backgroundColor = AppColors.pageBackground
     val backdrop = rememberLayerBackdrop {
-        drawRect(
-            color = backgroundColor,
-            size = Size(this.size.width * 3, this.size.height * 3),
-            topLeft = Offset(-this.size.width, -this.size.height)
-        )
         drawContent()
     }
 
@@ -77,6 +73,7 @@ fun CreditsScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .appPageBackground()
     ) {
         ListStack(
             state = lazyListState,

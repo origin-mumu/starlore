@@ -39,6 +39,7 @@ import com.starlore.app.feature.settings.util.SettingsManager
 import com.starlore.app.feature.settings.util.SettingsViewModel
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.theme.harmonize
 import com.starlore.app.ui.components.glasense.GlasenseButton
@@ -99,11 +100,6 @@ fun AccountScreen(settingsViewModel: SettingsViewModel = viewModel()) {
 
     val backgroundColor = AppColors.pageBackground
     val backdrop = rememberLayerBackdrop {
-        drawRect(
-            color = backgroundColor,
-            size = Size(this.size.width * 3, this.size.height * 3),
-            topLeft = Offset(-this.size.width, -this.size.height)
-        )
         drawContent()
     }
 
@@ -147,7 +143,7 @@ fun AccountScreen(settingsViewModel: SettingsViewModel = viewModel()) {
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().appPageBackground()) {
         ListStack(
             state = lazyListState,
             modifier = Modifier
@@ -163,7 +159,7 @@ fun AccountScreen(settingsViewModel: SettingsViewModel = viewModel()) {
                     modifier = Modifier.padding(horizontal = 12.dp),
                     color = harmonize(Slate500),
                     backgroundColor = AppColors.cardBackground,
-                    icon = painterResource(R.drawable.ic_character),
+                    icon = painterResource(R.drawable.ic_mini_user),
                     title = "账户管理",
                     info = "罗列并管理您的个人账户和密码基本安全信息"
                 )

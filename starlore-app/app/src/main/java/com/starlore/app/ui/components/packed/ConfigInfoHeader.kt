@@ -81,7 +81,7 @@ fun ConfigInfoHeader(
                     contentDescription = null,
                     modifier = Modifier
                         .graphicsLayer { blendMode = BlendMode.Plus }
-                        .fillMaxSize()
+                        .size(28.dp)
                         .blur(2.dp)
                 )
             }
@@ -92,7 +92,7 @@ fun ConfigInfoHeader(
                 contentDescription = null,
                 modifier = Modifier
                     .graphicsLayer { blendMode = BlendMode.Plus }
-                    .fillMaxSize()
+                    .size(26.dp)
             )
         }
         // The main title text.

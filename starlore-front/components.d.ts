@@ -19,6 +19,7 @@ declare module 'vue' {
     FloatingParticles: typeof import('./src/components/FloatingParticles.vue')['default']
     GeoNexusGlobe: typeof import('./src/components/GeoNexusGlobe.vue')['default']
     ImmersiveMode: typeof import('./src/components/ImmersiveMode.vue')['default']
+    MarkdownEditor: typeof import('./src/components/MarkdownEditor.vue')['default']
     Navbar: typeof import('./src/components/navbar.vue')['default']
     ParticleGlobe: typeof import('./src/components/ParticleGlobe.vue')['default']
     RichEditor: typeof import('./src/components/RichEditor.vue')['default']

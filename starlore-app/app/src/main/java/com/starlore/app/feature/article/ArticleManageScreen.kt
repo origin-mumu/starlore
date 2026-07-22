@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -26,10 +27,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.shapes.Capsule
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import com.starlore.app.R
 import com.starlore.app.data.api.CategoryItem
 import com.starlore.app.data.api.CreateArticleRequest
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.ui.components.glasense.GlasenseButtonAlt
@@ -41,6 +48,8 @@ import com.starlore.app.ui.components.glasense.rememberSwipeableListState
 import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.GlasenseBackButton
 import com.starlore.app.ui.components.glasense.GlasenseDialog
+import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
+import com.starlore.app.ui.components.glasense.isScrolledPast
 import com.starlore.app.ui.components.glasense.DialogItemData
 import com.starlore.app.ui.components.glasense.DialogState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
@@ -67,7 +76,7 @@ fun ArticleEditorScreen(
     var isPublic by rememberSaveable { mutableStateOf(true) }
     var initialized by remember { mutableStateOf(false) }
     var showPublishSettings by remember { mutableStateOf(false) }
-    val editorController = rememberRichHtmlEditorController()
+    val editorController = rememberMarkdownEditorController()
 
     LaunchedEffect(articleId) { initialized = false; viewModel.loadEditor(articleId) }
     LaunchedEffect(state) {
@@ -95,7 +104,7 @@ fun ArticleEditorScreen(
         ))
     }
 
-    Box(Modifier.fillMaxSize().background(AppColors.pageBackground).imePadding()) {
+    Box(Modifier.fillMaxSize().appPageBackground().imePadding()) {
         if (state is EditorUiState.Loading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = AppColors.primary) }
         } else {
@@ -115,9 +124,9 @@ fun ArticleEditorScreen(
                     onClick = { showPublishSettings = true }
                 )
                 ThinDivider()
-                if (initialized) RichHtmlEditor(
-                    initialHtml = content,
-                    onHtmlChange = { content = it },
+                if (initialized) MarkdownEditor(
+                    initialMarkdown = content,
+                    onMarkdownChange = { content = it },
                     controller = editorController,
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
@@ -145,8 +154,7 @@ fun ArticleEditorScreen(
                 .background(AppColors.cardBackground.copy(alpha = .96f)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            GhostIconButton(R.drawable.ic_sliders, "发布设置") { showPublishSettings = true }
-            RichHtmlToolbar(editorController, Modifier.weight(1f))
+            MarkdownToolbar(editorController, Modifier.fillMaxWidth())
         }
         (state as? EditorUiState.Error)?.let { error ->
             Text(error.message, color = AppColors.error, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopCenter).padding(top = statusBarHeight + 70.dp))
@@ -164,7 +172,15 @@ fun ArticleEditorScreen(
 @Composable
 private fun EditorMetaBar(category: String, isPublic: Boolean, tagCount: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(46.dp).clickable(onClick = onClick).padding(horizontal = 16.dp),
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .height(42.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(AppColors.cardBackground.copy(alpha = .72f))
+            .clickable(onClick = onClick)
+            .glasenseHighlight(RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -175,20 +191,29 @@ private fun EditorMetaBar(category: String, isPublic: Boolean, tagCount: Int, on
         Text(if (isPublic) "公开" else "私密", fontSize = 12.sp, color = AppColors.contentVariant)
         if (tagCount > 0) Text("$tagCount 个标签", fontSize = 12.sp, color = AppColors.contentVariant)
         Spacer(Modifier.weight(1f))
-        Text("发布设置", fontSize = 12.sp, color = AppColors.primary, fontWeight = FontWeight.Medium)
-        Icon(painterResource(R.drawable.ic_chevron_forward_compact), null, Modifier.size(15.dp), AppColors.primary)
+        Icon(painterResource(R.drawable.ic_sliders), "发布设置", Modifier.size(16.dp), AppColors.contentVariant)
+        Icon(painterResource(R.drawable.ic_chevron_forward_compact), null, Modifier.size(15.dp), AppColors.contentVariant)
     }
 }
 
 @Composable
 private fun WritingTopBar(title: String, canPublish: Boolean, saving: Boolean, onClose: () -> Unit, onPublish: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().statusBarsPadding().height(68.dp).background(AppColors.pageBackground.copy(alpha = .97f))) {
+    Box(modifier.fillMaxWidth().statusBarsPadding().height(68.dp)) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) {
             CategoryHeaderButton(onClick = onClose) {
                 Icon(painterResource(R.drawable.ic_cross), "关闭", Modifier.size(20.dp), AppColors.content)
             }
         }
-        Text(title, Modifier.align(Alignment.Center), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+        Box(
+            Modifier
+                .align(Alignment.Center)
+                .clip(Capsule())
+                .background(AppColors.cardBackground.copy(alpha = .72f))
+                .glasenseHighlight(Capsule())
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
         Box(
             Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).width(72.dp).height(44.dp)
                 .clip(Capsule())
@@ -281,19 +306,38 @@ fun CategoryManageScreen(
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CategoryItem?>(null) }
     val swipeableState = rememberSwipeableListState()
+    val listState = rememberLazyListState()
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val isSmallTitleVisible by listState.isScrolledPast(statusBarHeight + 24.dp)
+    val categoryPageBackground = AppPageColor
+    val backdrop = rememberLayerBackdrop {
+        drawRect(
+            color = categoryPageBackground,
+            size = Size(size.width * 3, size.height * 3),
+            topLeft = Offset(-size.width, -size.height)
+        )
+        drawContent()
+    }
     val actions = persistentListOf(
         SwipeableActionButton(index = 1, color = AppColors.primary, icon = painterResource(R.drawable.ic_square_and_pencil), iconColor = AppColors.onPrimary, contentDescription = "编辑"),
         SwipeableActionButton(index = 0, color = AppColors.error, icon = painterResource(R.drawable.ic_trash), iconColor = AppColors.onError, contentDescription = "删除", isDestructive = true, triggerOnDeepSwipe = true)
     )
     LaunchedEffect(Unit) { viewModel.loadCategories() }
 
-    Box(Modifier.fillMaxSize().background(AppColors.pageBackground)) {
+    Box(Modifier.fillMaxSize().appPageBackground()) {
         EditorOrbs()
         LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 128.dp, bottom = 180.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            state = listState,
+            modifier = Modifier.fillMaxSize().layerBackdrop(backdrop),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarHeight + 76.dp, bottom = 180.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            item(key = "category-page-heading") {
+                Column(Modifier.padding(start = 4.dp, bottom = 18.dp)) {
+                    Text("分类管理", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("${categories.size} 个星域", color = AppColors.contentVariant, fontSize = 12.sp)
+                }
+            }
             if (loading && categories.isEmpty()) item { Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = AppColors.primary) } }
             if (!loading && categories.isEmpty()) item { EmptyCategories { creating = true } }
             items(categories, key = { it.id }) { category ->
@@ -305,19 +349,17 @@ fun CategoryManageScreen(
                     onAction = { index -> if (index == 0) deleting = category else editing = category }
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().clip(AppSpecs.cardShape).background(AppColors.cardBackground.copy(alpha = .72f))
-                            .glasenseHighlight(AppSpecs.cardShape).clickable { onOpenCategory(category.name) }.padding(horizontal = 16.dp, vertical = 14.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(AppColors.cardBackground.copy(alpha = .58f))
+                            .glasenseHighlight(RoundedCornerShape(20.dp)).clickable { onOpenCategory(category.name) }.padding(horizontal = 17.dp, vertical = 15.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(AppColors.primary.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_folder), null, Modifier.size(21.dp), AppColors.primary)
-                        }
-                        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                        Icon(painterResource(R.drawable.ic_folder), null, Modifier.size(21.dp), AppColors.primary)
+                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(category.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Text(category.description ?: "暂无描述", color = AppColors.contentVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Text("${category.articleCount ?: 0}\n篇星记", color = AppColors.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                        Spacer(Modifier.width(14.dp))
+                        Text("${category.articleCount ?: 0} 篇", color = AppColors.contentVariant, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.width(10.dp))
                         Icon(painterResource(R.drawable.ic_chevron_forward_compact), "左滑管理", Modifier.size(16.dp), AppColors.contentVariant.copy(alpha = .55f))
                     }
                 }
@@ -327,7 +369,28 @@ fun CategoryManageScreen(
             // so a vertical drag still has natural overscroll and spring-back feedback.
             item(key = "scroll-breathing-room") { Spacer(Modifier.height(160.dp)) }
         }
-        CategoryTopBar("分类管理", onBack, { creating = true }, Modifier.align(Alignment.TopCenter))
+        GlasenseDynamicSmallTitle(
+            modifier = Modifier.align(Alignment.TopCenter),
+            title = "分类管理",
+            statusBarHeight = statusBarHeight,
+            isVisible = isSmallTitleVisible,
+            backdrop = backdrop,
+            surfaceColor = categoryPageBackground
+        ) {}
+        GlasenseBackButton(
+            onClick = onBack,
+            backdrop = backdrop,
+            modifier = Modifier.padding(top = statusBarHeight, start = 12.dp).size(48.dp).align(Alignment.TopStart)
+        )
+        GlasenseNavigationButton(
+            modifier = Modifier.padding(top = statusBarHeight, end = 12.dp).size(48.dp).align(Alignment.TopEnd),
+            isActive = false,
+            onClick = { creating = true },
+            backdrop = backdrop,
+            liquidGlass = true
+        ) {
+            Icon(painterResource(R.drawable.ic_add), "新建分类", Modifier.size(22.dp), AppColors.primary)
+        }
     }
 
     if (creating || editing != null) CategoryEditorDialog(editing, { creating = false; editing = null }) { name, description ->
@@ -353,14 +416,17 @@ fun CategoryManageScreen(
 }
 
 @Composable
-private fun CategoryTopBar(title: String, onBack: () -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+private fun CategoryTopBar(title: String, subtitle: String, onBack: () -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().statusBarsPadding().height(72.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         CategoryHeaderButton(onClick = onBack) {
             Icon(painterResource(R.drawable.ic_forward_nav), "返回", Modifier.size(21.dp), AppColors.content)
         }
-        Text(title, Modifier.weight(1f).padding(start = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+            Text(subtitle, color = AppColors.contentVariant, fontSize = 11.sp)
+        }
         CategoryHeaderButton(onClick = onAdd, active = true) {
-            Icon(painterResource(R.drawable.ic_add), "新建分类", Modifier.size(22.dp), AppColors.onPrimary)
+            Icon(painterResource(R.drawable.ic_add), "新建分类", Modifier.size(22.dp), AppColors.primary)
         }
     }
 }
@@ -371,7 +437,7 @@ private fun CategoryHeaderButton(active: Boolean = false, onClick: () -> Unit, c
         Modifier.size(48.dp)
             .shadow(8.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .06f), spotColor = Color.Black.copy(alpha = .08f))
             .clip(CircleShape)
-            .background(if (active) AppColors.primary else AppColors.cardBackground.copy(alpha = .92f))
+            .background(if (active) AppColors.primary.copy(alpha = .12f) else AppColors.cardBackground.copy(alpha = .92f))
             .clickable(onClick = onClick)
             .glasenseHighlight(CircleShape),
         contentAlignment = Alignment.Center
@@ -390,7 +456,7 @@ fun CategoryArticlesScreen(
 
     LaunchedEffect(categoryName) { viewModel.selectCategory(categoryName) }
 
-    Box(Modifier.fillMaxSize().background(AppColors.pageBackground)) {
+    Box(Modifier.fillMaxSize().appPageBackground()) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarHeight + 88.dp, bottom = 40.dp),

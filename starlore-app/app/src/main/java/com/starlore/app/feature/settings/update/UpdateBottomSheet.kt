@@ -116,7 +116,8 @@ fun UpdateBottomSheet(
         onDismissed = onDismissed,
         onDismissRequest = { slideOut ->
             if (!updateInfo.isRequired) slideOut()
-        }
+        },
+        heightFraction = 0.56f
     ) { slideOut ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(

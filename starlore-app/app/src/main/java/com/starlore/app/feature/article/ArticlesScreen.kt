@@ -12,11 +12,13 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -26,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.Backdrop
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.R
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
@@ -34,6 +37,9 @@ import com.starlore.app.ui.components.glasense.glasenseHighlight
 import com.starlore.app.data.api.ArticleSummary
 import com.starlore.app.data.api.CategoryItem
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
+import com.starlore.app.theme.appPageBackground
+import com.starlore.app.ui.components.liquid.liquidGlass
 import com.starlore.glasense.core.component.Text
 import com.starlore.glasense.core.component.VGap
 import org.koin.androidx.compose.koinViewModel
@@ -46,6 +52,7 @@ fun ArticlesScreen(
     onManageCategories: () -> Unit,
     isOverlayOpen: Boolean = false,
     accountSessionKey: Int = 0,
+    refreshToken: Int = 0,
     viewModel: ArticlesViewModel = koinViewModel(key = "articles-$accountSessionKey")
 ) {
     val articlesState by remember { viewModel.articlesState }
@@ -56,10 +63,14 @@ fun ArticlesScreen(
 
     val lazyListState = rememberLazyListState()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    LaunchedEffect(refreshToken) {
+        if (refreshToken > 0) viewModel.refresh()
+    }
     val isSmallTitleState by lazyListState.isScrolledPast(statusBarHeight + 24.dp)
     val isSmallTitleVisible = isSmallTitleState && !isOverlayOpen
 
-    val backgroundColor = AppColors.pageBackground
+    val backgroundColor = AppPageColor
     val backdrop = rememberLayerBackdrop {
         drawRect(
             color = backgroundColor,
@@ -72,7 +83,7 @@ fun ArticlesScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
+            .appPageBackground()
     ) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -82,7 +93,8 @@ fun ArticlesScreen(
             indicator = {
                 StarRefreshIndicator(
                     progress = pullToRefreshState.distanceFraction,
-                    refreshing = isRefreshing
+                    refreshing = isRefreshing,
+                    topOffset = statusBarHeight + 178.dp
                 )
             }
         ) {
@@ -211,22 +223,32 @@ fun ArticlesScreen(
 }
 
 @Composable
-private fun BoxScope.StarRefreshIndicator(progress: Float, refreshing: Boolean) {
+private fun BoxScope.StarRefreshIndicator(
+    progress: Float,
+    refreshing: Boolean,
+    topOffset: androidx.compose.ui.unit.Dp
+) {
     val visible = refreshing || progress > 0f
     if (!visible) return
     val clampedProgress = progress.coerceIn(0f, 1f)
     Box(
         Modifier.align(Alignment.TopCenter)
-            .padding(top = 10.dp)
-            .size((34 + 14 * clampedProgress).dp)
+            .padding(top = topOffset)
+            .graphicsLayer {
+                alpha = if (refreshing) 1f else clampedProgress
+                val scale = 0.82f + 0.18f * clampedProgress
+                scaleX = scale
+                scaleY = scale
+            }
+            .size(42.dp)
             .clip(CircleShape)
             .background(AppColors.cardBackground.copy(alpha = .96f))
             .glasenseHighlight(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator(
-            progress = { if (refreshing) 0.72f else clampedProgress },
-            modifier = Modifier.size(20.dp),
+            progress = { if (refreshing) 0.35f else clampedProgress },
+            modifier = Modifier.size(19.dp),
             color = AppColors.primary,
             strokeWidth = 2.dp
         )
@@ -304,15 +326,26 @@ fun CategoryChip(
 @Composable
 fun ArticleFeedCard(
     article: ArticleSummary,
+    backdrop: Backdrop? = null,
     onClick: () -> Unit
 ) {
+    val cardMaterial = if (backdrop != null) {
+        Modifier.liquidGlass(
+            backdrop = backdrop,
+            cornerRadius = AppSpecs.cardCorner,
+            surfaceColor = AppColors.cardBackground.copy(alpha = .2f),
+            blurRadius = 8.dp,
+            lensRadius = 18.dp
+        )
+    } else {
+        Modifier.background(AppColors.cardBackground.copy(alpha = 0.5f)).glasenseHighlight(AppSpecs.cardShape)
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppSpecs.cardShape)
-            .background(AppColors.cardBackground.copy(alpha = 0.5f))
+            .then(cardMaterial)
             .clickable { onClick() }
-            .glasenseHighlight(AppSpecs.cardShape)
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -369,13 +402,6 @@ fun ArticleFeedCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Views
-                Text(
-                    text = "👁 ${article.viewCount ?: 0}",
-                    fontSize = 11.sp,
-                    color = AppColors.contentVariant
-                )
-                
                 // Tags
                 article.tags.take(3).forEach { tag ->
                     Text(

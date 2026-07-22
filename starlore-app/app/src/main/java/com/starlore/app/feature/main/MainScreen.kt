@@ -1,6 +1,8 @@
 package com.starlore.app.feature.main
 
-import androidx.activity.compose.BackHandler
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -17,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
@@ -24,13 +27,12 @@ import androidx.compose.ui.geometry.Size
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.starlore.app.R
-import com.starlore.app.feature.article.ArticleDetailScreen
+import com.starlore.app.feature.article.ArticleDetailActivity
+import com.starlore.app.feature.article.ArticleEditorActivity
 import com.starlore.app.feature.article.ArticlesScreen
-import com.starlore.app.feature.article.ArticleEditorScreen
-import com.starlore.app.feature.article.CategoryManageScreen
-import com.starlore.app.feature.article.CategoryArticlesScreen
+import com.starlore.app.feature.article.CategoryManageActivity
 import com.starlore.app.feature.auth.LoginScreen
-import com.starlore.app.feature.chat.EchobotScreen
+import com.starlore.app.feature.chat.ChatActivity
 import com.starlore.app.feature.diverge.DivergeScreen
 import com.starlore.app.feature.profile.ProfileScreen
 import com.starlore.app.feature.settings.util.SettingsManager
@@ -39,11 +41,14 @@ import com.starlore.app.feature.settings.update.UpdateCheckResult
 import com.starlore.app.feature.settings.update.UpdateChecker
 import com.starlore.app.feature.settings.update.UpdateInfo
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
+import com.starlore.app.theme.appPageBackground
 import com.starlore.app.theme.LocalGlasenseSettings
 import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.glasenseHighlight
 import com.starlore.app.ui.components.glasense.material.MaterialRecipes
 import com.starlore.app.ui.components.glasense.material.rememberMaterialRenderEffectOrNull
+import com.starlore.app.ui.components.liquid.liquidGlassCapsule
 import com.kyant.shapes.Capsule
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -59,6 +64,7 @@ import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
 
 sealed class Screen(val route: String, val title: String, val iconRes: Int) {
+    object Home : Screen("home", "Home", R.drawable.ic_star)
     object Articles : Screen("articles", "星记", R.drawable.ic_nav_document_filled)
     object Chat : Screen("chat", "AI助手", R.drawable.ic_nav_sparkle_filled)
     object Diverge : Screen("diverge", "发散", R.drawable.ic_nav_bulb_filled)
@@ -108,28 +114,39 @@ fun MainScreen() {
 
 @Composable
 fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
-    var currentRoute by rememberSaveable { mutableStateOf(Screen.Articles.route) }
-    var selectedArticleId by remember { mutableStateOf<Int?>(null) }
-    var editingArticleId by remember { mutableStateOf<Int?>(null) }
-    var isCreatingArticle by remember { mutableStateOf(false) }
-    var isManagingCategories by remember { mutableStateOf(false) }
-    var openedCategoryName by remember { mutableStateOf<String?>(null) }
+    var currentRoute by rememberSaveable { mutableStateOf(Screen.Home.route) }
     var contentVersion by remember { mutableIntStateOf(0) }
-    val hasOverlay = selectedArticleId != null || editingArticleId != null || isCreatingArticle || isManagingCategories || openedCategoryName != null
-
-    BackHandler(enabled = hasOverlay) {
-        when {
-            editingArticleId != null -> editingArticleId = null
-            isCreatingArticle -> isCreatingArticle = false
-            openedCategoryName != null -> { openedCategoryName = null; isManagingCategories = true }
-            isManagingCategories -> isManagingCategories = false
-            else -> selectedArticleId = null
+    val context = LocalContext.current
+    val hasOverlay = false
+    val detailLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) contentVersion++
+        if (result.resultCode == Activity.RESULT_FIRST_USER) {
+            result.data?.getStringExtra(ArticleDetailActivity.EXTRA_AI_PROMPT)?.let { prompt ->
+                context.startActivity(ChatActivity.createIntent(context, prompt))
+            }
         }
+    }
+    val editorLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            contentVersion++
+            result.data?.getIntExtra(ArticleEditorActivity.EXTRA_SAVED_ARTICLE_ID, -1)
+                ?.takeIf { it >= 0 }
+                ?.let { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) }
+        }
+    }
+    val categoryManagerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) contentVersion++
     }
 
     val items = listOf(
+        Screen.Home,
         Screen.Articles,
-        Screen.Chat,
         Screen.Diverge,
         Screen.Profile
     )
@@ -139,7 +156,7 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
     val onPrimaryColor = AppColors.onPrimary
     val contentVariantColor = AppColors.contentVariant
 
-    val surfaceColor = AppColors.background
+    val surfaceColor = AppPageColor
     val backdrop = rememberLayerBackdrop {
         drawRect(
             color = surfaceColor,
@@ -152,7 +169,7 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(surfaceColor)
+            .appPageBackground()
     ) {
         // Active Content View
         Box(
@@ -161,71 +178,41 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
                 .layerBackdrop(backdrop)
         ) {
             when (currentRoute) {
-                Screen.Articles.route -> ArticlesScreen(
-                    onArticleClick = { selectedArticleId = it },
-                    onCreateArticle = { isCreatingArticle = true },
-                    onManageCategories = { isManagingCategories = true },
-                    isOverlayOpen = hasOverlay,
-                    accountSessionKey = authSessionVersion + contentVersion
+                Screen.Home.route -> HomeScreen(
+                    accountSessionKey = authSessionVersion,
+                    refreshToken = contentVersion,
+                    onAskAi = { context.startActivity(ChatActivity.createIntent(context)) },
+                    onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
+                    onOpenArticles = { currentRoute = Screen.Articles.route },
+                    onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) }
                 )
-                Screen.Chat.route -> EchobotScreen(accountSessionKey = authSessionVersion)
+                Screen.Articles.route -> ArticlesScreen(
+                    onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) },
+                    onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
+                    onManageCategories = {
+                        categoryManagerLauncher.launch(CategoryManageActivity.createIntent(context))
+                    },
+                    isOverlayOpen = hasOverlay,
+                    accountSessionKey = authSessionVersion,
+                    refreshToken = contentVersion
+                )
                 Screen.Diverge.route -> DivergeScreen()
                 Screen.Profile.route -> ProfileScreen(onLogout = onLogout)
             }
-        }
-
-        // Overlay Article Details if selected
-        selectedArticleId?.let { articleId ->
-            ArticleDetailScreen(
-                articleId = articleId,
-                backdrop = backdrop,
-                onBack = { selectedArticleId = null },
-                onEdit = {
-                    selectedArticleId = null
-                    editingArticleId = it
-                }
-            )
-        }
-
-        if (isCreatingArticle || editingArticleId != null) {
-            ArticleEditorScreen(
-                articleId = editingArticleId,
-                onBack = { isCreatingArticle = false; editingArticleId = null },
-                onSaved = {
-                    isCreatingArticle = false
-                    editingArticleId = null
-                    contentVersion++
-                    selectedArticleId = it
-                }
-            )
-        }
-
-        if (isManagingCategories) {
-            CategoryManageScreen(onBack = {
-                isManagingCategories = false
-                contentVersion++
-            }, onOpenCategory = { categoryName ->
-                isManagingCategories = false
-                openedCategoryName = categoryName
-            })
-        }
-
-        openedCategoryName?.let { categoryName ->
-            CategoryArticlesScreen(
-                categoryName = categoryName,
-                onBack = {
-                    openedCategoryName = null
-                    isManagingCategories = true
-                },
-                onArticleClick = { selectedArticleId = it }
-            )
         }
 
         if (!hasOverlay) {
             // Unified Floating bottom navigation bar
             val liquidGlass = LocalGlasenseSettings.current.liquidGlass
             val materialEffect = rememberMaterialRenderEffectOrNull(MaterialRecipes.thin())
-            val bottomNavBackdrop = materialEffect?.let { renderEffect ->
+            val bottomNavBackdrop = if (liquidGlass) {
+                Modifier.liquidGlassCapsule(
+                    backdrop = backdrop,
+                    surfaceColor = cardBg.copy(alpha = .24f),
+                    blurRadius = 8.dp,
+                    lensRadius = 24.dp
+                )
+            } else materialEffect?.let { renderEffect ->
                 Modifier.drawBackdrop(
                     backdrop = backdrop,
                     shape = { Capsule() },
@@ -246,16 +233,11 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
                     },
                     effects = {
                         padding = 8f.dp.toPx() * 2
-                        if (!liquidGlass) {
-                            effect(renderEffect)
-                        }
-                        blur(if (liquidGlass) 8f.dp.toPx() else 16f.dp.toPx(), TileMode.Clamp)
-                        if (liquidGlass) {
-                            lens(16f.dp.toPx(), 64f.dp.toPx())
-                        }
+                        effect(renderEffect)
+                        blur(16f.dp.toPx(), TileMode.Clamp)
                     },
                     onDrawSurface = {
-                        drawRect(cardBg.copy(alpha = if (liquidGlass) 0.15f else 0.25f))
+                        drawRect(cardBg.copy(alpha = 0.25f))
                     }
                 )
             } ?: Modifier

@@ -121,9 +121,39 @@
 
         <!--        other activities-->
         <activity
+            android:name=".feature.chat.ChatActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Starlore"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".feature.settings.SettingsActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Starlore"
+            android:windowSoftInputMode="adjustNothing" />
+        <activity
+            android:name=".feature.article.ArticleDetailActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Starlore"
+            android:windowSoftInputMode="adjustNothing" />
+        <activity
+            android:name=".feature.article.ArticleEditorActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Starlore"
+            android:windowSoftInputMode="adjustNothing" />
+        <activity
+            android:name=".feature.article.CategoryManageActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Starlore"
+            android:windowSoftInputMode="adjustNothing" />
+        <activity
+            android:name=".feature.article.CategoryArticlesActivity"
+            android:exported="false"
+            android:parentActivityName=".feature.article.CategoryManageActivity"
             android:theme="@style/Theme.Starlore"
             android:windowSoftInputMode="adjustNothing" />
         <activity
