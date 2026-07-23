@@ -10,6 +10,7 @@ import {
   buildMultiAgentSseUrl,
   createAiSession,
   deleteAiSession,
+  evaluateRag,
   getAiQuota,
   getCharacterCards,
   getSessionMessages,
@@ -17,6 +18,7 @@ import {
   updateAiSession,
   type AiSessionRow,
   type CharacterCard,
+  type RagEvaluationResult,
 } from '@/api/ai'
 import { getGuestQuota } from '@/api/guest-ai'
 
@@ -41,6 +43,11 @@ type AgentTrace = {
   reviewFeedback: string
   retryCount: number
   metrics: { tokensIn: number; tokensOut: number; latencyMs: number } | null
+  ragContexts?: { articleId: number; title: string }[]
+  ragRetrievalMode?: 'vector' | 'keyword'
+  ragEvaluation?: RagEvaluationResult
+  ragEvaluationStatus?: 'pending' | 'complete' | 'failed'
+  ragEvaluationError?: string
 }
 
 const characterCards = ref<CharacterCard[]>([])
@@ -65,6 +72,24 @@ const hasReceivedContent = ref(false)
 
 /* ─── 沉浸模式 ─── */
 const immersiveActive = ref(true)
+
+async function runAutomaticRagEvaluation(trace: AgentTrace, question: string, answer: string) {
+  if (!trace.ragContexts?.length || !question.trim() || !answer.trim()) return
+  trace.ragEvaluationStatus = 'pending'
+  trace.ragEvaluationError = ''
+  try {
+    trace.ragEvaluation = await evaluateRag({
+      question,
+      answer,
+      articleIds: trace.ragContexts.map(item => item.articleId),
+    })
+    trace.ragEvaluationStatus = 'complete'
+  } catch (error: any) {
+    trace.ragEvaluationStatus = 'failed'
+    trace.ragEvaluationError =
+      error?.response?.data?.message || error?.message || '自动质量评估失败'
+  }
+}
 
 function exitImmersive() {
   router.push({ path: '/' })
@@ -442,6 +467,16 @@ async function sendMessage() {
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
           }
+          if (data.type === 'rag_context') {
+            const trace = messages.value[assistantIndex].agentTrace
+            if (trace && Array.isArray(data.articles)) {
+              const merged = [...(trace.ragContexts || []), ...data.articles]
+              trace.ragContexts = Array.from(
+                new Map(merged.map(item => [item.articleId, item])).values(),
+              )
+              trace.ragRetrievalMode = data.retrieval_mode === 'keyword' ? 'keyword' : 'vector'
+            }
+          }
           // ── 多 Agent 事件处理（写入消息的 agentTrace）──
           if (data.type === 'plan_start') {
             toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
@@ -539,6 +574,10 @@ async function sendMessage() {
     const userContent = messages.value[messages.value.length - 2]?.content ?? text
     const assistantContent = messages.value[assistantIndex].content
     const trace = messages.value[assistantIndex].agentTrace
+    if (trace && assistantContent && !assistantContent.startsWith('错误：')) {
+      toolStatus.value = trace.ragContexts?.length ? '正在自动评估 RAG 回答质量...' : null
+      await runAutomaticRagEvaluation(trace, userContent, assistantContent)
+    }
     const agentTraceStr = trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision) ? JSON.stringify(trace) : undefined
     if (assistantContent && !assistantContent.startsWith('错误：')) {
       await appendChatPair(sid, userContent, assistantContent, agentTraceStr)

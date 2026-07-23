@@ -1,16 +1,20 @@
 package com.robin.blogback.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.robin.blogback.dto.RagEvaluationResponse;
 import com.robin.blogback.entity.Article;
 import com.robin.blogback.exception.BadRequestException;
+import com.robin.blogback.mapper.ArticleMapper;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * RAGAS-aligned LLM-as-judge evaluation for the production Java backend.
@@ -52,22 +56,26 @@ public class RagEvaluationService {
             """;
 
     private final ArticleEmbeddingService articleEmbeddingService;
+    private final ArticleMapper articleMapper;
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
 
     public RagEvaluationService(
             ArticleEmbeddingService articleEmbeddingService,
+            ArticleMapper articleMapper,
             @Qualifier("chatClient") ChatClient chatClient,
             ObjectMapper objectMapper) {
         this.articleEmbeddingService = articleEmbeddingService;
+        this.articleMapper = articleMapper;
         this.chatClient = chatClient;
         this.objectMapper = objectMapper;
     }
 
     public RagEvaluationResponse evaluate(
-            Integer userId, String question, String answer, String groundTruth, Integer requestedTopK) {
+            Integer userId, String question, String answer, String groundTruth,
+            Integer requestedTopK, List<Integer> articleIds) {
         int topK = requestedTopK == null ? 5 : Math.max(1, Math.min(requestedTopK, 10));
-        List<Article> articles = articleEmbeddingService.searchSimilar(question, userId, topK);
+        List<Article> articles = loadEvaluationArticles(userId, question, topK, articleIds);
         if (articles.isEmpty()) {
             throw new BadRequestException(
                     "上一轮问题没有检索到相关知识库文章，不能进行 RAG 评估。请先询问一个与你的文章内容相关的问题。");
@@ -93,6 +101,31 @@ public class RagEvaluationService {
         String raw = chatClient.prompt().user(prompt).call().content();
         RagEvaluationResponse.Scores scores = parseScores(raw);
         return new RagEvaluationResponse(true, "ragas-aligned-llm-judge", scores, sources);
+    }
+
+    private List<Article> loadEvaluationArticles(
+            Integer userId, String question, int topK, List<Integer> articleIds) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return articleEmbeddingService.searchSimilar(question, userId, topK);
+        }
+
+        List<Integer> distinctIds = articleIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinctIds.isEmpty()) return List.of();
+
+        List<Article> rows = articleMapper.selectList(
+                new LambdaQueryWrapper<Article>()
+                        .in(Article::getId, distinctIds)
+                        .eq(Article::getUserId, userId)
+                        .eq(Article::getStatus, "published"));
+        Map<Integer, Article> byId = new LinkedHashMap<>();
+        rows.forEach(article -> byId.put(article.getId(), article));
+        return distinctIds.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private RagEvaluationResponse.Scores parseScores(String raw) {

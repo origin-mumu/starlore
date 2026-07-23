@@ -142,6 +142,14 @@ export async function getMcpTools() {
   }
 }
 
+export async function reindexKnowledgeBase() {
+  return (await request.post('/ai/reindex')) as {
+    success: boolean
+    message: string
+    count: number
+  }
+}
+
 export type RagEvaluationScores = {
   faithfulness: number
   answerRelevance: number
@@ -162,6 +170,7 @@ export async function evaluateRag(body: {
   answer: string
   groundTruth?: string
   topK?: number
+  articleIds?: number[]
 }) {
   return (await request.post('/ai/rag/evaluate', body)) as RagEvaluationResult
 }

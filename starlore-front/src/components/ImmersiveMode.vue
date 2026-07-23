@@ -6,6 +6,7 @@ import {
   buildMultiAgentSseUrl,
   evaluateRag,
   getMcpTools,
+  reindexKnowledgeBase,
   type CharacterCard,
   type McpToolInfo,
   type RagEvaluationResult,
@@ -40,6 +41,11 @@ type AgentTrace = {
   reviewFeedback: string
   retryCount: number
   metrics: { tokensIn: number; tokensOut: number; latencyMs: number } | null
+  ragContexts?: { articleId: number; title: string }[]
+  ragRetrievalMode?: 'vector' | 'keyword'
+  ragEvaluation?: RagEvaluationResult
+  ragEvaluationStatus?: 'pending' | 'complete' | 'failed'
+  ragEvaluationError?: string
 }
 
 type ChatMsg = {
@@ -114,6 +120,8 @@ const mcpTools = ref<McpToolInfo[]>([])
 const mcpServers = ref<string[]>([])
 const mcpLoading = ref(false)
 const mcpError = ref('')
+const reindexLoading = ref(false)
+const reindexMessage = ref('')
 const ragOpenIndex = ref<number | null>(null)
 const ragLoading = ref(false)
 const ragError = ref('')
@@ -132,6 +140,20 @@ async function loadMcpCapabilities() {
     mcpError.value = error?.message || 'MCP 工具加载失败'
   } finally {
     mcpLoading.value = false
+  }
+}
+
+async function rebuildKnowledgeIndex() {
+  if (reindexLoading.value) return
+  reindexLoading.value = true
+  reindexMessage.value = ''
+  try {
+    const result = await reindexKnowledgeBase()
+    reindexMessage.value = result.message || `已索引 ${result.count || 0} 篇文章`
+  } catch (error: any) {
+    reindexMessage.value = error?.response?.data?.message || error?.message || '重建索引失败'
+  } finally {
+    reindexLoading.value = false
   }
 }
 
@@ -200,6 +222,24 @@ async function evaluateAnswer(index: number) {
 
 function scorePercent(score: number) {
   return `${Math.round(score * 100)}%`
+}
+
+async function runAutomaticRagEvaluation(trace: AgentTrace, question: string, answer: string) {
+  if (!trace.ragContexts?.length || !question.trim() || !answer.trim()) return
+  trace.ragEvaluationStatus = 'pending'
+  trace.ragEvaluationError = ''
+  try {
+    trace.ragEvaluation = await evaluateRag({
+      question,
+      answer,
+      articleIds: trace.ragContexts.map(item => item.articleId),
+    })
+    trace.ragEvaluationStatus = 'complete'
+  } catch (error: any) {
+    trace.ragEvaluationStatus = 'failed'
+    trace.ragEvaluationError =
+      error?.response?.data?.message || error?.message || '自动质量评估失败'
+  }
 }
 
 /* ─── 快捷回复 ─── */
@@ -881,6 +921,16 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
           }
+          if (data.type === 'rag_context') {
+            const trace = props.messages[aiIdx].agentTrace
+            if (trace && Array.isArray(data.articles)) {
+              const merged = [...(trace.ragContexts || []), ...data.articles]
+              trace.ragContexts = Array.from(
+                new Map(merged.map(item => [item.articleId, item])).values(),
+              )
+              trace.ragRetrievalMode = data.retrieval_mode === 'keyword' ? 'keyword' : 'vector'
+            }
+          }
           // ── 多 Agent 事件处理 ──
           if (data.type === 'plan_start') {
             toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
@@ -978,6 +1028,10 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   // 持久化：通知父组件保存本轮对话
   const aiContent = props.messages[aiIdx]?.content || ''
   const trace = props.messages[aiIdx]?.agentTrace
+  if (trace && aiContent && !aiContent.startsWith('错误：')) {
+    toolStatus.value = trace.ragContexts?.length ? '正在自动评估 RAG 回答质量...' : null
+    await runAutomaticRagEvaluation(trace, pendingApiText || text, aiContent)
+  }
   const agentTraceStr =
     trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision)
       ? JSON.stringify(trace)
@@ -1756,81 +1810,53 @@ function shouldShowMessage(msg: ChatMsg) {
               class="text"
               v-html="sanitizeHtml(fmt(msg.content))"
             ></div>
-            <template
-              v-if="
-                msg.role === 'assistant' &&
-                msg.content.trim() &&
-                !(isLocalSending && i === messages.length - 1)
-              "
+            <div
+              v-if="msg.role === 'assistant' && msg.agentTrace?.ragContexts?.length"
+              class="imm-rag-inline"
             >
-              <button
-                type="button"
-                class="imm-rag-trigger"
-                :aria-expanded="ragOpenIndex === i"
-                @click="toggleRagEvaluation(i)"
-              >
-                <Activity :size="13" />
-                {{ ragOpenIndex === i ? '收起质量评估' : '评估这条回答' }}
-              </button>
-
-              <div v-if="ragOpenIndex === i" class="imm-rag-inline">
                 <div class="imm-rag-inline-heading">
                   <div>
-                    <strong>RAG 回答质量</strong>
-                    <span>检查回答依据及知识库检索质量</span>
+                    <strong><Activity :size="13" /> RAG 回答质量</strong>
+                    <span>
+                      已自动评估 ·
+                      {{ msg.agentTrace.ragRetrievalMode === 'keyword' ? '关键词检索' : '向量检索' }}
+                    </span>
                   </div>
-                  <strong v-if="ragEvaluation" class="imm-rag-inline-total">
-                    {{ scorePercent(ragEvaluation.scores.overall) }}
+                  <strong v-if="msg.agentTrace.ragEvaluation" class="imm-rag-inline-total">
+                    {{ scorePercent(msg.agentTrace.ragEvaluation.scores.overall) }}
                   </strong>
                 </div>
 
-                <template v-if="ragEvaluation">
+                <template v-if="msg.agentTrace.ragEvaluation">
                   <dl class="imm-rag-inline-scores">
                     <div>
                       <dt>有据可查</dt>
-                      <dd>{{ scorePercent(ragEvaluation.scores.faithfulness) }}</dd>
+                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.faithfulness) }}</dd>
                     </div>
                     <div>
                       <dt>切题程度</dt>
-                      <dd>{{ scorePercent(ragEvaluation.scores.answerRelevance) }}</dd>
+                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.answerRelevance) }}</dd>
                     </div>
                     <div>
                       <dt>检索准确</dt>
-                      <dd>{{ scorePercent(ragEvaluation.scores.contextPrecision) }}</dd>
+                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextPrecision) }}</dd>
                     </div>
                     <div>
                       <dt>检索完整</dt>
-                      <dd>{{ scorePercent(ragEvaluation.scores.contextRecall) }}</dd>
+                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
                     </div>
                   </dl>
-                  <p v-if="ragEvaluation.contexts.length" class="imm-rag-inline-sources">
-                    依据：{{ ragEvaluation.contexts.map(item => item.title).join('、') }}
+                  <p v-if="msg.agentTrace.ragEvaluation.contexts.length" class="imm-rag-inline-sources">
+                    依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
                   </p>
                 </template>
-
-                <template v-else>
-                  <p class="imm-rag-inline-copy">
-                    仅适用于使用了文章知识库的回答。普通聊天无需评估。
-                  </p>
-                  <textarea
-                    v-model="ragGroundTruth"
-                    class="imm-ground-truth"
-                    rows="2"
-                    placeholder="正确答案（可选，用于对照）"
-                  ></textarea>
-                  <button
-                    type="button"
-                    class="imm-evaluate-btn"
-                    :disabled="ragLoading"
-                    @click="evaluateAnswer(i)"
-                  >
-                    <span v-if="ragLoading" class="imm-tool-spinner"></span>
-                    {{ ragLoading ? '正在检测...' : '开始评估' }}
-                  </button>
-                </template>
-                <p v-if="ragError" class="imm-cap-error">{{ ragError }}</p>
-              </div>
-            </template>
+                <p v-else-if="msg.agentTrace.ragEvaluationStatus === 'pending'" class="imm-rag-inline-copy">
+                  正在根据本轮检索到的文章自动评分...
+                </p>
+                <p v-else-if="msg.agentTrace.ragEvaluationError" class="imm-cap-error">
+                  {{ msg.agentTrace.ragEvaluationError }}
+                </p>
+            </div>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
@@ -2046,6 +2072,28 @@ function shouldShowMessage(msg: ChatMsg) {
               </article>
             </div>
           </template>
+        </section>
+
+        <section class="imm-cap-section" aria-labelledby="rag-index-title">
+          <div class="imm-cap-heading">
+            <div>
+              <p class="imm-cap-eyebrow">Knowledge index</p>
+              <h2 id="rag-index-title">知识库向量索引</h2>
+            </div>
+          </div>
+          <p class="imm-index-copy">
+            已发布文章会自动写入索引。首次启用或部署前已有文章时，可手动完整重建一次。
+          </p>
+          <button
+            type="button"
+            class="imm-index-button"
+            :disabled="reindexLoading"
+            @click="rebuildKnowledgeIndex"
+          >
+            <RefreshCw :size="14" :class="{ spinning: reindexLoading }" />
+            {{ reindexLoading ? '正在重建索引...' : '重建我的文章索引' }}
+          </button>
+          <p v-if="reindexMessage" class="imm-index-message">{{ reindexMessage }}</p>
         </section>
 
       </div>
@@ -3189,6 +3237,42 @@ function shouldShowMessage(msg: ChatMsg) {
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.6;
+}
+.imm-index-copy {
+  margin: 12px 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.imm-index-button {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border-interactive);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--accent-soft);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.imm-index-button:hover:not(:disabled) {
+  border-color: var(--border-focus);
+  color: var(--accent);
+}
+.imm-index-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.imm-index-message {
+  margin: 9px 0 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .imm-evaluation-target {

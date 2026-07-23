@@ -30,7 +30,8 @@ public class RagEvaluationController {
                 request.question(),
                 request.answer(),
                 request.groundTruth(),
-                request.topK()
+                request.topK(),
+                request.articleIds()
         );
     }
 }

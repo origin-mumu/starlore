@@ -85,6 +85,7 @@ public class BlogTools {
         try {
             Integer userId = UserContext.getUserId();
             List<Article> articles = new ArrayList<>();
+            String retrievalMode = "vector";
 
             // 1. 优先语义搜索
             if (articleEmbeddingService != null) {
@@ -96,6 +97,7 @@ public class BlogTools {
 
             // 2. 语义搜索无结果，回退到关键词搜索
             if (articles.isEmpty()) {
+                retrievalMode = "keyword";
                 log.info("[RAG] 语义搜索无结果，回退到关键词搜索");
                 LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<Article>()
                         .eq(Article::getUserId, userId)
@@ -148,6 +150,14 @@ public class BlogTools {
             if (results.isEmpty()) {
                 return "{\"results\":[],\"message\":\"未找到匹配的文章\"}";
             }
+            List<Map<String, Object>> sources = articles.stream()
+                    .map(article -> Map.<String, Object>of(
+                            "articleId", article.getId(),
+                            "title", article.getTitle()))
+                    .toList();
+            SseContextHolder.sendEvent("rag_context", Map.of(
+                    "retrieval_mode", retrievalMode,
+                    "articles", sources));
             return objectMapper.writeValueAsString(results);
         } catch (JsonProcessingException e) {
             return "{\"error\":\"序列化失败: " + e.getMessage() + "\"}";
