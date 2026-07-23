@@ -125,3 +125,43 @@ export async function getAiQuota() {
     data: AiQuota
   }
 }
+
+export type McpToolInfo = {
+  server: string
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+export async function getMcpTools() {
+  return (await request.get('/ai/mcp/tools')) as {
+    success: boolean
+    servers: string[]
+    tools: McpToolInfo[]
+    count: number
+  }
+}
+
+export type RagEvaluationScores = {
+  faithfulness: number
+  answerRelevance: number
+  contextPrecision: number
+  contextRecall: number
+  overall: number
+}
+
+export type RagEvaluationResult = {
+  success: boolean
+  evaluator: string
+  scores: RagEvaluationScores
+  contexts: { articleId: number; title: string }[]
+}
+
+export async function evaluateRag(body: {
+  question: string
+  answer: string
+  groundTruth?: string
+  topK?: number
+}) {
+  return (await request.post('/ai/rag/evaluate', body)) as RagEvaluationResult
+}

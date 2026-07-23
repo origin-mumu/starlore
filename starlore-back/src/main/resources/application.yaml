@@ -71,6 +71,13 @@ langsmith:
   endpoint: https://api.smith.langchain.com
 
 app:
+  mcp:
+    # JSON array of trusted MCP stdio servers. Keep credentials in environment variables.
+    servers-json: ${APP_MCP_SERVERS_JSON:[]}
+    request-timeout: ${APP_MCP_REQUEST_TIMEOUT:30s}
+    zhipu:
+      # Enables the official hosted Zhipu Web Search MCP server when configured.
+      api-key: ${ZHIPU_API_KEY:}
   agent:
     executor:
       core-size: ${AGENT_EXECUTOR_CORE_SIZE:4}

@@ -28,6 +28,11 @@ services:
       - APP_CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS:-https://www.starlore.cn,https://starlore.cn}
       # LangSmith 配置
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
+      # Optional MCP stdio servers. Keep [] to disable external tools.
+      - APP_MCP_SERVERS_JSON=${APP_MCP_SERVERS_JSON:-[]}
+      - APP_MCP_REQUEST_TIMEOUT=${APP_MCP_REQUEST_TIMEOUT:-30s}
+      # Supplying this key automatically enables the official Zhipu Web Search MCP server.
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
       # PDF 服务配置：指回宿主机的 PM2 端口 (通常是 Docker 默认网桥网关 172.17.0.1)
       - PDF_SERVICE_URL=http://172.17.0.1:3001
 

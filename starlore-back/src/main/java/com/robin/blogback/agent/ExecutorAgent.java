@@ -45,6 +45,8 @@ public class ExecutorAgent implements AgentNode {
             + "- getAllTags(): 获取所有标签\n"
             + "- getArticlesByCategory(category): 按分类获取文章\n"
             + "- createCategory(name, description?, color?): 创建分类\n\n"
+            + "- listMcpTools(): 动态发现外部 MCP Server 工具\n"
+            + "- callMcpTool(serverName, toolName, argumentsJson): 调用外部 MCP 工具\n\n"
             + "## 输出格式\n"
             + "对于每个子任务，输出结构化的结果：\n"
             + "- 如果成功：直接输出结果内容\n"
@@ -55,7 +57,8 @@ public class ExecutorAgent implements AgentNode {
             + "3. 如果工具调用失败，尝试替代方案\n"
             + "4. 对于\"统计\"类任务，使用 getBlogStats 工具\n"
             + "5. 对于\"写文章\"类任务，使用 writeArticle 工具\n"
-            + "6. 保持输出简洁，不要重复子任务描述";
+            + "6. 使用外部 MCP 能力时必须先发现工具，并严格按照 inputSchema 传参\n"
+            + "7. 保持输出简洁，不要重复子任务描述";
 
     private final ChatClient chatClient;
     private final Object blogTools;  // BlogTools 实例，用于 Spring AI tool calling
@@ -254,27 +257,35 @@ public class ExecutorAgent implements AgentNode {
     private List<List<AgentState.Subtask>> buildExecutionBatches(List<AgentState.Subtask> subtasks) {
         List<List<AgentState.Subtask>> batches = new ArrayList<>();
         Set<Integer> completed = new HashSet<>();
-        Set<Integer> remaining = subtasks.stream()
+        Set<Integer> allIds = subtasks.stream()
                 .map(AgentState.Subtask::getId)
                 .collect(Collectors.toSet());
+        if (allIds.size() != subtasks.size()) {
+            throw new IllegalArgumentException("子任务 ID 重复，无法构建 DAG");
+        }
+        for (AgentState.Subtask subtask : subtasks) {
+            for (Integer dependency : subtask.getDependencies()) {
+                if (!allIds.contains(dependency)) {
+                    throw new IllegalArgumentException(
+                            "子任务 " + subtask.getId() + " 引用了不存在的依赖 " + dependency);
+                }
+                if (dependency == subtask.getId()) {
+                    throw new IllegalArgumentException("子任务 " + subtask.getId() + " 不能依赖自身");
+                }
+            }
+        }
+        Set<Integer> remaining = new HashSet<>(allIds);
 
         while (!remaining.isEmpty()) {
             List<AgentState.Subtask> batch = new ArrayList<>();
             for (AgentState.Subtask st : subtasks) {
-                if (completed.contains(st.getId())) continue;
+                if (!remaining.contains(st.getId())) continue;
                 if (completed.containsAll(st.getDependencies())) {
                     batch.add(st);
                 }
             }
             if (batch.isEmpty()) {
-                // 防止死循环：强制将剩余任务放入一批
-                for (AgentState.Subtask st : subtasks) {
-                    if (!completed.contains(st.getId())) {
-                        batch.add(st);
-                    }
-                }
-                batches.add(batch);
-                break;
+                throw new IllegalArgumentException("子任务依赖存在环，无法进行拓扑分批: " + remaining);
             }
             for (AgentState.Subtask st : batch) {
                 completed.add(st.getId());

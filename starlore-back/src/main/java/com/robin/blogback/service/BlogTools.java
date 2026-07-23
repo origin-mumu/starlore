@@ -2,6 +2,7 @@ package com.robin.blogback.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.robin.blogback.config.UserContext;
 import com.robin.blogback.config.SseContextHolder;
@@ -9,6 +10,8 @@ import com.robin.blogback.entity.Article;
 import com.robin.blogback.entity.Category;
 import com.robin.blogback.mapper.ArticleMapper;
 import com.robin.blogback.mapper.CategoryMapper;
+import com.robin.blogback.mcp.McpClientManager;
+import com.robin.blogback.mcp.McpToolDescriptor;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.node.Node;
@@ -39,6 +42,8 @@ public class BlogTools {
     @Autowired(required = false)
     private ArticleEmbeddingService articleEmbeddingService;
 
+    @Autowired(required = false)
+    private McpClientManager mcpClientManager;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -519,6 +524,59 @@ public class BlogTools {
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             return "{\"error\":\"创建分类失败: " + e.getMessage() + "\"}";
+        }
+    }
+
+    @Tool(description = "动态发现当前已配置的外部 MCP Server 及其工具。调用外部工具前先使用本工具，获取 server、toolName 和参数 JSON Schema。")
+    public String listMcpTools() {
+        log.info("[Agent Tool] listMcpTools");
+        SseContextHolder.sendToolStart("listMcpTools");
+        if (mcpClientManager == null || mcpClientManager.configuredServers().isEmpty()) {
+            return "{\"servers\":[],\"tools\":[],\"message\":\"当前未配置 MCP Server\"}";
+        }
+        try {
+            List<McpToolDescriptor> tools = mcpClientManager.listTools();
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("servers", mcpClientManager.configuredServers());
+            result.put("tools", tools);
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return errorJson("MCP 工具发现失败", e);
+        }
+    }
+
+    @Tool(description = "调用已发现的外部 MCP 工具。必须先调用 listMcpTools，并严格按照返回的 inputSchema 构造 argumentsJson。")
+    public String callMcpTool(
+            @ToolParam(description = "listMcpTools 返回的 MCP Server 名称") String serverName,
+            @ToolParam(description = "listMcpTools 返回的工具名称") String toolName,
+            @ToolParam(description = "符合工具 inputSchema 的 JSON 对象字符串，例如 {\"query\":\"Spring AI\"}") String argumentsJson) {
+        log.info("[Agent Tool] callMcpTool - server: {}, tool: {}", serverName, toolName);
+        SseContextHolder.sendToolStart("callMcpTool");
+        if (mcpClientManager == null) {
+            return "{\"error\":\"MCP 客户端不可用\"}";
+        }
+        try {
+            JsonNode arguments = argumentsJson == null || argumentsJson.isBlank()
+                    ? objectMapper.createObjectNode()
+                    : objectMapper.readTree(argumentsJson);
+            if (!arguments.isObject()) {
+                return "{\"error\":\"argumentsJson 必须是 JSON 对象\"}";
+            }
+            JsonNode response = mcpClientManager.callTool(serverName, toolName, arguments);
+            return objectMapper.writeValueAsString(response);
+        } catch (Exception e) {
+            return errorJson("MCP 工具调用失败", e);
+        }
+    }
+
+    private String errorJson(String message, Exception exception) {
+        try {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", message);
+            error.put("detail", exception.getMessage());
+            return objectMapper.writeValueAsString(error);
+        } catch (JsonProcessingException ignored) {
+            return "{\"error\":\"" + message + "\"}";
         }
     }
 }

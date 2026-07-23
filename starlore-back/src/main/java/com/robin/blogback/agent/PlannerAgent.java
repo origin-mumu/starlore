@@ -43,6 +43,8 @@ public class PlannerAgent implements AgentNode {
             + "- getAllTags: 获取所有标签\n"
             + "- getArticlesByCategory: 按分类获取文章\n"
             + "- createCategory: 创建新分类\n\n"
+            + "- listMcpTools: 动态发现外部 MCP Server 工具\n"
+            + "- callMcpTool: 调用已发现的外部 MCP 工具\n\n"
             + "## 输出格式\n"
             + "请严格按以下 JSON 格式输出，不要输出其他内容：\n\n"
             + "{\n"
@@ -61,7 +63,8 @@ public class PlannerAgent implements AgentNode {
             + "2. 复杂任务（如\"统计知识库数据并写总结\"）拆解为 2-5 个子任务\n"
             + "3. 有依赖关系的子任务必须在 dependencies 中声明前置子任务的 id\n"
             + "4. 可并行执行的子任务不要设置依赖\n"
-            + "5. 如果用户请求不需要工具（如闲聊），返回空的 subtasks 数组";
+            + "5. 需要联网搜索、文件系统或其他外部能力时，先规划 listMcpTools，再规划依赖它的 callMcpTool 子任务\n"
+            + "6. 如果用户请求不需要工具（如闲聊），返回空的 subtasks 数组";
 
     private final ChatClient chatClient;
     private final LangSmithTracer tracer;

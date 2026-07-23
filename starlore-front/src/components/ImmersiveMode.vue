@@ -2,7 +2,14 @@
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import { buildMultiAgentSseUrl, type CharacterCard } from '@/api/ai'
+import {
+  buildMultiAgentSseUrl,
+  evaluateRag,
+  getMcpTools,
+  type CharacterCard,
+  type McpToolInfo,
+  type RagEvaluationResult,
+} from '@/api/ai'
 import { guestChat } from '@/api/guest-ai'
 import { useUserStore } from '@/stores/user'
 import { sanitizeHtml } from '@/utils/sanitize'
@@ -19,6 +26,9 @@ import {
   RotateCcw,
   XCircle,
   Paperclip,
+  Activity,
+  RefreshCw,
+  Server,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -96,8 +106,101 @@ watch(inputText, () => {
 })
 
 /* ─── 会话列表 ─── */
-const activeTab = ref<'chat' | 'sessions'>('chat')
+const activeTab = ref<'chat' | 'sessions' | 'capabilities'>('chat')
 const showDeleteConfirm = ref<number | null>(null)
+
+/* ─── Agent 能力检查 ─── */
+const mcpTools = ref<McpToolInfo[]>([])
+const mcpServers = ref<string[]>([])
+const mcpLoading = ref(false)
+const mcpError = ref('')
+const ragOpenIndex = ref<number | null>(null)
+const ragLoading = ref(false)
+const ragError = ref('')
+const ragGroundTruth = ref('')
+const ragEvaluation = ref<RagEvaluationResult | null>(null)
+
+async function loadMcpCapabilities() {
+  if (!userStore.token || mcpLoading.value) return
+  mcpLoading.value = true
+  mcpError.value = ''
+  try {
+    const result = await getMcpTools()
+    mcpTools.value = result.tools || []
+    mcpServers.value = result.servers || []
+  } catch (error: any) {
+    mcpError.value = error?.message || 'MCP 工具加载失败'
+  } finally {
+    mcpLoading.value = false
+  }
+}
+
+function openCapabilities() {
+  activeTab.value = 'capabilities'
+  if (!mcpTools.value.length && !mcpLoading.value) void loadMcpCapabilities()
+}
+
+function getMcpServerName(server: string) {
+  return server === 'zhipu-web-search' ? '智谱联网搜索' : server
+}
+
+function getMcpServerToolCount(server: string) {
+  return mcpTools.value.filter(tool => tool.server === server).length
+}
+
+function findQaPair(assistantIndex: number) {
+  const assistant = props.messages[assistantIndex]
+  if (!assistant || assistant.role !== 'assistant' || !assistant.content.trim()) return null
+  for (let userIndex = assistantIndex - 1; userIndex >= 0; userIndex--) {
+    const user = props.messages[userIndex]
+    if (user.role === 'user' && user.content.trim()) {
+      return { question: user.content, answer: assistant.content }
+    }
+  }
+  return null
+}
+
+function toggleRagEvaluation(index: number) {
+  if (ragOpenIndex.value === index) {
+    ragOpenIndex.value = null
+    return
+  }
+  ragOpenIndex.value = index
+  ragError.value = ''
+  ragGroundTruth.value = ''
+  ragEvaluation.value = null
+}
+
+async function evaluateAnswer(index: number) {
+  if (ragLoading.value) return
+  const pair = findQaPair(index)
+  if (!pair) {
+    ragError.value = '没有找到这条回答对应的问题'
+    return
+  }
+  ragLoading.value = true
+  ragError.value = ''
+  ragEvaluation.value = null
+  try {
+    ragEvaluation.value = await evaluateRag({
+      ...pair,
+      groundTruth: ragGroundTruth.value.trim() || undefined,
+      topK: 5,
+    })
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || ''
+    ragError.value =
+      message === '服务器内部错误'
+        ? '这轮对话没有检索到相关知识库文章，无法评分。请先询问一个与你文章内容相关的问题。'
+        : message || '质量检测失败，请稍后重试'
+  } finally {
+    ragLoading.value = false
+  }
+}
+
+function scorePercent(score: number) {
+  return `${Math.round(score * 100)}%`
+}
 
 /* ─── 快捷回复 ─── */
 const quickRepliesRef = ref<HTMLElement | null>(null)
@@ -564,6 +667,8 @@ const toolLabelMap: Record<string, string> = {
   getAllTags: '正在获取光痕列表...',
   getArticlesByCategory: '正在获取星域星记...',
   createCategory: '正在创建星域...',
+  listMcpTools: '正在发现外部 MCP 工具...',
+  callMcpTool: '正在调用外部 MCP 工具...',
 }
 
 const toolStatus = ref<string | null>(null)
@@ -943,7 +1048,7 @@ function fmt(s: string): string {
       .replace(/\n{2,}/g, '\n')
       .replace(/(?<!~)~(?!~)/g, '\\~')
     return (marked.parse(cleaned) as string)
-      .replace(/<table>/g, '<table class="chat-table">')
+      .replace(/<table>/g, '<table class="chat-table" tabindex="0">')
       .replace(/<p>\s*<\/p>/g, '')
       .trim()
   } catch {
@@ -1414,20 +1519,6 @@ function shouldShowMessage(msg: ChatMsg) {
       @touchend="onUp"
     ></canvas>
 
-    <button class="close-btn" title="退出沉浸模式 (Esc)" @click="emit('close')">
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
-      </svg>
-    </button>
-
     <div class="mic-wrapper">
       <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
         <canvas ref="waveCanvasRef" class="wave-canvas"></canvas>
@@ -1455,6 +1546,14 @@ function shouldShowMessage(msg: ChatMsg) {
           @click="activeTab = 'sessions'"
         >
           会话
+        </button>
+        <button
+          type="button"
+          class="imm-tab"
+          :class="{ active: activeTab === 'capabilities' }"
+          @click="openCapabilities"
+        >
+          能力
         </button>
         <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
           ＋ 新会话
@@ -1657,6 +1756,81 @@ function shouldShowMessage(msg: ChatMsg) {
               class="text"
               v-html="sanitizeHtml(fmt(msg.content))"
             ></div>
+            <template
+              v-if="
+                msg.role === 'assistant' &&
+                msg.content.trim() &&
+                !(isLocalSending && i === messages.length - 1)
+              "
+            >
+              <button
+                type="button"
+                class="imm-rag-trigger"
+                :aria-expanded="ragOpenIndex === i"
+                @click="toggleRagEvaluation(i)"
+              >
+                <Activity :size="13" />
+                {{ ragOpenIndex === i ? '收起质量评估' : '评估这条回答' }}
+              </button>
+
+              <div v-if="ragOpenIndex === i" class="imm-rag-inline">
+                <div class="imm-rag-inline-heading">
+                  <div>
+                    <strong>RAG 回答质量</strong>
+                    <span>检查回答依据及知识库检索质量</span>
+                  </div>
+                  <strong v-if="ragEvaluation" class="imm-rag-inline-total">
+                    {{ scorePercent(ragEvaluation.scores.overall) }}
+                  </strong>
+                </div>
+
+                <template v-if="ragEvaluation">
+                  <dl class="imm-rag-inline-scores">
+                    <div>
+                      <dt>有据可查</dt>
+                      <dd>{{ scorePercent(ragEvaluation.scores.faithfulness) }}</dd>
+                    </div>
+                    <div>
+                      <dt>切题程度</dt>
+                      <dd>{{ scorePercent(ragEvaluation.scores.answerRelevance) }}</dd>
+                    </div>
+                    <div>
+                      <dt>检索准确</dt>
+                      <dd>{{ scorePercent(ragEvaluation.scores.contextPrecision) }}</dd>
+                    </div>
+                    <div>
+                      <dt>检索完整</dt>
+                      <dd>{{ scorePercent(ragEvaluation.scores.contextRecall) }}</dd>
+                    </div>
+                  </dl>
+                  <p v-if="ragEvaluation.contexts.length" class="imm-rag-inline-sources">
+                    依据：{{ ragEvaluation.contexts.map(item => item.title).join('、') }}
+                  </p>
+                </template>
+
+                <template v-else>
+                  <p class="imm-rag-inline-copy">
+                    仅适用于使用了文章知识库的回答。普通聊天无需评估。
+                  </p>
+                  <textarea
+                    v-model="ragGroundTruth"
+                    class="imm-ground-truth"
+                    rows="2"
+                    placeholder="正确答案（可选，用于对照）"
+                  ></textarea>
+                  <button
+                    type="button"
+                    class="imm-evaluate-btn"
+                    :disabled="ragLoading"
+                    @click="evaluateAnswer(i)"
+                  >
+                    <span v-if="ragLoading" class="imm-tool-spinner"></span>
+                    {{ ragLoading ? '正在检测...' : '开始评估' }}
+                  </button>
+                </template>
+                <p v-if="ragError" class="imm-cap-error">{{ ragError }}</p>
+              </div>
+            </template>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
@@ -1823,6 +1997,58 @@ function shouldShowMessage(msg: ChatMsg) {
         </ul>
         <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
       </div>
+
+      <!-- Agent 能力面板 -->
+      <div v-show="activeTab === 'capabilities'" class="imm-panel-capabilities">
+        <section class="imm-cap-section" aria-labelledby="mcp-capability-title">
+          <div class="imm-cap-heading">
+            <div>
+              <p class="imm-cap-eyebrow">External tools</p>
+              <h2 id="mcp-capability-title">MCP 服务</h2>
+            </div>
+            <button
+              type="button"
+              class="imm-cap-refresh"
+              :disabled="mcpLoading"
+              aria-label="刷新 MCP 工具"
+              @click="loadMcpCapabilities"
+            >
+              <RefreshCw :size="14" :class="{ spinning: mcpLoading }" />
+            </button>
+          </div>
+
+          <p v-if="mcpError" class="imm-cap-error">{{ mcpError }}</p>
+          <div v-else-if="mcpLoading" class="imm-cap-loading">
+            <span class="imm-tool-spinner"></span>
+            正在连接 MCP Server...
+          </div>
+          <div v-else-if="!mcpTools.length" class="imm-cap-empty">
+            <Server :size="20" />
+            <div>
+              <strong>实时搜索等待配置</strong>
+              <p>生产环境设置 ZHIPU_API_KEY 后，会自动启用智谱实时联网搜索。</p>
+            </div>
+          </div>
+          <template v-else>
+            <p class="imm-server-summary">已连接 {{ mcpServers.length }} 个 MCP 服务</p>
+            <div class="imm-server-list">
+              <article v-for="server in mcpServers" :key="server" class="imm-server-item">
+                <div class="imm-server-status" aria-hidden="true">
+                  <Server :size="17" />
+                </div>
+                <div class="imm-server-copy">
+                  <strong>{{ getMcpServerName(server) }}</strong>
+                  <span>{{ getMcpServerToolCount(server) }} 种实时搜索能力</span>
+                </div>
+                <span class="imm-server-connected">
+                  <span class="imm-server-dot"></span>已连接
+                </span>
+              </article>
+            </div>
+          </template>
+        </section>
+
+      </div>
     </div>
   </div>
 </template>
@@ -1847,30 +2073,6 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 .main-canvas:active {
   cursor: grabbing;
-}
-
-.close-btn {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 50;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  backdrop-filter: blur(8px);
-}
-.close-btn:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-  border-color: var(--border-interactive);
 }
 
 .mic-wrapper {
@@ -2058,6 +2260,109 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 /* ── 附件标签 ── */
+.imm-rag-trigger {
+  min-height: 30px;
+  margin: 4px 0 0 6px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color 180ms var(--ease-out-quart),
+    background 180ms var(--ease-out-quart);
+}
+.imm-rag-trigger:hover,
+.imm-rag-trigger[aria-expanded='true'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.imm-rag-trigger:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.imm-rag-inline {
+  width: min(85%, 390px);
+  margin-top: 5px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  animation: rag-panel-in 180ms var(--ease-out-quart);
+}
+.imm-rag-inline-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.imm-rag-inline-heading > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.imm-rag-inline-heading strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+.imm-rag-inline-heading span,
+.imm-rag-inline-copy,
+.imm-rag-inline-sources {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.imm-rag-inline-total {
+  color: var(--accent) !important;
+  font-size: 17px !important;
+}
+.imm-rag-inline-copy {
+  margin: 9px 0 8px;
+}
+.imm-rag-inline-scores {
+  margin: 11px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.imm-rag-inline-scores div {
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: var(--tag-bg);
+}
+.imm-rag-inline-scores dt {
+  color: var(--ink-muted);
+  font-size: 9px;
+}
+.imm-rag-inline-scores dd {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.imm-rag-inline-sources {
+  margin: 8px 0 0;
+}
+@keyframes rag-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .imm-attach-tag {
   display: inline-flex;
   align-items: center;
@@ -2111,6 +2416,57 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 .msg .text :deep(p:last-child) {
   margin-bottom: 0;
+}
+.msg .text :deep(.chat-table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0 16px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  -webkit-overflow-scrolling: touch;
+  border-collapse: collapse;
+  table-layout: auto;
+  color: var(--ink);
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.msg .text :deep(.chat-table + p) {
+  margin-top: 0.75rem;
+}
+.msg .text :deep(.chat-table:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.msg .text :deep(.chat-table th),
+.msg .text :deep(.chat-table td) {
+  min-width: 88px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  word-break: keep-all;
+}
+.msg .text :deep(.chat-table th) {
+  white-space: nowrap;
+  background: var(--tag-bg);
+  color: var(--ink);
+  font-weight: 650;
+}
+.msg .text :deep(.chat-table td) {
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.msg .text :deep(.chat-table tbody tr:last-child td) {
+  border-bottom: 0;
+}
+.msg .text :deep(.chat-table tbody tr:hover) {
+  background: var(--surface-hover);
 }
 .msg .text :deep(ul),
 .msg .text :deep(ol) {
@@ -2783,8 +3139,277 @@ function shouldShowMessage(msg: ChatMsg) {
   pointer-events: auto;
   padding: 4px 0;
 }
-.imm-panel-sessions::-webkit-scrollbar {
+.imm-panel-capabilities {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  pointer-events: auto;
+  padding: 6px 8px 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.imm-panel-sessions::-webkit-scrollbar,
+.imm-panel-capabilities::-webkit-scrollbar {
   width: 0;
+}
+
+.imm-cap-section {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.imm-cap-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-muted);
+}
+.imm-cap-heading h2 {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+.imm-cap-eyebrow {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.imm-cap-copy {
+  margin: 10px 0 12px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.imm-evaluation-target {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.imm-cap-refresh {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.imm-cap-refresh:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--border-interactive);
+  background: var(--surface-hover);
+}
+.imm-cap-refresh:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.imm-cap-refresh .spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.imm-cap-loading,
+.imm-cap-empty {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.imm-cap-empty {
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--tag-bg);
+}
+.imm-cap-empty strong {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.imm-cap-empty p {
+  margin: 3px 0 0;
+  line-height: 1.5;
+}
+.imm-cap-error {
+  margin: 10px 0 0;
+  color: oklch(0.58 0.17 25);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.imm-server-summary {
+  margin: 14px 0 8px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.imm-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.imm-server-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--tag-bg);
+}
+.imm-server-status {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.imm-server-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.imm-server-copy strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.imm-server-copy span {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.imm-server-connected {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+.imm-server-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 7px var(--accent);
+}
+
+.imm-ground-truth {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 56px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  outline: none;
+  background: var(--tag-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.imm-ground-truth:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.imm-ground-truth::placeholder {
+  color: var(--ink-muted);
+}
+.imm-evaluate-btn {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 9px;
+  border: 0;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--accent);
+  color: var(--canvas);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.imm-evaluate-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.imm-evaluate-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+.imm-score-result {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+}
+.imm-overall-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+.imm-overall-score strong {
+  color: var(--accent);
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+.imm-score-list {
+  margin: 10px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+.imm-score-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.imm-score-list dt,
+.imm-score-list dd {
+  margin: 0;
+  font-size: 10px;
+}
+.imm-score-list dt {
+  color: var(--ink-muted);
+}
+.imm-score-list dd {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.imm-context-sources {
+  margin: 10px 0 0;
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 /* ── 会话列表 ── */
