@@ -1811,7 +1811,7 @@ function shouldShowMessage(msg: ChatMsg) {
               v-html="sanitizeHtml(fmt(msg.content))"
             ></div>
             <div
-              v-if="msg.role === 'assistant' && msg.agentTrace?.ragContexts?.length"
+              v-if="msg.role === 'assistant' && msg.agentTrace?.ragEvaluation"
               class="imm-rag-inline"
             >
                 <div class="imm-rag-inline-heading">
@@ -1827,34 +1827,26 @@ function shouldShowMessage(msg: ChatMsg) {
                   </strong>
                 </div>
 
-                <template v-if="msg.agentTrace.ragEvaluation">
-                  <dl class="imm-rag-inline-scores">
-                    <div>
-                      <dt>有据可查</dt>
-                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.faithfulness) }}</dd>
-                    </div>
-                    <div>
-                      <dt>切题程度</dt>
-                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.answerRelevance) }}</dd>
-                    </div>
-                    <div>
-                      <dt>检索准确</dt>
-                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextPrecision) }}</dd>
-                    </div>
-                    <div>
-                      <dt>检索完整</dt>
-                      <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
-                    </div>
-                  </dl>
-                  <p v-if="msg.agentTrace.ragEvaluation.contexts.length" class="imm-rag-inline-sources">
-                    依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
-                  </p>
-                </template>
-                <p v-else-if="msg.agentTrace.ragEvaluationStatus === 'pending'" class="imm-rag-inline-copy">
-                  正在根据本轮检索到的文章自动评分...
-                </p>
-                <p v-else-if="msg.agentTrace.ragEvaluationError" class="imm-cap-error">
-                  {{ msg.agentTrace.ragEvaluationError }}
+                <dl class="imm-rag-inline-scores">
+                  <div>
+                    <dt>有据可查</dt>
+                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.faithfulness) }}</dd>
+                  </div>
+                  <div>
+                    <dt>切题程度</dt>
+                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.answerRelevance) }}</dd>
+                  </div>
+                  <div>
+                    <dt>检索准确</dt>
+                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextPrecision) }}</dd>
+                  </div>
+                  <div>
+                    <dt>检索完整</dt>
+                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
+                  </div>
+                </dl>
+                <p v-if="msg.agentTrace.ragEvaluation.contexts.length" class="imm-rag-inline-sources">
+                  依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
                 </p>
             </div>
           </div>
