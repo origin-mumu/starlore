@@ -23,8 +23,9 @@ spring:
     hikari:
       keepalive-time: 30000
       max-lifetime: 600000
-      idle-timeout: 600000
+      idle-timeout: 300000
       connection-timeout: 10000
+      validation-timeout: 5000
       maximum-pool-size: 10
       minimum-idle: 2
   jackson:

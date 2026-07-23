@@ -1,5 +1,6 @@
 package com.robin.blogback.config;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +40,9 @@ public class SecurityConfig {
                             response.sendError(HttpServletResponse.SC_FORBIDDEN)))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                    // SseEmitter 完成或报错时 Tomcat 会发起 ASYNC/ERROR 二次分派。
+                    // 初始 REQUEST 已完成鉴权，二次分派不应再次要求 JWT，否则响应提交后会误报 403。
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                     .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/api/public/**").permitAll()
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/actuator/**").hasRole("ADMIN")
