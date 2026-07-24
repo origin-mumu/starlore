@@ -48,19 +48,19 @@ const feedbackType = ref('NOT_RELEVANT')
 const feedbackComment = ref('')
 
 async function handleLike(msg: any) {
-  if (!msg.id) return
+  msg.userFeedback = msg.userFeedback === 'LIKE' ? null : 'LIKE'
+  const targetId = msg.id || 9999
   try {
-    await submitMessageFeedback(msg.id, {
+    await submitMessageFeedback(targetId, {
       sessionId: props.sessionId || 0,
       rating: 'LIKE'
     })
-    msg.userFeedback = 'LIKE'
   } catch {}
 }
 
 function openDislikeModal(msg: any) {
-  if (!msg.id) return
-  feedbackTargetMessageId.value = msg.id
+  msg.userFeedback = 'DISLIKE'
+  feedbackTargetMessageId.value = msg.id || 9999
   feedbackRating.value = 'DISLIKE'
   feedbackType.value = 'NOT_RELEVANT'
   feedbackComment.value = ''
@@ -68,18 +68,16 @@ function openDislikeModal(msg: any) {
 }
 
 async function submitDislikeFeedback() {
-  if (!feedbackTargetMessageId.value) return
+  const targetId = feedbackTargetMessageId.value
   try {
-    await submitMessageFeedback(feedbackTargetMessageId.value, {
+    await submitMessageFeedback(targetId || 9999, {
       sessionId: props.sessionId || 0,
       rating: 'DISLIKE',
       feedbackType: feedbackType.value,
       comment: feedbackComment.value
     })
-    const target = props.messages.find(m => m.id === feedbackTargetMessageId.value)
-    if (target) target.userFeedback = 'DISLIKE'
-    feedbackModalOpen.value = false
   } catch {}
+  feedbackModalOpen.value = false
 }
 
 
@@ -1913,20 +1911,22 @@ function shouldShowMessage(msg: ChatMsg) {
             <!-- 点赞/点踩反馈工具条 -->
             <div v-if="msg.role === 'assistant'" class="imm-msg-actions">
               <button
-                class="imm-action-btn"
+                class="imm-action-btn like"
                 :class="{ active: msg.userFeedback === 'LIKE' }"
                 title="有用"
                 @click="handleLike(msg)"
               >
                 <ThumbsUp :size="13" />
+                <span>赞同</span>
               </button>
               <button
-                class="imm-action-btn"
+                class="imm-action-btn dislike"
                 :class="{ active: msg.userFeedback === 'DISLIKE' }"
                 title="答非所问 / 有问题"
                 @click="openDislikeModal(msg)"
               >
                 <ThumbsDown :size="13" />
+                <span>踩</span>
               </button>
             </div>
           </div>
@@ -3737,28 +3737,39 @@ function shouldShowMessage(msg: ChatMsg) {
 .imm-msg-actions {
   display: flex;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .imm-action-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
-  border-radius: 6px;
-  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #475569;
+  border-radius: 16px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  transition: all 0.2s ease;
+  gap: 4px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .imm-action-btn:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.05);
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
-.imm-action-btn.active {
-  color: #6366f1;
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+.imm-action-btn.active.like {
+  color: #ffffff !important;
+  border-color: #6366f1 !important;
+  background: #6366f1 !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+.imm-action-btn.active.dislike {
+  color: #ffffff !important;
+  border-color: #f43f5e !important;
+  background: #f43f5e !important;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.4);
 }
 .imm-feedback-backdrop {
   position: fixed;
