@@ -50,21 +50,30 @@ async def multi_agent_sse(
 
     async def event_stream():
         """SSE 流式输出。"""
-        queue: list[str] = []
+        import asyncio
+        q: asyncio.Queue = asyncio.Queue()
 
         async def callback(event: dict):
-            queue.append(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
+            await q.put(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
 
-        # 运行多 Agent
-        state = await run_multi_agent(
-            db, user.id, llm, messages, character_prompt, event_callback=callback,
-        )
+        async def run_workflow():
+            try:
+                await run_multi_agent(
+                    db, user.id, llm, messages, character_prompt, event_callback=callback
+                )
+            except Exception as e:
+                logger.error("Multi-agent workflow error: %s", e, exc_info=True)
+                await callback({"type": "error", "error": str(e)})
+            finally:
+                await q.put("data: [DONE]\n\n")
 
-        # 逐个输出事件
-        for chunk in queue:
-            yield chunk
+        asyncio.create_task(run_workflow())
 
-        yield "data: [DONE]\n\n"
+        while True:
+            item = await q.get()
+            yield item
+            if item == "data: [DONE]\n\n":
+                break
 
     return StreamingResponse(
         event_stream(),

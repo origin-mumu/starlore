@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  starlore-py:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: starlore-py
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./resources:/app/resources
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

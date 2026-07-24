@@ -15,4 +15,5 @@ class AiMessage(Base):
     sessionId: Mapped[int] = mapped_column(Integer)  # noqa: N815
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str | None] = mapped_column(Text)
+    agentTrace: Mapped[str | None] = mapped_column("agent_trace", Text, nullable=True)  # noqa: N815
     createdAt: Mapped[datetime | None] = mapped_column(DateTime)  # noqa: N815

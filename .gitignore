@@ -58,5 +58,11 @@ blog-back/.env.*
 ro-blog/.env*
 ro-blog/*.env
 
+# Python
+**/__pycache__/
+*.py[cod]
+starlore-py/data/
+starlore-py/.env
+
 # Scratch scripts
 scratch/

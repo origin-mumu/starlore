@@ -24,6 +24,9 @@ class UpdateUserRoleRequest(BaseModel):
     email: str | None = None
     avatar: str | None = None
     bio: str | None = None
+    location: str | None = None
+    website: str | None = None
+    github: str | None = None
     role: str | None = None
     aiDailyLimit: int | None = None
 
@@ -72,6 +75,12 @@ async def update_user(
         updates["avatar"] = req.avatar
     if req.bio is not None:
         updates["bio"] = req.bio
+    if req.location is not None:
+        updates["location"] = req.location
+    if req.website is not None:
+        updates["website"] = req.website
+    if req.github is not None:
+        updates["github"] = req.github
     if req.role is not None:
         updates["role"] = req.role
     if req.aiDailyLimit is not None:
@@ -107,12 +116,26 @@ async def list_login_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1),
     username: str | None = None,
+    dateFrom: str | None = None,
+    dateTo: str | None = None,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(LoginLog)
     if username:
         query = query.where(LoginLog.username.ilike(f"%{username}%"))
+    if dateFrom:
+        try:
+            dt_from = datetime.fromisoformat(dateFrom + "T00:00:00")
+            query = query.where(LoginLog.login_time >= dt_from)
+        except ValueError:
+            pass
+    if dateTo:
+        try:
+            dt_to = datetime.fromisoformat(dateTo + "T23:59:59")
+            query = query.where(LoginLog.login_time <= dt_to)
+        except ValueError:
+            pass
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar() or 0

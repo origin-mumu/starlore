@@ -122,12 +122,24 @@ function scrollChatToBottom(behavior: ScrollBehavior = 'auto', force = false) {
       const el = chatScrollRef.value
       if (!el || activeTab.value !== 'chat') return
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (force || distanceFromBottom < 120) {
+      if (force || distanceFromBottom < 400) {
         el.scrollTo({ top: el.scrollHeight, behavior })
       }
     })
   })
 }
+
+watch(
+  messages,
+  () => {
+    scrollChatToBottom('smooth')
+  },
+  { deep: true, immediate: true }
+)
+
+watch(toolStatus, () => {
+  scrollChatToBottom('smooth')
+})
 
 /* ─── 图片上传 ─── */
 const pendingImage = ref<string | null>(null) // base64

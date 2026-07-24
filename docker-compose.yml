@@ -39,6 +39,28 @@ services:
       # PDF 服务配置：指回宿主机的 PM2 端口 (通常是 Docker 默认网桥网关 172.17.0.1)
       - PDF_SERVICE_URL=http://172.17.0.1:3001
 
+  # Python 后端
+  starlore-py:
+    image: ghcr.io/origin-mumu/starlore/starlore-py:latest
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    depends_on:
+      - minio
+    volumes:
+      - starlore_py_data:/app/data
+    environment:
+      - DB_HOST=${DB_HOST:-172.17.0.1}
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-ro-blog}
+      - DB_USER=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+
   # MinIO 对象存储
   minio:
     image: minio/minio
@@ -66,3 +88,4 @@ services:
 volumes:
   minio_data:
   starlore_vector_data:
+  starlore_py_data:

@@ -1069,13 +1069,25 @@ function scrollChat(force = false) {
       const el = chatScrollRef.value
       if (el) {
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-        if (force || distanceFromBottom < 120) {
-          el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+        if (force || distanceFromBottom < 400) {
+          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
         }
       }
     })
   })
 }
+
+watch(
+  () => props.messages,
+  () => {
+    scrollChat()
+  },
+  { deep: true, immediate: true }
+)
+
+watch(toolStatus, () => {
+  scrollChat()
+})
 
 /* ─── Markdown ─── */
 marked.use({ breaks: false, gfm: true })
@@ -1811,7 +1823,7 @@ function shouldShowMessage(msg: ChatMsg) {
               v-html="sanitizeHtml(fmt(msg.content))"
             ></div>
             <div
-              v-if="msg.role === 'assistant' && msg.agentTrace?.ragEvaluation"
+              v-if="msg.role === 'assistant' && msg.agentTrace?.ragEvaluation?.scores"
               class="imm-rag-inline"
             >
                 <div class="imm-rag-inline-heading">
@@ -1822,7 +1834,7 @@ function shouldShowMessage(msg: ChatMsg) {
                       {{ msg.agentTrace.ragRetrievalMode === 'keyword' ? '关键词检索' : '向量检索' }}
                     </span>
                   </div>
-                  <strong v-if="msg.agentTrace.ragEvaluation" class="imm-rag-inline-total">
+                  <strong v-if="msg.agentTrace.ragEvaluation.scores" class="imm-rag-inline-total">
                     {{ scorePercent(msg.agentTrace.ragEvaluation.scores.overall) }}
                   </strong>
                 </div>
@@ -1845,7 +1857,7 @@ function shouldShowMessage(msg: ChatMsg) {
                     <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
                   </div>
                 </dl>
-                <p v-if="msg.agentTrace.ragEvaluation.contexts.length" class="imm-rag-inline-sources">
+                <p v-if="msg.agentTrace.ragEvaluation.contexts?.length" class="imm-rag-inline-sources">
                   依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
                 </p>
             </div>

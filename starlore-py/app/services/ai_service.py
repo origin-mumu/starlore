@@ -164,7 +164,7 @@ async def get_messages(db: AsyncSession, user_id: int, session_id: int) -> dict:
         select(AiMessage).where(AiMessage.sessionId == session_id).order_by(AiMessage.id)
     )
     messages = [
-        MessageItem(id=m.id, role=m.role, content=m.content, createdAt=m.createdAt)
+        MessageItem(id=m.id, role=m.role, content=m.content, agentTrace=m.agentTrace, createdAt=m.createdAt)
         for m in result.scalars().all()
     ]
     return {
@@ -183,7 +183,7 @@ async def append_pair(db: AsyncSession, user_id: int, session_id: int, req: Appe
     now = datetime.now()
 
     db.add(AiMessage(sessionId=session_id, role="user", content=req.userContent, createdAt=now))
-    db.add(AiMessage(sessionId=session_id, role="assistant", content=req.assistantContent, createdAt=now))
+    db.add(AiMessage(sessionId=session_id, role="assistant", content=req.assistantContent, agentTrace=req.agentTrace, createdAt=now))
 
     # 自动重命名会话
     if session.title == "新会话":

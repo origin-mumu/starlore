@@ -18,10 +18,13 @@ async def _resolve_model(db: AsyncSession, model: str) -> ChatOpenAI:
     """解析模型配置，返回 LangChain ChatOpenAI 实例。"""
     # 优先从数据库读取配置
     db_config = await ai_config_service.get_config_by_key(db, model)
+    if (not db_config or not db_config.enabled or not db_config.apiKey) and model in ("deepseek-chat", "default", ""):
+        db_config = await ai_config_service.get_config_by_key(db, "deepseek-v4-flash")
     if db_config and db_config.enabled and db_config.apiKey:
         base_url = db_config.apiUrl
-        if not base_url.endswith("/chat/completions"):
-            base_url = base_url.rstrip("/") + "/chat/completions"
+        if base_url.endswith("/chat/completions"):
+            base_url = base_url[:-17]
+        base_url = base_url.rstrip("/")
 
         extra_kwargs = {}
         if "xiaomimimo.com" in base_url:
@@ -37,8 +40,13 @@ async def _resolve_model(db: AsyncSession, model: str) -> ChatOpenAI:
 
     # 回退本地配置
     if settings.ai_api_key:
+        base_url = settings.ai_base_url
+        if base_url.endswith("/chat/completions"):
+            base_url = base_url[:-17]
+        base_url = base_url.rstrip("/")
+
         return ChatOpenAI(
-            base_url=f"{settings.ai_base_url.rstrip('/')}/chat/completions",
+            base_url=base_url,
             api_key=settings.ai_api_key,
             model=settings.ai_model,
             streaming=True,

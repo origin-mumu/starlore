@@ -20,6 +20,7 @@ class UpdateSessionRequest(BaseModel):
 class AppendPairRequest(BaseModel):
     userContent: str | None = None
     assistantContent: str | None = None
+    agentTrace: str | None = None
 
 
 class AIConfigRequest(BaseModel):
@@ -74,6 +75,7 @@ class MessageItem(BaseModel):
     id: int
     role: str
     content: str | None = None
+    agentTrace: str | None = None
     createdAt: datetime | None = None
 
 

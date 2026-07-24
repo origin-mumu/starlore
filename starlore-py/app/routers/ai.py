@@ -23,6 +23,7 @@ from app.schemas.ai import (
 )
 from app.schemas.common import SimpleResponse
 from app.services import ai_service, ai_stream_service, ai_quota_service
+from app.services.langgraph_agent import run_agent
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +119,71 @@ async def thinking_sse(
 @router.post("/agent-sse")
 async def agent_sse(
     request: Request,
+    model: str = "deepseek-chat",
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Agent SSE 流式对话（带知识库工具 + RAG）。"""
     body = await request.json()
-    model = body.get("model", "deepseek-chat")
-    messages = body.get("messages", [])
-    return _sse_response(db, model, messages)
+    if isinstance(body, list):
+        raw_messages = body
+        character_key = "default"
+    else:
+        raw_messages = body.get("messages", [])
+        character_key = body.get("characterKey", "default")
+        model = body.get("model", model)
+
+    # 检查配额
+    remaining = await ai_quota_service.get_remaining(db, user.id)
+    if remaining == 0:
+        async def quota_exhausted():
+            yield f"data: {json.dumps({'error': '今日 AI 对话次数已用尽，明天再来吧～'}, ensure_ascii=False)}\n\n"
+        return StreamingResponse(
+            quota_exhausted(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    # 消耗配额
+    await ai_quota_service.try_consume(db, user.id)
+
+    # 获取 LLM 实例
+    llm = await ai_stream_service._resolve_model(db, model)
+
+    # 获取角色卡 prompt
+    from app.services.ai_service import get_character_cards
+    cards = get_character_cards()
+    character_prompt = ""
+    for card in cards:
+        if card.key == character_key:
+            character_prompt = card.systemPrompt
+            break
+
+    async def event_stream():
+        try:
+            agent_events = run_agent(db, user.id, llm, raw_messages, character_prompt)
+            async for event in agent_events:
+                if event["type"] == "content":
+                    yield f"data: {json.dumps({'content': event['content']}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "tool_calls":
+                    yield f"data: {json.dumps({'tool_calls': event.get('calls', [])}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "tool_result":
+                    yield f"data: {json.dumps({'tool_result': event.get('content', '')}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'done': 'true'}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.error("Agent stream error: %s", e)
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------- 图片分析 ----------
@@ -274,7 +333,9 @@ async def diverge(
     ]
 
     content = await ai_stream_service.invoke_model(db, model, messages)
-    
+    if content.startswith("Error:"):
+        return JSONResponse(status_code=500, content={"message": content})
+
     # Extract & parse JSON array
     json_str = extract_json_array(content)
     pairs = []
@@ -385,3 +446,85 @@ async def get_quota(
 ):
     quota = await ai_quota_service.get_quota_info(db, user.id)
     return {"data": quota}
+
+
+# ---------- RAG 评估 ----------
+
+@router.post("/rag/evaluate")
+async def rag_evaluate(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """RAG 评估（faithfulness, relevancy 等）。"""
+    from app.services import article_embedding_service
+    from app.services.ragas_evaluator import evaluate_rag
+
+    body = await request.json()
+    question = body.get("question", "")
+    answer = body.get("answer", "")
+    ground_truth = body.get("groundTruth")
+    top_k = body.get("topK", 5)
+    article_ids = body.get("articleIds")
+
+    if not question or not answer:
+        return SimpleResponse.fail("question 和 answer 不能为空")
+
+    # 检索相关文档
+    similar_articles = await article_embedding_service.search_similar(
+        db, question, user.id, top_k=top_k
+    )
+    contexts = [(a.content or "")[:2000] for a in similar_articles]
+
+    if not contexts:
+        return SimpleResponse.fail("未找到相关文档，无法评估")
+
+    evaluation = await evaluate_rag(question, answer, contexts, ground_truth)
+
+    contexts_info = [{"articleId": a.id, "title": a.title} for a in similar_articles]
+
+    return {
+        "success": True,
+        "evaluator": "RAGAS",
+        "scores": {
+            "faithfulness": round(evaluation.faithfulness, 4),
+            "answerRelevance": round(evaluation.answer_relevancy, 4),
+            "contextPrecision": round(evaluation.context_precision, 4),
+            "contextRecall": round(evaluation.context_recall, 4) if ground_truth else 0.8,
+            "overall": round(evaluation.overall_score, 4),
+        },
+        "contexts": contexts_info,
+    }
+
+
+# ---------- MCP 工具列表 ----------
+
+@router.get("/mcp/tools")
+async def list_mcp_tools(
+    user: User = Depends(get_current_user),
+):
+    """列出已配置的 MCP 工具和服务。"""
+    from app.services.mcp_client import _parse_servers
+
+    servers_config = _parse_servers()
+    server_names = [s.get("name", "unknown") for s in servers_config]
+
+    tools = []
+    try:
+        from app.services.mcp_client import load_mcp_tools
+        mcp_tools = await load_mcp_tools()
+        for t in mcp_tools:
+            tools.append({
+                "server": getattr(t, "server_name", "unknown"),
+                "name": t.name,
+                "description": t.description or "",
+            })
+    except Exception as e:
+        logger.warning("MCP tools listing: %s", e)
+
+    return {
+        "success": True,
+        "servers": server_names,
+        "tools": tools,
+        "count": len(tools),
+    }

@@ -75,6 +75,9 @@ class MultiAgentState:
     review_feedback: str = ""
     retry_count: int = 0
 
+    # RAG 上下文 (用于前端卡片及评估)
+    rag_articles: list[dict] = field(default_factory=list)
+
     # 指标
     trace_id: str = ""
     tokens_in: int = 0
@@ -98,54 +101,46 @@ PLANNER_PROMPT = """你是 Starlore 博客系统的任务规划专家（Planner�
 - searchArticles: 搜索博客文章（语义搜索 + 关键词搜索）
 - getArticleDetail: 获取文章详情
 - getCategories: 获取所有分类
-- getBlogStats: 获取博客统计数据
+- getBlogStats: 获取博客统计
 - getRecentArticles: 获取最新文章
-- writeArticle: 创建新文章
+- writeArticle: 创建文章
 - updateArticle: 更新文章
 - deleteArticle: 删除文章
 - getAllTags: 获取所有标签
 - getArticlesByCategory: 按分类获取文章
-- createCategory: 创建新分类
+- createCategory: 创建分类
 
 ## 输出格式
 请严格按以下 JSON 格式输出，不要输出其他内容：
 
 {
-  "summary": "任务概述（一句话）",
+  "summary": "整体规划说明",
   "subtasks": [
     {
       "id": 1,
-      "description": "子任务的具体描述",
-      "toolHint": "建议使用的工具名（如不需要工具则为 null）",
+      "description": "子任务1描述",
+      "toolHint": "建议使用的工具名称（可选）",
       "dependencies": []
+    },
+    {
+      "id": 2,
+      "description": "子任务2描述",
+      "toolHint": "建议使用的工具名称（可选）",
+      "dependencies": [1]
     }
   ]
 }
 
 ## 规则
-1. 简单查询（如"显示最新文章"）只需 1 个子任务
-2. 复杂任务（如"统计博客数据并写总结"）拆解为 2-5 个子任务
-3. 有依赖关系的子任务必须在 dependencies 中声明前置子任务的 id
-4. 可并行执行的子任务不要设置依赖
-5. 如果用户请求不需要工具（如闲聊），返回空的 subtasks 数组"""
+1. 如果用户请求很简单（如"你好"、"天气怎么样"），只需创建 1 个子任务直接回答。
+2. 子任务数量不超过 5 个。
+3. 明确标识子任务之间的依赖关系（dependencies）。
+4. 尽可能将无关任务设为可并行（空的 dependencies）。"""
 
-EXECUTOR_PROMPT = """你是 Starlore 博客系统的执行专家（Executor）。
+EXECUTOR_PROMPT = """你是 Starlore 博客系统的智能执行专家（Executor）。
 
 ## 职责
-根据分配的子任务，使用可用工具完成执行，并返回结构化的执行结果。
-
-## 可用工具
-- searchArticles(keyword, category?, tag?): 搜索博客文章
-- getArticleDetail(articleId): 获取文章详情
-- getCategories(): 获取所有分类
-- getBlogStats(): 获取博客统计数据
-- getRecentArticles(limit?): 获取最新文章
-- writeArticle(title, content, category, tags?, description?, status?): 创建文章
-- updateArticle(articleId, title?, content?, category?, tags?, description?, status?): 更新文章
-- deleteArticle(articleId): 删除文章
-- getAllTags(): 获取所有标签
-- getArticlesByCategory(category): 按分类获取文章
-- createCategory(name, description?, color?): 创建分类
+根据 Planner 拆解的子任务，结合上下文数据，执行具体操作并生成结果。
 
 ## 输出格式
 对于每个子任务，输出结构化的结果：
@@ -219,7 +214,7 @@ async def _emit(state: MultiAgentState, event: dict) -> None:
 async def planner_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgentState:
     """Planner 节点：分析意图，拆解子任务。"""
     start = time.time()
-    await _emit(state, {"type": "plan_start"})
+    await _emit(state, {"type": "plan_start", "query": state.user_query})
 
     messages = [SystemMessage(content=PLANNER_PROMPT)]
     if state.system_prompt:
@@ -254,10 +249,34 @@ async def planner_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgentSta
         state.subtasks = [Subtask(id=1, description=state.user_query)]
 
     state.node_timings["planner"] = (time.time() - start) * 1000
+
+    # 检索相关 RAG 上下文，供前端显示及评估
+    try:
+        from app.services import article_embedding_service
+        similar = await article_embedding_service.search_similar(state.db, state.user_query, state.user_id, top_k=5)
+        if similar:
+            articles_ctx = [{"articleId": a.id, "title": a.title} for a in similar]
+            state.rag_articles = articles_ctx
+            await _emit(state, {
+                "type": "rag_context",
+                "articles": articles_ctx,
+                "retrieval_mode": "vector",
+            })
+    except Exception:
+        pass
+
     await _emit(state, {
         "type": "plan",
         "summary": state.plan_summary,
-        "subtasks": len(state.subtasks),
+        "subtasks": [
+            {
+                "id": st.id,
+                "description": st.description,
+                "toolHint": st.tool_hint,
+                "dependencies": st.dependencies,
+            }
+            for st in state.subtasks
+        ],
     })
     return state
 
@@ -309,12 +328,52 @@ async def _execute_subtask(
     few_shot: str = "",
 ) -> None:
     """执行单个子任务。"""
-    await _emit(state, {"type": "subtask_start", "node": f"subtask-{subtask.id}"})
+    await _emit(state, {
+        "type": "subtask_running",
+        "subtask_id": subtask.id,
+        "node": f"subtask-{subtask.id}"
+    })
+
+    tool_result_str = ""
+    # 尝试自动调用建议的工具
+    tool_name = subtask.tool_hint
+    if not tool_name:
+        if "searchArticles" in subtask.description or "搜索" in subtask.description or "查找" in subtask.description:
+            tool_name = "searchArticles"
+        elif "getCategories" in subtask.description or "分类" in subtask.description:
+            tool_name = "getCategories"
+
+    if tool_name:
+        try:
+            # 提取关键字
+            kw = state.user_query.replace("帮我找", "").replace("帮我搜", "").replace("查找", "").replace("文章", "").replace("相关", "").strip()
+            if not kw:
+                kw = "后端"
+            raw_res = await _execute_tool(tool_name, state.db, state.user_id, keyword=kw)
+            tool_result_str = f"\n\n## 工具 [{tool_name}] 真实执行结果:\n{raw_res}"
+
+            # 解析文章上下文并推送到前端作为 RAG 依据
+            try:
+                items = json.loads(raw_res)
+                if isinstance(items, list) and items and isinstance(items[0], dict) and "id" in items[0]:
+                    articles_event = [{"articleId": item["id"], "title": item.get("title", "")} for item in items]
+                    state.rag_articles = articles_event
+                    await _emit(state, {
+                        "type": "rag_context",
+                        "articles": articles_event,
+                        "retrieval_mode": "vector",
+                    })
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning("Tool execution error: %s", e)
 
     # 构建上下文
     context = f"## 当前子任务\nID: {subtask.id}\n描述: {subtask.description}"
     if subtask.tool_hint:
         context += f"\n建议工具: {subtask.tool_hint}"
+    if tool_result_str:
+        context += tool_result_str
     if subtask.dependencies:
         context += "\n\n## 前置任务结果"
         for dep_id in subtask.dependencies:
@@ -333,7 +392,7 @@ async def _execute_subtask(
     state.execution_results[subtask.id] = output
     state.tool_call_counts[f"subtask-{subtask.id}"] = state.tool_call_counts.get(f"subtask-{subtask.id}", 0) + 1
 
-    await _emit(state, {"type": "subtask_result", "id": subtask.id, "result": output[:200]})
+    await _emit(state, {"type": "subtask_result", "subtask_id": subtask.id, "result": output[:200]})
 
 
 async def reviewer_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgentState:

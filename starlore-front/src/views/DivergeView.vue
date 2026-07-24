@@ -394,9 +394,9 @@ const layoutChildren = (parentId: string, count: number) => {
 }
 
 // ─── API: Expand Node ─────────────────────────────────
-const expandNode = async (nodeId: string) => {
+const expandNode = async (nodeId: string, existingPairs?: { zh: string; en: string }[]) => {
   const node = nodes[nodeId]
-  if (!node || loading.value) return
+  if (!node) return
 
   // Toggle collapse if already expanded
   if (node.expanded && node.children.length > 0) {
@@ -410,15 +410,17 @@ const expandNode = async (nodeId: string) => {
   quotaError.value = '' // Clear error state
 
   try {
-    let pairs: { zh: string; en: string }[] = []
-    if (userStore.isLoggedIn) {
-      const res = await divergeWord(node.wordEn || node.word)
-      pairs = res.pairs
-    } else {
-      const res = await guestDiverge(node.wordEn || node.word)
-      pairs = res.pairs
-      aiQuotaRemaining.value = res.remaining
-      aiQuotaExceeded.value = res.remaining <= 0
+    let pairs: { zh: string; en: string }[] = existingPairs || []
+    if (!existingPairs || existingPairs.length === 0) {
+      if (userStore.isLoggedIn) {
+        const res = await divergeWord(node.wordEn || node.word)
+        pairs = res.pairs
+      } else {
+        const res = await guestDiverge(node.wordEn || node.word)
+        pairs = res.pairs
+        aiQuotaRemaining.value = res.remaining
+        aiQuotaExceeded.value = res.remaining <= 0
+      }
     }
 
     const positions = layoutChildren(nodeId, pairs.length)!
@@ -569,7 +571,7 @@ const handleSearch = async () => {
     // Auto-expand root (need to release loading lock first)
     loading.value = false
     await nextTick()
-    await expandNode(id)
+    await expandNode(id, pairs)
     addToHistory(word)
     fitView()
   } catch (err: any) {
