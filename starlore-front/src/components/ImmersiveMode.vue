@@ -1908,8 +1908,11 @@ function shouldShowMessage(msg: ChatMsg) {
                   依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
                 </p>
             </div>
-            <!-- 点赞/点踩反馈工具条 -->
-            <div v-if="msg.role === 'assistant'" class="imm-msg-actions">
+            <!-- 点赞/点踩反馈工具条（仅在回答完成且非加载中显示在最底部） -->
+            <div
+              v-if="msg.role === 'assistant' && msg.content && msg.content.trim() && !toolStatus && (!isLocalSending || msg !== messages[messages.length - 1])"
+              class="imm-msg-actions"
+            >
               <button
                 class="imm-action-btn like"
                 :class="{ active: msg.userFeedback === 'LIKE' }"
