@@ -65,6 +65,44 @@ const chatScrollRef = ref<HTMLElement | null>(null)
 const charPickerOpen = ref(false)
 const toolStatus = ref<string | null>(null)
 
+/* ─── Agent 检索调参 Drawer ─── */
+const agentConfigDrawerOpen = ref(false)
+const agentConfigLoading = ref(false)
+const agentConfigForm = reactive({
+  modelName: 'glm-4-flash',
+  similarityThreshold: 0.6,
+  topK: 5,
+  temperature: 0.7,
+  enableRerank: 1
+})
+
+async function openAgentConfigDrawer() {
+  agentConfigDrawerOpen.value = true
+  agentConfigLoading.value = true
+  try {
+    const res = await getAgentConfig()
+    if (res.success && res.data) {
+      agentConfigForm.modelName = res.data.modelName || 'glm-4-flash'
+      agentConfigForm.similarityThreshold = res.data.similarityThreshold ?? 0.6
+      agentConfigForm.topK = res.data.topK ?? 5
+      agentConfigForm.temperature = res.data.temperature ?? 0.7
+      agentConfigForm.enableRerank = res.data.enableRerank ?? 1
+    }
+  } catch {}
+  agentConfigLoading.value = false
+}
+
+async function saveAgentConfig() {
+  try {
+    await updateAgentConfig(agentConfigForm)
+    agentConfigDrawerOpen.value = false
+    ElMessage.success('Agent 检索参数保存成功！')
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存配置失败')
+  }
+}
+
+
 /* ─── 多 Agent 追踪折叠状态 ─── */
 const traceCollapsed = ref<Record<number, boolean>>({})
 const reasoningCollapsed = ref<Record<number, boolean>>({})
@@ -2700,4 +2738,26 @@ onBeforeUnmount(() => {
     0 8px 32px rgba(0, 0, 0, 0.3),
     0 2px 8px rgba(0, 0, 0, 0.2);
 }
+</style>
+
+<style scoped>
+
+.agent-cfg-container {
+  padding: 10px;
+}
+.slider-val-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.slider-val-wrapper .el-slider {
+  flex: 1;
+}
+.field-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 4px;
+}
+
 </style>

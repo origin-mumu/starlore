@@ -174,3 +174,69 @@ export async function evaluateRag(body: {
 }) {
   return (await request.post('/ai/rag/evaluate', body)) as RagEvaluationResult
 }
+
+export type ArticleChunkItem = {
+  id: number
+  articleId: number
+  chunkIndex: number
+  content: string
+  tokenCount: number
+  isEnabled: number
+}
+
+export async function getArticleChunks(articleId: number) {
+  return (await request.get(`/articles/${articleId}/chunks`)) as {
+    success: boolean
+    message: string
+    data: ArticleChunkItem[]
+  }
+}
+
+export async function updateChunk(chunkId: number, data: { content?: string; isEnabled?: number }) {
+  return (await request.put(`/articles/chunks/${chunkId}`, data)) as {
+    success: boolean
+    message: string
+  }
+}
+
+export async function reindexArticle(articleId: number) {
+  return (await request.post(`/articles/${articleId}/reindex`)) as {
+    success: boolean
+    message: string
+  }
+}
+
+export type AgentConfigData = {
+  id?: number
+  userId?: number
+  modelName: string
+  similarityThreshold: number
+  topK: number
+  temperature: number
+  enableRerank: number
+}
+
+export async function getAgentConfig() {
+  return (await request.get('/ai/agent-config')) as {
+    success: boolean
+    message: string
+    data: AgentConfigData
+  }
+}
+
+export async function updateAgentConfig(data: Partial<AgentConfigData>) {
+  return (await request.put('/ai/agent-config', data)) as {
+    success: boolean
+    message: string
+  }
+}
+
+export async function submitMessageFeedback(
+  messageId: number,
+  data: { sessionId: number; rating: 'LIKE' | 'DISLIKE'; feedbackType?: string; comment?: string }
+) {
+  return (await request.post(`/ai/messages/${messageId}/feedback`, data)) as {
+    success: boolean
+    message: string
+  }
+}

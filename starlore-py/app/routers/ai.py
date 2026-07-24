@@ -1,15 +1,18 @@
 """AI 路由：对话、会话管理、模型列表、角色卡、配额。"""
-
-import json
 import logging
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel
+from sqlalchemy import select
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.models.agent_config import AgentConfig
+from app.models.ai_feedback import AiMessageFeedback
+from app.schemas.common import SimpleResponse
 from app.schemas.ai import (
     AICharacterCardsResponse,
     AIMessageListResponse,
@@ -456,7 +459,6 @@ async def rag_evaluate(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """RAG 评估（faithfulness, relevancy 等）。"""
     from app.services import article_embedding_service
     from app.services.ragas_evaluator import evaluate_rag
 
@@ -465,12 +467,10 @@ async def rag_evaluate(
     answer = body.get("answer", "")
     ground_truth = body.get("groundTruth")
     top_k = body.get("topK", 5)
-    article_ids = body.get("articleIds")
 
     if not question or not answer:
         return SimpleResponse.fail("question 和 answer 不能为空")
 
-    # 检索相关文档
     similar_articles = await article_embedding_service.search_similar(
         db, question, user.id, top_k=top_k
     )
@@ -503,7 +503,6 @@ async def rag_evaluate(
 async def list_mcp_tools(
     user: User = Depends(get_current_user),
 ):
-    """列出已配置的 MCP 工具和服务。"""
     from app.services.mcp_client import _parse_servers
 
     servers_config = _parse_servers()
@@ -526,5 +525,94 @@ async def list_mcp_tools(
         "success": True,
         "servers": server_names,
         "tools": tools,
-        "count": len(tools),
     }
+
+
+# ---------- Agent 检索参数配置与用户反馈 ----------
+
+class AgentConfigRequest(BaseModel):
+    modelName: str | None = None
+    similarityThreshold: float | None = None
+    topK: int | None = None
+    temperature: float | None = None
+    enableRerank: int | None = None
+
+class FeedbackRequest(BaseModel):
+    sessionId: int
+    rating: str
+    feedbackType: str | None = None
+    comment: str | None = None
+
+@router.get("/agent-config")
+async def get_agent_config(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(AgentConfig).where(AgentConfig.userId == user.id))
+    cfg = res.scalar_one_or_none()
+    if not cfg:
+        cfg = AgentConfig(
+            userId=user.id,
+            modelName="glm-4-flash",
+            similarityThreshold=0.6,
+            topK=5,
+            temperature=0.7,
+            enableRerank=1
+        )
+        db.add(cfg)
+        await db.commit()
+    
+    return SimpleResponse.ok("获取Agent配置成功", {
+        "id": cfg.id,
+        "userId": cfg.userId,
+        "modelName": cfg.modelName,
+        "similarityThreshold": cfg.similarityThreshold,
+        "topK": cfg.topK,
+        "temperature": cfg.temperature,
+        "enableRerank": cfg.enableRerank,
+    })
+
+@router.put("/agent-config")
+async def update_agent_config(
+    req: AgentConfigRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(AgentConfig).where(AgentConfig.userId == user.id))
+    cfg = res.scalar_one_or_none()
+    if not cfg:
+        cfg = AgentConfig(userId=user.id)
+        db.add(cfg)
+
+    if req.modelName is not None:
+        cfg.modelName = req.modelName
+    if req.similarityThreshold is not None:
+        cfg.similarityThreshold = req.similarityThreshold
+    if req.topK is not None:
+        cfg.topK = req.topK
+    if req.temperature is not None:
+        cfg.temperature = req.temperature
+    if req.enableRerank is not None:
+        cfg.enableRerank = req.enableRerank
+
+    await db.commit()
+    return SimpleResponse.ok("Agent配置修改成功")
+
+@router.post("/messages/{message_id}/feedback")
+async def submit_message_feedback(
+    message_id: int,
+    req: FeedbackRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    fb = AiMessageFeedback(
+        messageId=message_id,
+        sessionId=req.sessionId,
+        userId=user.id,
+        rating=req.rating,
+        feedbackType=req.feedbackType,
+        comment=req.comment,
+    )
+    db.add(fb)
+    await db.commit()
+    return SimpleResponse.ok("反馈提交成功，感谢您的评价！")

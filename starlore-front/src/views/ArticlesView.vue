@@ -1,3 +1,4 @@
+import { getArticleChunks, updateChunk, reindexArticle, type ArticleChunkItem } from '@/api/ai'
 <script lang="ts" setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { getAllArticlesService, getPublicArticlesService, getCategoriesService, getPublicCategoriesService, deleteArticleService } from '@/api/article'
@@ -10,6 +11,46 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const notification = reactive({ show: false, title: '', message: '' })
+
+/* ─── 知识库切片分析 Drawer ─── */
+const chunkDrawerOpen = ref(false)
+const chunkDrawerLoading = ref(false)
+const currentChunkArticleId = ref<number | null>(null)
+const chunkList = ref<ArticleChunkItem[]>([])
+
+const totalChunkTokens = computed(() => {
+  return chunkList.value.reduce((acc, cur) => acc + (cur.tokenCount || 0), 0)
+})
+
+async function openChunkDrawer(articleId: number) {
+  currentChunkArticleId.value = articleId
+  chunkDrawerOpen.value = true
+  chunkDrawerLoading.value = true
+  try {
+    const res = await getArticleChunks(articleId)
+    if (res.success && res.data) {
+      chunkList.value = res.data
+    }
+  } catch {}
+  chunkDrawerLoading.value = false
+}
+
+async function handleToggleChunk(chunk: ArticleChunkItem) {
+  const newStatus = chunk.isEnabled === 1 ? 0 : 1
+  try {
+    await updateChunk(chunk.id, { isEnabled: newStatus })
+    chunk.isEnabled = newStatus
+  } catch {}
+}
+
+async function handleReindexArticle() {
+  if (!currentChunkArticleId.value) return
+  try {
+    await reindexArticle(currentChunkArticleId.value)
+    notify('重建完毕', '知识库向量索引重建完成！')
+  } catch {}
+}
+
 function notify(title: string, message: string) {
   notification.title = title
   notification.message = message
@@ -626,4 +667,59 @@ const paginationButtons = computed(() => {
     font-size: 12px;
   }
 }
+</style>
+
+<style scoped>
+
+.chunk-visualizer-container {
+  padding: 12px;
+}
+.chunk-stats-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.chunk-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+.chunk-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+.chunk-card.disabled {
+  opacity: 0.45;
+  filter: grayscale(80%);
+}
+.chunk-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.chunk-idx {
+  font-weight: 600;
+  color: #6366f1;
+}
+.chunk-token {
+  color: rgba(255, 255, 255, 0.5);
+}
+.chunk-card-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  word-break: break-all;
+}
+
 </style>

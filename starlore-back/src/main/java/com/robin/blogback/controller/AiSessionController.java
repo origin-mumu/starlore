@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import lombok.Data;
 import java.util.Map;
 
 @RestController
@@ -93,5 +94,91 @@ public class AiSessionController {
         Integer userId = (Integer) request.getAttribute("userId");
         AiQuotaService.QuotaInfo quota = aiQuotaService.getQuotaInfo(userId);
         return ResponseEntity.ok(Map.of("data", quota));
+    }
+
+    @Autowired
+    private com.robin.blogback.mapper.AgentConfigMapper agentConfigMapper;
+
+    @Autowired
+    private com.robin.blogback.mapper.AiMessageFeedbackMapper aiMessageFeedbackMapper;
+
+    @GetMapping("/agent-config")
+    public Result<com.robin.blogback.entity.AgentConfig> getAgentConfig(HttpServletRequest request) {
+        Integer userIdInt = (Integer) request.getAttribute("userId");
+        Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.robin.blogback.entity.AgentConfig> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.robin.blogback.entity.AgentConfig>()
+                        .eq(com.robin.blogback.entity.AgentConfig::getUserId, userId);
+        com.robin.blogback.entity.AgentConfig config = agentConfigMapper.selectOne(wrapper);
+        if (config == null) {
+            config = new com.robin.blogback.entity.AgentConfig();
+            config.setUserId(userId);
+            config.setModelName("glm-4-flash");
+            config.setSimilarityThreshold(0.6);
+            config.setTopK(5);
+            config.setTemperature(0.7);
+            config.setEnableRerank(1);
+            agentConfigMapper.insert(config);
+        }
+        return Result.ok("获取Agent配置成功", config);
+    }
+
+    @Data
+    public static class AgentConfigRequestDTO {
+        private String modelName;
+        private Double similarityThreshold;
+        private Integer topK;
+        private Double temperature;
+        private Integer enableRerank;
+    }
+
+    @PutMapping("/agent-config")
+    public Result<String> updateAgentConfig(HttpServletRequest request, @RequestBody AgentConfigRequestDTO req) {
+        Integer userIdInt = (Integer) request.getAttribute("userId");
+        Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.robin.blogback.entity.AgentConfig> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.robin.blogback.entity.AgentConfig>()
+                        .eq(com.robin.blogback.entity.AgentConfig::getUserId, userId);
+        com.robin.blogback.entity.AgentConfig config = agentConfigMapper.selectOne(wrapper);
+        if (config == null) {
+            config = new com.robin.blogback.entity.AgentConfig();
+            config.setUserId(userId);
+            agentConfigMapper.insert(config);
+        }
+        if (req.getModelName() != null) config.setModelName(req.getModelName());
+        if (req.getSimilarityThreshold() != null) config.setSimilarityThreshold(req.getSimilarityThreshold());
+        if (req.getTopK() != null) config.setTopK(req.getTopK());
+        if (req.getTemperature() != null) config.setTemperature(req.getTemperature());
+        if (req.getEnableRerank() != null) config.setEnableRerank(req.getEnableRerank());
+        agentConfigMapper.updateById(config);
+
+        return Result.ok("Agent配置修改成功");
+    }
+
+    @Data
+    public static class FeedbackRequestDTO {
+        private Long sessionId;
+        private String rating;
+        private String feedbackType;
+        private String comment;
+    }
+
+    @PostMapping("/messages/{messageId}/feedback")
+    public Result<String> submitFeedback(HttpServletRequest request, @PathVariable Long messageId, @RequestBody FeedbackRequestDTO req) {
+        Integer userIdInt = (Integer) request.getAttribute("userId");
+        Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
+
+        com.robin.blogback.entity.AiMessageFeedback fb = new com.robin.blogback.entity.AiMessageFeedback();
+        fb.setMessageId(messageId);
+        fb.setSessionId(req.getSessionId() != null ? req.getSessionId() : 0L);
+        fb.setUserId(userId);
+        fb.setRating(req.getRating());
+        fb.setFeedbackType(req.getFeedbackType());
+        fb.setComment(req.getComment());
+        aiMessageFeedbackMapper.insert(fb);
+
+        return Result.ok("反馈提交成功，感谢您的评价！");
     }
 }

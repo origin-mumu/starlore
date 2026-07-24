@@ -8,6 +8,16 @@ from fastapi import FastAPI
 from app.config import settings
 from app.exceptions import register_exception_handlers
 from app.middleware import setup_middleware
+"""Starlore 后端 — FastAPI 应用入口。"""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.config import settings
+from app.exceptions import register_exception_handlers
+from app.middleware import setup_middleware
 from app.routers import (
     admin,
     agent,
@@ -17,6 +27,7 @@ from app.routers import (
     auth,
     bookmarks,
     categories,
+    chunks,
     health,
     multi_agent,
     projects,
@@ -69,6 +80,7 @@ app.include_router(resume.router)
 app.include_router(projects.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
+app.include_router(chunks.router)
 
 
 

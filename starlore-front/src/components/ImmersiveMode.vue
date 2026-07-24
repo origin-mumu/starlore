@@ -17,6 +17,12 @@ import { sanitizeHtml } from '@/utils/sanitize'
 import { getAuthToken } from '@/utils/authToken'
 import {
   Bot,
+  ThumbsUp,
+  ThumbsDown,
+  BookOpen,
+  Sliders,
+  ExternalLink,
+  MessageSquare,
   Image,
   FileText,
   Send,
@@ -33,6 +39,49 @@ import {
 } from '@lucide/vue'
 
 const userStore = useUserStore()
+
+/* ─── 用户反馈点赞点踩 ─── */
+const feedbackModalOpen = ref(false)
+const feedbackTargetMessageId = ref<number | null>(null)
+const feedbackRating = ref<'LIKE' | 'DISLIKE'>('LIKE')
+const feedbackType = ref('NOT_RELEVANT')
+const feedbackComment = ref('')
+
+async function handleLike(msg: any) {
+  if (!msg.id) return
+  try {
+    await submitMessageFeedback(msg.id, {
+      sessionId: props.sessionId || 0,
+      rating: 'LIKE'
+    })
+    msg.userFeedback = 'LIKE'
+  } catch {}
+}
+
+function openDislikeModal(msg: any) {
+  if (!msg.id) return
+  feedbackTargetMessageId.value = msg.id
+  feedbackRating.value = 'DISLIKE'
+  feedbackType.value = 'NOT_RELEVANT'
+  feedbackComment.value = ''
+  feedbackModalOpen.value = true
+}
+
+async function submitDislikeFeedback() {
+  if (!feedbackTargetMessageId.value) return
+  try {
+    await submitMessageFeedback(feedbackTargetMessageId.value, {
+      sessionId: props.sessionId || 0,
+      rating: 'DISLIKE',
+      feedbackType: feedbackType.value,
+      comment: feedbackComment.value
+    })
+    const target = props.messages.find(m => m.id === feedbackTargetMessageId.value)
+    if (target) target.userFeedback = 'DISLIKE'
+    feedbackModalOpen.value = false
+  } catch {}
+}
+
 
 type AgentTrace = {
   planSummary: string
@@ -1861,6 +1910,25 @@ function shouldShowMessage(msg: ChatMsg) {
                   依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
                 </p>
             </div>
+            <!-- 点赞/点踩反馈工具条 -->
+            <div v-if="msg.role === 'assistant'" class="imm-msg-actions">
+              <button
+                class="imm-action-btn"
+                :class="{ active: msg.userFeedback === 'LIKE' }"
+                title="有用"
+                @click="handleLike(msg)"
+              >
+                <ThumbsUp :size="13" />
+              </button>
+              <button
+                class="imm-action-btn"
+                :class="{ active: msg.userFeedback === 'DISLIKE' }"
+                title="答非所问 / 有问题"
+                @click="openDislikeModal(msg)"
+              >
+                <ThumbsDown :size="13" />
+              </button>
+            </div>
           </div>
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
@@ -2075,7 +2143,33 @@ function shouldShowMessage(msg: ChatMsg) {
                 </span>
               </article>
             </div>
-          </template>
+          
+    <!-- 反馈模态框 -->
+    <div v-if="feedbackModalOpen" class="imm-feedback-backdrop" @click.self="feedbackModalOpen = false">
+      <div class="imm-feedback-modal">
+        <div class="imm-feedback-header">
+          <h3>反馈回答质量</h3>
+          <button class="imm-close-btn" @click="feedbackModalOpen = false"><X :size="16" /></button>
+        </div>
+        <div class="imm-feedback-body">
+          <label class="imm-form-label">请选择主要问题类型：</label>
+          <div class="imm-radio-group">
+            <label><input type="radio" v-model="feedbackType" value="NOT_RELEVANT" /> 知识库未检索到正确资料</label>
+            <label><input type="radio" v-model="feedbackType" value="HALLUCINATION" /> 包含大模型凭空幻觉内容</label>
+            <label><input type="radio" v-model="feedbackType" value="WRONG_FACT" /> 事实或语法描述有误</label>
+            <label><input type="radio" v-model="feedbackType" value="OTHER" /> 其他意见</label>
+          </div>
+          <label class="imm-form-label">补充说明 (选填)：</label>
+          <textarea v-model="feedbackComment" placeholder="请输入具体意见或修正建议..." class="imm-feedback-input"></textarea>
+        </div>
+        <div class="imm-feedback-footer">
+          <button class="imm-btn-cancel" @click="feedbackModalOpen = false">取消</button>
+          <button class="imm-btn-submit" @click="submitDislikeFeedback">提交评价</button>
+        </div>
+      </div>
+    </div>
+
+</template>
         </section>
 
         <section class="imm-cap-section" aria-labelledby="rag-index-title">
@@ -2103,6 +2197,32 @@ function shouldShowMessage(msg: ChatMsg) {
       </div>
     </div>
   </div>
+
+    <!-- 反馈模态框 -->
+    <div v-if="feedbackModalOpen" class="imm-feedback-backdrop" @click.self="feedbackModalOpen = false">
+      <div class="imm-feedback-modal">
+        <div class="imm-feedback-header">
+          <h3>反馈回答质量</h3>
+          <button class="imm-close-btn" @click="feedbackModalOpen = false"><X :size="16" /></button>
+        </div>
+        <div class="imm-feedback-body">
+          <label class="imm-form-label">请选择主要问题类型：</label>
+          <div class="imm-radio-group">
+            <label><input type="radio" v-model="feedbackType" value="NOT_RELEVANT" /> 知识库未检索到正确资料</label>
+            <label><input type="radio" v-model="feedbackType" value="HALLUCINATION" /> 包含大模型凭空幻觉内容</label>
+            <label><input type="radio" v-model="feedbackType" value="WRONG_FACT" /> 事实或语法描述有误</label>
+            <label><input type="radio" v-model="feedbackType" value="OTHER" /> 其他意见</label>
+          </div>
+          <label class="imm-form-label">补充说明 (选填)：</label>
+          <textarea v-model="feedbackComment" placeholder="请输入具体意见或修正建议..." class="imm-feedback-input"></textarea>
+        </div>
+        <div class="imm-feedback-footer">
+          <button class="imm-btn-cancel" @click="feedbackModalOpen = false">取消</button>
+          <button class="imm-btn-submit" @click="submitDislikeFeedback">提交评价</button>
+        </div>
+      </div>
+    </div>
+
 </template>
 
 <style scoped>
@@ -3609,4 +3729,125 @@ function shouldShowMessage(msg: ChatMsg) {
     flex-wrap: wrap;
   }
 }
+</style>
+
+<style scoped>
+
+/* ─── 点赞/点踩与反馈弹窗样式 ─── */
+.imm-msg-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.imm-action-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+.imm-action-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+}
+.imm-action-btn.active {
+  color: #6366f1;
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+.imm-feedback-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.imm-feedback-modal {
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  width: 440px;
+  padding: 20px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+  color: #fff;
+}
+.imm-feedback-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.imm-feedback-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.imm-close-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+}
+.imm-form-label {
+  display: block;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 8px;
+}
+.imm-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.imm-radio-group label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.imm-feedback-input {
+  width: 100%;
+  height: 80px;
+  background: #12121c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px;
+  font-size: 13px;
+  resize: none;
+  box-sizing: border-box;
+}
+.imm-feedback-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.imm-btn-cancel {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ccc;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.imm-btn-submit {
+  background: #6366f1;
+  border: none;
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 </style>
