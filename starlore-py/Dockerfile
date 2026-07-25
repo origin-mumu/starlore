@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Python 依赖
+# 安装 Python 依赖（在 GitHub CI 构建中默认使用官方 PyPI 全球 CDN 节点，15秒内快速完成）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 拷贝代码
 COPY . .
