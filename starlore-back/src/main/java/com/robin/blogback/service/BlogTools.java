@@ -77,37 +77,6 @@ public class BlogTools {
 
     @Tool(description = "搜索博客文章。优先使用语义搜索理解用户意图，找到相关文章；如果语义搜索无结果则回退到关键词搜索。可按分类和标签筛选。")
     public String searchArticles(
-
-    private static final Parser MD_PARSER;
-    private static final HtmlRenderer MD_RENDERER;
-
-    static {
-        List<Extension> extensions = List.of(TablesExtension.create());
-        MD_PARSER = Parser.builder().extensions(extensions).build();
-        MD_RENDERER = HtmlRenderer.builder().extensions(extensions).build();
-    }
-
-    private String markdownToHtml(String content) {
-        if (content == null || content.isEmpty()) return content;
-        if (content.contains("<p>") || content.contains("<h1>") || content.contains("<h2>")) {
-            return content;
-        }
-        Node document = MD_PARSER.parse(content);
-        return MD_RENDERER.render(document);
-    }
-
-    private String extractPlain(String content) {
-        return content.replaceAll("#+\\s*", "")
-                .replaceAll("\\*\\*?", "")
-                .replaceAll("`{1,3}", "")
-                .replaceAll("\\[([^]]*)\\]\\([^)]*\\)", "$1")
-                .replaceAll("!\\[.*?\\]\\(.*?\\)", "")
-                .replaceAll("\\n+", " ")
-                .trim();
-    }
-
-    @Tool(description = "搜索博客文章。优先使用语义搜索理解用户意图，找到相关文章；如果语义搜索无结果则回退到关键词搜索。可按分类和标签筛选。")
-    public String searchArticles(
             @ToolParam(description = "搜索关键词或语义描述") String keyword,
             @ToolParam(description = "分类名称", required = false) String category,
             @ToolParam(description = "标签名称", required = false) String tag) {
