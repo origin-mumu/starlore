@@ -69,8 +69,6 @@ jobs:
           context: ./starlore-front
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/starlore-front:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and Push starlore-back
         if: steps.changes.outputs.back == 'true' || github.event_name == 'workflow_dispatch'
@@ -79,8 +77,6 @@ jobs:
           context: ./starlore-back
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/starlore-back:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and Push starlore-py
         if: steps.changes.outputs.py == 'true' || github.event_name == 'workflow_dispatch'
@@ -89,8 +85,6 @@ jobs:
           context: ./starlore-py
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/starlore-py:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Copy docker-compose.yml to server
         if: steps.changes.outputs.stack == 'true' || github.event_name == 'workflow_dispatch'
