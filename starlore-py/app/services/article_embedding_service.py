@@ -32,35 +32,48 @@ class _ZhipuEmbeddings(Embeddings):
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         import httpx
+        import time
         if not texts:
             return []
 
-        batch_size = 16
+        batch_size = 8
         all_embeddings: list[list[float]] = []
 
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             for i in range(0, len(texts), batch_size):
                 batch = [t if t and t.strip() else " " for t in texts[i : i + batch_size]]
-                resp = client.post(
-                    self._url,
-                    json={"model": self._model, "input": batch},
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                )
-                if resp.status_code >= 400:
-                    logger.error(
-                        "[RAG Embedding 异常] 智谱 API 返回 HTTP %d: %s (URL: %s, Model: %s)",
-                        resp.status_code,
-                        resp.text,
-                        self._url,
-                        self._model,
-                    )
-                    resp.raise_for_status()
-                data = resp.json()
-                embeddings = [item["embedding"] for item in data.get("data", [])]
-                all_embeddings.extend(embeddings)
+                last_err = None
+                for attempt in range(3):
+                    try:
+                        resp = client.post(
+                            self._url,
+                            json={"model": self._model, "input": batch},
+                            headers={
+                                "Authorization": f"Bearer {self._api_key}",
+                                "Content-Type": "application/json",
+                            },
+                        )
+                        if resp.status_code >= 400:
+                            logger.error(
+                                "[RAG Embedding 异常] 智谱 API 返回 HTTP %d: %s (URL: %s, Model: %s)",
+                                resp.status_code,
+                                resp.text,
+                                self._url,
+                                self._model,
+                            )
+                            resp.raise_for_status()
+                        data = resp.json()
+                        embeddings = [item["embedding"] for item in data.get("data", [])]
+                        all_embeddings.extend(embeddings)
+                        last_err = None
+                        break
+                    except Exception as e:
+                        last_err = e
+                        logger.warning("[RAG Embedding 重试 %d/3] %s", attempt + 1, e)
+                        time.sleep(1.0)
+
+                if last_err is not None:
+                    raise last_err
 
         return all_embeddings
 

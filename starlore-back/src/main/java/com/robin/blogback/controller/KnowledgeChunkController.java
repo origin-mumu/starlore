@@ -6,6 +6,7 @@ import com.robin.blogback.entity.Article;
 import com.robin.blogback.entity.ArticleChunk;
 import com.robin.blogback.mapper.ArticleChunkMapper;
 import com.robin.blogback.mapper.ArticleMapper;
+import com.robin.blogback.mapper.KnowledgeDocumentChunkMapper;
 import com.robin.blogback.service.ArticleEmbeddingService;
 import com.robin.blogback.service.KnowledgeChunkService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -118,6 +119,8 @@ public class KnowledgeChunkController {
         return SimpleResponse.ok("获取切片成功", chunks);
     }
 
+    private final KnowledgeDocumentChunkMapper knowledgeDocumentChunkMapper;
+
     @Data
     public static class ChunkUpdateRequest {
         private String content;
@@ -127,20 +130,34 @@ public class KnowledgeChunkController {
     @PutMapping("/chunks/{chunkId}")
     public SimpleResponse updateChunk(@PathVariable Long chunkId, @RequestBody ChunkUpdateRequest req) {
         ArticleChunk chunk = articleChunkMapper.selectById(chunkId);
-        if (chunk == null) {
-            return SimpleResponse.fail("切片不存在");
+        if (chunk != null) {
+            if (req.getContent() != null) {
+                chunk.setContent(req.getContent());
+                chunk.setTokenCount(knowledgeChunkService.estimateTokens(req.getContent()));
+            }
+            if (req.getIsEnabled() != null) {
+                chunk.setIsEnabled(req.getIsEnabled());
+            }
+            articleChunkMapper.updateById(chunk);
+            Article article = chunk.getArticleId() != null ? articleMapper.selectById(chunk.getArticleId().intValue()) : null;
+            if (article != null) articleEmbeddingService.refreshArticleVectors(article);
+            return SimpleResponse.ok("切片更新成功");
         }
-        if (req.getContent() != null) {
-            chunk.setContent(req.getContent());
-            chunk.setTokenCount(knowledgeChunkService.estimateTokens(req.getContent()));
+
+        com.robin.blogback.entity.KnowledgeDocumentChunk docChunk = knowledgeDocumentChunkMapper.selectById(chunkId);
+        if (docChunk != null) {
+            if (req.getContent() != null) {
+                docChunk.setContent(req.getContent());
+                docChunk.setTokenCount(knowledgeChunkService.estimateTokens(req.getContent()));
+            }
+            if (req.getIsEnabled() != null) {
+                docChunk.setIsEnabled(req.getIsEnabled());
+            }
+            knowledgeDocumentChunkMapper.updateById(docChunk);
+            return SimpleResponse.ok("切片更新成功");
         }
-        if (req.getIsEnabled() != null) {
-            chunk.setIsEnabled(req.getIsEnabled());
-        }
-        articleChunkMapper.updateById(chunk);
-        Article article = chunk.getArticleId() != null ? articleMapper.selectById(chunk.getArticleId().intValue()) : null;
-        if (article != null) articleEmbeddingService.refreshArticleVectors(article);
-        return SimpleResponse.ok("切片更新成功");
+
+        return SimpleResponse.fail("切片不存在");
     }
 
     @PostMapping("/{articleId}/reindex")
