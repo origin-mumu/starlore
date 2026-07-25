@@ -1,12 +1,17 @@
+from app.models.knowledge_document import KnowledgeDocument, KnowledgeDocumentChunk
+from fastapi import UploadFile, File
+"""AI 路由：对话、会话管理、模型列表、角色卡、配额。"""
+from app.models.knowledge_document import KnowledgeDocument, KnowledgeDocumentChunk
+from fastapi import UploadFile, File
 """AI 路由：对话、会话管理、模型列表、角色卡、配额。"""
 import logging
-
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+import json
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -616,3 +621,235 @@ async def submit_message_feedback(
     db.add(fb)
     await db.commit()
     return SimpleResponse.ok("反馈提交成功，感谢您的评价！")
+
+
+# ─── 文件库 (Knowledge Documents) API ───
+
+class UpdateDocTextRequest(BaseModel):
+    extractedText: str
+
+
+class ConfirmDocumentRequest(BaseModel):
+    fileName: str
+    fileType: str | None = None
+    fileSize: int | None = 0
+    extractedText: str
+
+
+@router.get("/documents")
+async def list_knowledge_documents(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.userId == user.id).order_by(KnowledgeDocument.id.desc()))
+    docs = res.scalars().all()
+    return {
+        "success": True,
+        "documents": [
+            {
+                "id": d.id,
+                "fileName": d.fileName,
+                "fileType": d.fileType,
+                "fileSize": d.fileSize,
+                "fileUrl": d.fileUrl,
+                "extractedText": d.extractedText,
+                "status": d.status,
+                "chunkCount": d.chunkCount,
+                "createdAt": d.createdAt.isoformat() if d.createdAt else "",
+                "updatedAt": d.updatedAt.isoformat() if d.updatedAt else "",
+            }
+            for d in docs
+        ]
+    }
+
+
+@router.post("/documents/upload")
+async def upload_knowledge_document(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.file_parse_service import extract_text
+    filename = file.filename or "uploaded_file.txt"
+    file_ext = filename.split(".")[-1].lower() if "." in filename else "txt"
+
+    try:
+        extracted_text = await extract_text(file)
+    except Exception as e:
+        logger.warning("Extract text error for %s: %s", filename, e)
+        extracted_text = f"文件解析信息: {filename}"
+
+    if not extracted_text.strip():
+        extracted_text = f"【文件内容解析说明】文件《{filename}》已成功存储。"
+
+    from app.services.knowledge_chunk_service import estimate_tokens, split_text
+    chunks = split_text(extracted_text)
+    chunk_count = len(chunks)
+
+    doc = KnowledgeDocument(
+        userId=user.id,
+        fileName=filename,
+        fileType=file_ext,
+        fileSize=getattr(file, "size", 0) or len(extracted_text.encode("utf-8")),
+        fileUrl="",
+        extractedText=extracted_text,
+        status="indexed",
+        chunkCount=chunk_count,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+
+    for idx, c_text in enumerate(chunks):
+        c_item = KnowledgeDocumentChunk(
+            documentId=doc.id,
+            chunkIndex=idx,
+            content=c_text,
+            tokenCount=estimate_tokens(c_text),
+            isEnabled=1,
+        )
+        db.add(c_item)
+    await db.commit()
+
+    return {
+        "success": True,
+        "document": {
+            "id": doc.id,
+            "fileName": doc.fileName,
+            "fileType": doc.fileType,
+            "fileSize": doc.fileSize,
+            "extractedText": doc.extractedText,
+            "status": doc.status,
+            "chunkCount": doc.chunkCount,
+            "createdAt": doc.createdAt.isoformat() if doc.createdAt else "",
+        }
+    }
+
+
+@router.post("/documents/confirm")
+async def confirm_knowledge_document(
+    req: ConfirmDocumentRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    filename = req.fileName or "file.txt"
+    file_ext = req.fileType or (filename.split(".")[-1].lower() if "." in filename else "txt")
+    extracted_text = req.extractedText or ""
+
+    if not extracted_text.strip():
+        extracted_text = f"【文件内容解析说明】文件《{filename}》已成功存储。"
+
+    from app.services.knowledge_chunk_service import estimate_tokens, split_text
+    chunks = split_text(extracted_text)
+    chunk_count = len(chunks)
+
+    doc = KnowledgeDocument(
+        userId=user.id,
+        fileName=filename,
+        fileType=file_ext,
+        fileSize=req.fileSize or len(extracted_text.encode("utf-8")),
+        fileUrl="",
+        extractedText=extracted_text,
+        status="indexed",
+        chunkCount=chunk_count,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+
+    for idx, c_text in enumerate(chunks):
+        c_item = KnowledgeDocumentChunk(
+            documentId=doc.id,
+            chunkIndex=idx,
+            content=c_text,
+            tokenCount=estimate_tokens(c_text),
+            isEnabled=1,
+        )
+        db.add(c_item)
+    await db.commit()
+
+    return {
+        "success": True,
+        "document": {
+            "id": doc.id,
+            "fileName": doc.fileName,
+            "fileType": doc.fileType,
+            "fileSize": doc.fileSize,
+            "extractedText": doc.extractedText,
+            "status": doc.status,
+            "chunkCount": doc.chunkCount,
+            "createdAt": doc.createdAt.isoformat() if doc.createdAt else "",
+        }
+    }
+
+@router.put("/documents/{doc_id}")
+async def update_knowledge_document_text(
+    doc_id: int,
+    req: UpdateDocTextRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id, KnowledgeDocument.userId == user.id))
+    doc = res.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    doc.extractedText = req.extractedText
+    # 重新切片
+    from app.services.knowledge_chunk_service import estimate_tokens, split_text
+    chunks = split_text(req.extractedText)
+    doc.chunkCount = len(chunks)
+    await db.commit()
+
+    # 删除旧切片
+    await db.execute(delete(KnowledgeDocumentChunk).where(KnowledgeDocumentChunk.documentId == doc_id))
+    for idx, c_text in enumerate(chunks):
+        c_item = KnowledgeDocumentChunk(
+            documentId=doc.id,
+            chunkIndex=idx,
+            content=c_text,
+            tokenCount=estimate_tokens(c_text),
+            isEnabled=1,
+        )
+        db.add(c_item)
+    await db.commit()
+
+    return {"success": True}
+
+@router.delete("/documents/{doc_id}")
+async def delete_knowledge_document(
+    doc_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(delete(KnowledgeDocumentChunk).where(KnowledgeDocumentChunk.documentId == doc_id))
+    await db.execute(delete(KnowledgeDocument).where(KnowledgeDocument.id == doc_id, KnowledgeDocument.userId == user.id))
+    await db.commit()
+    return {"success": True}
+
+@router.get("/documents/{doc_id}/chunks")
+async def get_document_chunks(
+    doc_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        select(KnowledgeDocumentChunk)
+        .where(KnowledgeDocumentChunk.documentId == doc_id)
+        .order_by(KnowledgeDocumentChunk.chunkIndex.asc())
+    )
+    chunks = res.scalars().all()
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": c.id,
+                "documentId": c.documentId,
+                "chunkIndex": c.chunkIndex,
+                "content": c.content,
+                "tokenCount": c.tokenCount,
+                "isEnabled": c.isEnabled,
+            }
+            for c in chunks
+        ]
+    }

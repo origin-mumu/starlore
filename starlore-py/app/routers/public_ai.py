@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.article import Article
 from app.services import ai_config_service, ai_stream_service
-from app.services.article_embedding_service import search_similar_public
 
 logger = logging.getLogger(__name__)
 
@@ -180,50 +179,11 @@ async def guest_chat(
     remaining = max(0, 20 - count)
 
     try:
-        # 1. 语义搜索公开知识库文章 (RAG)
-        matched_articles = []
-        try:
-            matched_articles = await search_similar_public(db, message, 5)
-        except Exception as e:
-            logger.warning("Guest RAG semantic search failed, falling back: %s", e)
-
-        if not matched_articles:
-            # 回退到数据库关键字搜索
-            result = await db.execute(
-                select(Article)
-                .where(
-                    Article.status == "published",
-                    Article.is_public == True,
-                    or_(
-                        Article.title.ilike(f"%{message}%"),
-                        Article.description.ilike(f"%{message}%")
-                    )
-                )
-                .order_by(Article.createdAt.desc())
-                .limit(5)
-            )
-            matched_articles = list(result.scalars().all())
-
-        # 2. 格式化上下文
-        context_str = ""
-        if matched_articles:
-            context_str += "\n\n[参考公开知识库内容]\n以下是与用户提问相关的公开文章内容：\n"
-            for a in matched_articles:
-                context_str += f"--- \n文章标题：《{a.title}》\n分类：{a.category or ''}\n摘要：{a.description or ''}\n"
-                if a.content:
-                    import re
-                    plain = re.sub(r"<[^>]+>", "", a.content)
-                    plain = re.sub(r"\s+", " ", plain).strip()
-                    if len(plain) > 500:
-                        plain = plain[:500] + "..."
-                    context_str += f"内容详情: {plain}\n"
-            context_str += "\n在回答用户关于本站文章、星野分类或技术栈等问题时，请优先使用上述参考公开文章的内容作为事实根据。"
-
-        # 3. 构建 System Prompt
+        # 构建 System Prompt
         character_key = body.get("character", "default")
         char_system = CHARACTER_SYSTEM_PROMPTS.get(character_key, CHARACTER_SYSTEM_PROMPTS["default"])
 
-        final_system_prompt = char_system + context_str + \
+        final_system_prompt = char_system + \
             "\n\n注意：你目前正在以'访客体验模式'与用户对话。用户每天有20次真实的AI对话额度。在回答完后，如果合适，请友好地提醒用户：'您可以随时登录，以解锁完整的个人云端空间、多Agent团队协作以及更高级的深度模型流式对话体验！'"
 
         # 4. 解析多轮历史

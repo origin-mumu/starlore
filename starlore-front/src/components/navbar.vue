@@ -3,6 +3,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ref, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { Sun, Moon } from '@lucide/vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -30,17 +31,6 @@ const isActive = (path: string) => route.path === path
 const mobileMenuOpen = ref(false)
 
 const themeStore = useThemeStore()
-
-const themes: {
-  name: 'default' | 'dark' | 'green' | 'blue'
-  label: string
-  color: string
-}[] = [
-  { name: 'green', label: '春暖', color: '#35BFAB' },
-  { name: 'default', label: '秋实', color: '#DE4331' },
-  { name: 'blue', label: '晴空', color: '#2FCBE7' },
-  { name: 'dark', label: '深夜', color: '#2A48F3' },
-]
 
 const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr']
 
@@ -119,17 +109,15 @@ const mobileMoreItems = computed(() => {
 
           <span class="nav-divider"></span>
 
-          <div class="theme-switcher" title="切换主题">
-            <button
-              v-for="t in themes"
-              :key="t.name"
-              class="theme-dot"
-              :class="{ active: themeStore.current === t.name }"
-              :style="{ '--dot-color': t.color }"
-              @click="themeStore.setTheme(t.name)"
-              :aria-label="t.label"
-            ></button>
-          </div>
+          <button
+            class="theme-toggle-btn"
+            @click="themeStore.toggleTheme()"
+            :title="themeStore.current === 'dark' ? '切换至浅色模式' : '切换至深色模式'"
+            :aria-label="themeStore.current === 'dark' ? '切换至浅色模式' : '切换至深色模式'"
+          >
+            <Sun v-if="themeStore.current === 'dark'" class="theme-icon" :size="16" />
+            <Moon v-else class="theme-icon" :size="16" />
+          </button>
 
           <span class="nav-divider"></span>
 
@@ -216,10 +204,15 @@ const mobileMoreItems = computed(() => {
 .navbar {
   position: fixed;
   z-index: 10001;
-  background: var(--nav-bg);
-  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius-full);
-  box-shadow: var(--shadow-card);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 10px 28px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px) saturate(1.06);
+  -webkit-backdrop-filter: blur(12px) saturate(1.06);
+  isolation: isolate;
 }
 
 /* desktop: top-center */
@@ -290,7 +283,9 @@ const mobileMoreItems = computed(() => {
   font-weight: 500;
   color: var(--ink-soft);
   border-radius: 999px;
-  transition: all var(--transition);
+  transition:
+    color 180ms var(--ease-out-quart),
+    background-color 180ms var(--ease-out-quart);
   letter-spacing: -0.005em;
   white-space: nowrap;
   background: none;
@@ -302,13 +297,14 @@ const mobileMoreItems = computed(() => {
 
 .nav-link:hover {
   color: var(--ink);
-  background: var(--canvas-deep);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .nav-link.active {
   color: var(--accent);
   font-weight: 600;
-  background: var(--accent-soft);
+  background: rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06) inset;
 }
 
 .nav-divider {
@@ -319,34 +315,30 @@ const mobileMoreItems = computed(() => {
 }
 
 /* ── Theme Switcher ── */
-.theme-switcher {
+.theme-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.theme-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  background: var(--dot-color);
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklch, var(--surface) 90%, var(--canvas) 10%);
+  border: 1px solid var(--border);
+  color: var(--ink);
   cursor: pointer;
-  padding: 0;
-  transition: all 0.2s;
-  opacity: 0.5;
+  transition: all 0.25s var(--ease-out-quart);
+  box-shadow: var(--shadow-sm);
 }
 
-.theme-dot:hover {
-  opacity: 0.85;
-  transform: scale(1.2);
+.theme-toggle-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--border-interactive);
+  transform: scale(1.05) rotate(15deg);
 }
 
-.theme-dot.active {
-  opacity: 1;
-  border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--canvas);
-  transform: scale(1.15);
+.theme-icon {
+  transition: transform 0.3s ease;
 }
 
 .user-area {
@@ -453,10 +445,14 @@ const mobileMoreItems = computed(() => {
   align-items: stretch;
   gap: 2px;
   padding: 8px;
-  background: var(--nav-bg);
+  background: color-mix(in oklch, var(--nav-bg) 90%, var(--canvas) 10%);
   border-radius: 20px;
-  border: 1px solid var(--border);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
+  border: 1px solid color-mix(in oklch, var(--border) 78%, var(--ink-muted) 22%);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, var(--canvas) 75%, transparent) inset,
+    0 -10px 30px color-mix(in oklch, var(--ink) 11%, transparent);
+  backdrop-filter: blur(10px) saturate(1.06);
+  -webkit-backdrop-filter: blur(10px) saturate(1.06);
   min-width: 140px;
   white-space: nowrap;
   z-index: 10002;
@@ -530,16 +526,16 @@ const mobileMoreItems = computed(() => {
     transform: translateX(-50%);
     width: calc(100% - 32px);
     max-width: 360px;
-    background: oklch(0.97 0.01 80 / 0.98);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: color-mix(in oklch, var(--nav-bg) 92%, var(--canvas) 8%);
+    backdrop-filter: blur(10px) saturate(1.06);
+    -webkit-backdrop-filter: blur(10px) saturate(1.06);
     flex-direction: column;
     align-items: stretch;
     padding: 12px;
     gap: 2px;
     border-radius: 20px;
-    border: 1px solid var(--border);
-    box-shadow: 0 8px 32px oklch(0.25 0.02 50 / 0.12);
+    border: 1px solid color-mix(in oklch, var(--border) 78%, var(--ink-muted) 22%);
+    box-shadow: 0 14px 36px color-mix(in oklch, var(--ink) 12%, transparent);
   }
 
   .nav-links.open {
@@ -556,11 +552,6 @@ const mobileMoreItems = computed(() => {
     width: 100%;
     height: 1px;
     margin: 6px 0;
-  }
-
-  .theme-switcher {
-    justify-content: center;
-    padding: 4px 0;
   }
 
   .user-area {

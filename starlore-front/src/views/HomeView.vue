@@ -44,17 +44,13 @@ const userStore = useUserStore()
 const themeStore = useThemeStore()
 
 const themeColors: Record<string, string> = {
-  default: '#E85D2A',
+  light: '#E85D2A',
   dark: '#6385FF',
-  green: '#4A8C5C',
-  pink: '#D4638F',
 }
 
 const themeSecondaryColors: Record<string, string> = {
-  default: '#FFAE19', // Amber
-  dark: '#E5B869',    // Soft starlight gold
-  green: '#C49A3A',   // Olive gold
-  pink: '#FFE4E1',    // Misty rose
+  light: '#FFAE19', // Amber
+  dark: '#E5B869',  // Soft starlight gold
 }
 
 const demoArticles: Article[] = [

@@ -178,10 +178,42 @@ export async function evaluateRag(body: {
 export type ArticleChunkItem = {
   id: number
   articleId: number
+  articleTitle?: string
+  articleCategory?: string
   chunkIndex: number
   content: string
   tokenCount: number
   isEnabled: number
+}
+
+export type ChunkPageResponse = {
+  items: ArticleChunkItem[]
+  pagination: {
+    current: number
+    total: number
+    pages: number
+    limit: number
+  }
+  categories: string[]
+  articles?: { id: number; title: string; category?: string }[]
+}
+
+export async function getAllArticleChunks(params: {
+  page?: number
+  limit?: number
+  category?: string
+  articleId?: number
+  search?: string
+} = {}) {
+  const queryParams = {
+    ...params,
+    article_id: params.articleId,
+  }
+  return (await request.get('/articles/chunks', { params: queryParams })) as {
+    success: boolean
+    message: string
+    data: ChunkPageResponse
+  }
 }
 
 export async function getArticleChunks(articleId: number) {
@@ -201,6 +233,13 @@ export async function updateChunk(chunkId: number, data: { content?: string; isE
 
 export async function reindexArticle(articleId: number) {
   return (await request.post(`/articles/${articleId}/reindex`)) as {
+    success: boolean
+    message: string
+  }
+}
+
+export async function reindexAllArticles() {
+  return (await request.post('/articles/reindex')) as {
     success: boolean
     message: string
   }
@@ -238,5 +277,80 @@ export async function submitMessageFeedback(
   return (await request.post(`/ai/messages/${messageId}/feedback`, data)) as {
     success: boolean
     message: string
+  }
+}
+
+export type KnowledgeDocumentRow = {
+  id: number
+  fileName: string
+  fileType: string
+  fileSize: number
+  fileUrl: string
+  extractedText: string
+  status: string
+  chunkCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export async function getKnowledgeDocuments() {
+  return (await request.get('/ai/documents')) as {
+    success: boolean
+    documents: KnowledgeDocumentRow[]
+  }
+}
+
+export async function uploadKnowledgeDocument(formData: FormData) {
+  return (await request.post('/ai/documents/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })) as {
+    success: boolean
+    document: KnowledgeDocumentRow
+  }
+}
+
+export async function updateKnowledgeDocumentText(id: number, extractedText: string) {
+  return (await request.put(`/ai/documents/${id}`, { extractedText })) as {
+    success: boolean
+  }
+}
+
+export async function deleteKnowledgeDocument(id: number) {
+  return (await request.delete(`/ai/documents/${id}`)) as {
+    success: boolean
+  }
+}
+
+export async function getDocumentChunks(docId: number) {
+  return (await request.get(`/ai/documents/${docId}/chunks`)) as {
+    success: boolean
+    message?: string
+    data: ArticleChunkItem[]
+  }
+}
+
+export async function parseFile(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return (await request.post('/ai/parse-file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })) as {
+    success: boolean
+    filename?: string
+    text?: string
+    error?: string
+  }
+}
+
+export async function confirmKnowledgeDocument(data: {
+  fileName: string
+  fileType?: string
+  fileSize?: number
+  extractedText: string
+}) {
+  return (await request.post('/ai/documents/confirm', data)) as {
+    success: boolean
+    document?: KnowledgeDocumentRow
+    message?: string
   }
 }

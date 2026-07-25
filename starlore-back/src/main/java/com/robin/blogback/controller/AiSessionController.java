@@ -114,7 +114,7 @@ public class AiSessionController {
         if (config == null) {
             config = new com.robin.blogback.entity.AgentConfig();
             config.setUserId(userId);
-            config.setModelName("glm-4-flash");
+            config.setModelName("deepseek-chat");
             config.setSimilarityThreshold(0.6);
             config.setTopK(5);
             config.setTemperature(0.7);

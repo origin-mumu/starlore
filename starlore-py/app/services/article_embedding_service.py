@@ -6,20 +6,14 @@ import re
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article import Article
-from app.services import ai_config_service
+from app.services import ai_config_service, knowledge_chunk_service
+
 
 logger = logging.getLogger(__name__)
-
-_text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=2000,
-    chunk_overlap=200,
-    separators=["\n\n", "\n", "。", "！", "？", ".", "!", "?", " "],
-)
 
 _vector_store: FAISS | None = None
 _embeddings: Embeddings | None = None
@@ -29,44 +23,65 @@ class _ZhipuEmbeddings(Embeddings):
     """智谱 Embedding 封装，兼容 LangChain Embeddings 接口。"""
 
     def __init__(self, base_url: str, api_key: str, model: str):
-        import httpx
-        self._url = base_url.rstrip("/") + "/embeddings"
+        url = base_url.rstrip("/")
+        if not url.endswith("/embeddings"):
+            url += "/embeddings"
+        self._url = url
         self._api_key = api_key
-        self._model = model
+        self._model = model or "embedding-2"
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         import httpx
+        if not texts:
+            return []
+
+        batch_size = 16
+        all_embeddings: list[list[float]] = []
+
         with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                self._url,
-                json={"model": self._model, "input": texts},
-                headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [item["embedding"] for item in data["data"]]
+            for i in range(0, len(texts), batch_size):
+                batch = [t if t and t.strip() else " " for t in texts[i : i + batch_size]]
+                resp = client.post(
+                    self._url,
+                    json={"model": self._model, "input": batch},
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                if resp.status_code >= 400:
+                    logger.error(
+                        "[RAG Embedding 异常] 智谱 API 返回 HTTP %d: %s (URL: %s, Model: %s)",
+                        resp.status_code,
+                        resp.text,
+                        self._url,
+                        self._model,
+                    )
+                    resp.raise_for_status()
+                data = resp.json()
+                embeddings = [item["embedding"] for item in data.get("data", [])]
+                all_embeddings.extend(embeddings)
+
+        return all_embeddings
 
     def embed_query(self, text: str) -> list[float]:
-        return self.embed_documents([text])[0]
+        results = self.embed_documents([text])
+        return results[0] if results else []
 
 
 async def _get_embeddings(db: AsyncSession) -> Embeddings | None:
     """获取 Embedding 实例（从数据库配置）。"""
     global _embeddings
-    if _embeddings is not None:
-        return _embeddings
-
     config = await ai_config_service.get_config_by_key(db, "zhipu-embedding")
     if not config or not config.enabled or not config.apiKey:
-        logger.warning("[RAG] 未找到可用的 Embedding 配置，语义搜索已禁用")
+        logger.warning("[RAG] 未找到可用的 Embedding 配置（zhipu-embedding），语义搜索已禁用")
         return None
 
-    base_url = config.apiUrl
-    if base_url.endswith("/embeddings"):
-        base_url = base_url[: -len("/embeddings")]
+    base_url = config.apiUrl or "https://open.bigmodel.cn/api/paas/v4"
+    model_id = config.modelId or "embedding-2"
 
-    _embeddings = _ZhipuEmbeddings(base_url, config.apiKey, config.modelId)
-    logger.info("[RAG] 使用智谱 Embedding: %s, model: %s", base_url, config.modelId)
+    _embeddings = _ZhipuEmbeddings(base_url, config.apiKey, model_id)
+    logger.info("[RAG] 使用智谱 Embedding: %s, model: %s", base_url, model_id)
     return _embeddings
 
 
@@ -150,47 +165,38 @@ async def _ensure_vector_store(db: AsyncSession) -> FAISS | None:
 
 
 async def index_article(db: AsyncSession, article: Article) -> None:
-    """为文章建立向量索引。"""
+    """按数据库中的结构化切片为文章建立向量索引。"""
     store = await _ensure_vector_store(db)
     if store is None:
         return
 
-    text = _build_embedding_text(article)
-    if not text.strip():
-        return
-
-    # 分割文本
-    docs = _text_splitter.create_documents(
-        [text],
-        metadatas=[{
-            "articleId": article.id,
-            "userId": article.user_id,
-            "category": article.category or "",
-            "tags": ",".join(article.tags) if article.tags else "",
-        }],
-    )
-
-    # 先删除旧索引，再添加新索引
-    try:
-        store.delete([f"article-{article.id}"])
-    except Exception:
-        pass
-
-    for i, doc in enumerate(docs):
-        doc.metadata["doc_id"] = f"article-{article.id}-{i}"
-
-    store.add_documents(docs)
+    _delete_article_vectors(store, article.id)
+    chunks = await knowledge_chunk_service.rebuild_chunks(db, article)
+    await _add_chunk_documents(store, article, chunks)
     _save_vector_store()
-    logger.info("[RAG] 文章 %d 已索引", article.id)
+    logger.info("[RAG] 文章 %d 已按 %d 个结构化切片索引", article.id, len(chunks))
 
 
-async def remove_article(article_id: int) -> None:
+async def refresh_article_vectors(db: AsyncSession, article: Article) -> None:
+    """切片人工编辑或启停后，仅刷新向量，不重新切片。"""
+    store = await _ensure_vector_store(db)
+    if store is None:
+        return
+    chunks = await knowledge_chunk_service.ensure_chunks(db, article)
+    _delete_article_vectors(store, article.id)
+    await _add_chunk_documents(store, article, chunks)
+    _save_vector_store()
+
+
+async def remove_article(article_id: int, db: AsyncSession | None = None) -> None:
     """删除文章的向量索引。"""
+    if db is not None:
+        await knowledge_chunk_service.delete_chunks(db, article_id)
     store = _get_vector_store()
     if store is None:
         return
     try:
-        store.delete([f"article-{article_id}"])
+        _delete_article_vectors(store, article_id)
         _save_vector_store()
     except Exception as e:
         logger.warning("[RAG] 删除索引失败: %s", e)
@@ -209,54 +215,88 @@ async def reindex_all(db: AsyncSession, user_id: int) -> int:
     return count
 
 
-async def search_similar(db: AsyncSession, query: str, user_id: int, top_k: int = 5) -> list[Article]:
-    """语义搜索相似文章。"""
-    store = await _ensure_vector_store(db)
-    if store is None:
-        return []
-
-    # FAISS 搜索
-    results = store.similarity_search(query, k=top_k * 2)
-
-    # 过滤当前用户的文章
-    article_ids = set()
-    for doc in results:
-        meta = doc.metadata
-        if meta.get("userId") == user_id and not meta.get("placeholder"):
-            article_ids.add(meta.get("articleId"))
-
-    if not article_ids:
-        return []
-
-    result = await db.execute(select(Article).where(Article.id.in_(list(article_ids))))
-    return list(result.scalars().all())
-
-
-async def search_similar_public(db: AsyncSession, query: str, top_k: int = 5) -> list[Article]:
-    """语义搜索公开文章（游客模式）。"""
-    store = await _ensure_vector_store(db)
-    if store is None:
-        return []
-
-    # FAISS 搜索
-    results = store.similarity_search(query, k=top_k * 2)
-
-    # 提取 articleId 并过滤公开文章
-    article_ids = set()
-    for doc in results:
-        meta = doc.metadata
-        if not meta.get("placeholder") and meta.get("articleId"):
-            article_ids.add(meta.get("articleId"))
-
-    if not article_ids:
-        return []
-
-    result = await db.execute(
-        select(Article).where(
-            Article.id.in_(list(article_ids)),
-            Article.status == "published",
-            Article.is_public == True,
+async def _add_chunk_documents(store: FAISS, article: Article, chunks) -> None:
+    enabled = [chunk for chunk in chunks if chunk.isEnabled == 1]
+    if not enabled:
+        return
+    docs = [
+        Document(
+            page_content=chunk.content,
+            metadata={
+                "articleId": article.id,
+                "userId": article.user_id,
+                "articleTitle": article.title,
+                "category": article.category or "",
+                "tags": ",".join(article.tags) if article.tags else "",
+                "chunkId": chunk.id,
+                "chunkIndex": chunk.chunkIndex,
+            },
         )
-    )
-    return list(result.scalars().all())
+        for chunk in enabled
+    ]
+    ids = [f"article_{article.id}_chunk_{chunk.chunkIndex}" for chunk in enabled]
+    store.add_documents(docs, ids=ids)
 
+
+def _delete_article_vectors(store: FAISS, article_id: int) -> None:
+    ids: list[str] = []
+    for vector_id in list(store.index_to_docstore_id.values()):
+        doc = store.docstore.search(vector_id)
+        if isinstance(doc, Document) and doc.metadata.get("articleId") == article_id:
+            ids.append(vector_id)
+    existing = list(dict.fromkeys(ids))
+    if not existing:
+        return
+    try:
+        store.delete(existing)
+    except Exception as exc:
+        logger.debug("[RAG] 部分旧向量不存在，忽略清理异常: %s", exc)
+
+
+async def search_similar(
+    db: AsyncSession,
+    query: str,
+    user_id: int,
+    top_k: int = 5,
+    similarity_threshold: float = 0.5,
+    enable_rerank: int = 1,
+    category: str | None = None,
+    tag: str | None = None,
+) -> list[Article]:
+    """根据 Agent 调优参数（Top-K、相似度阈值、BM25 Rerank）真正执行检索。"""
+    store = await _ensure_vector_store(db)
+    if store is None:
+        return []
+
+    try:
+        results_with_scores = store.similarity_search_with_score(query, k=top_k * 4)
+    except Exception:
+        results = store.similarity_search(query, k=top_k * 2)
+        results_with_scores = [(doc, 0.0) for doc in results]
+
+    article_ids = []
+    seen = set()
+    for doc, distance in results_with_scores:
+        meta = doc.metadata
+        similarity = 1.0 / (1.0 + float(distance))
+        if meta.get("userId") == user_id and not meta.get("placeholder"):
+            if category and meta.get("category") != category:
+                continue
+            if tag:
+                doc_tags = (meta.get("tags") or "").split(",")
+                if tag not in doc_tags:
+                    continue
+            art_id = meta.get("articleId")
+            if art_id and art_id not in seen:
+                if similarity >= (similarity_threshold - 0.2):
+                    seen.add(art_id)
+                    article_ids.append(art_id)
+                    if len(article_ids) >= top_k:
+                        break
+
+    if not article_ids:
+        return []
+
+    result = await db.execute(select(Article).where(Article.id.in_(article_ids)))
+    articles = list(result.scalars().all())
+    return articles[:top_k]

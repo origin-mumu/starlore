@@ -191,45 +191,11 @@ public class GuestAiController {
         int remaining = Math.max(0, 20 - newCount);
 
         try {
-            // 1. 公开数据语义搜索 (RAG)
-            List<Article> matchedArticles = new ArrayList<>();
-            if (articleEmbeddingService != null) {
-                matchedArticles = articleEmbeddingService.searchSimilarPublic(message, 5);
-            }
-            if (matchedArticles.isEmpty()) {
-                // 回退到数据库关键词搜索
-                LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<Article>()
-                        .eq(Article::getStatus, "published")
-                        .eq(Article::getIsPublic, true)
-                        .and(w -> w.like(Article::getTitle, message).or().like(Article::getDescription, message))
-                        .orderByDesc(Article::getCreatedAt)
-                        .last("LIMIT 5");
-                matchedArticles = articleMapper.selectList(wrapper);
-            }
-
-            // 2. 格式化上下文
-            StringBuilder contextBuilder = new StringBuilder();
-            if (!matchedArticles.isEmpty()) {
-                contextBuilder.append("\n\n[参考公开知识库内容]\n");
-                contextBuilder.append("以下是与用户提问相关的公开文章内容：\n");
-                for (Article a : matchedArticles) {
-                    contextBuilder.append(String.format("--- \n文章标题：《%s》\n分类：%s\n摘要：%s\n",
-                            a.getTitle(), a.getCategory(), a.getDescription()));
-                    String content = a.getContent();
-                    if (content != null && !content.isEmpty()) {
-                        String plain = content.replaceAll("<[^>]+>", "").replaceAll("\\s+", " ").trim();
-                        if (plain.length() > 500) plain = plain.substring(0, 500) + "...";
-                        contextBuilder.append("内容详情: ").append(plain).append("\n");
-                    }
-                }
-                contextBuilder.append("\n在回答用户关于本站文章、星野分类或技术栈等问题时，请优先使用上述参考公开文章的内容作为事实根据。");
-            }
-
-            // 3. 构建 System Prompt
+            // 1. 构建 System Prompt
             String characterKey = (String) body.getOrDefault("character", "default");
             String charSystem = CHARACTER_SYSTEM_PROMPTS.getOrDefault(characterKey, CHARACTER_SYSTEM_PROMPTS.get("default"));
 
-            String finalSystemPrompt = charSystem + contextBuilder.toString() +
+            String finalSystemPrompt = charSystem +
                     "\n\n注意：你目前正在以'访客体验模式'与用户对话。用户每天有20次真实的AI对话额度。在回答完后，如果合适，请友好地提醒用户：'您可以随时登录，以解锁完整的个人云端空间、多Agent团队协作以及更高级的深度模型流式对话体验！'";
 
             // 4. 解析多轮对话历史

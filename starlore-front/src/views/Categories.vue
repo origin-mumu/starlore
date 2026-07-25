@@ -194,7 +194,7 @@ const confirmDeleteCat = async () => {
   font-family: inherit;
 }
 
-.categories-panel { padding: 8px; }
+.categories-panel { padding: 8px; background: #FFFFFF; }
 .categories-grid { display: grid; gap: 0; }
 
 .category-row {

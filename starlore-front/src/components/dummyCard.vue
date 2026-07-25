@@ -57,13 +57,14 @@ const formatDate = (dateString: string) => {
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  transition: all var(--transition);
+  transition: background var(--transition);
 }
 
 .article-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-card-hover);
+  background: color-mix(in oklch, var(--glass-bg) 88%, var(--accent-soft));
+  transform: translateY(-2px);
   border-color: var(--border-interactive);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* ── 封面图 ── */
@@ -86,16 +87,16 @@ const formatDate = (dateString: string) => {
 }
 
 .card-body {
-  padding: 20px;
+  padding: 22px 20px 18px;
   display: flex;
   flex-direction: column;
-  min-height: 160px;
+  min-height: 172px;
 }
 
 .tags-row {
   display: flex;
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
@@ -103,15 +104,20 @@ const formatDate = (dateString: string) => {
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.03em;
-  background: var(--tag-bg);
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  color: var(--ink-soft);
   padding: 3px 10px;
   border-radius: var(--radius-sm);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all var(--transition);
 }
 
 .card-title {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-family: var(--font-ui, Inter, "Noto Sans SC", system-ui, sans-serif);
+  font-size: 1.12rem;
   color: var(--ink);
   letter-spacing: -0.02em;
   line-height: 1.4;
@@ -129,7 +135,8 @@ const formatDate = (dateString: string) => {
 }
 
 .card-desc {
-  font-size: 0.88rem;
+  max-width: 70ch;
+  font-size: 0.86rem;
   color: var(--ink-soft);
   line-height: 1.7;
   margin-bottom: 16px;
@@ -146,7 +153,7 @@ const formatDate = (dateString: string) => {
   justify-content: space-between;
   align-items: center;
   padding-top: 14px;
-  border-top: 1px solid var(--border);
+  border-top: 0;
   font-size: 0.78rem;
   color: var(--ink-muted);
 }

@@ -1,3 +1,4 @@
+from app.models.agent_config import AgentConfig
 """Multi-Agent Planner-Executor-Reviewer 协作图。
 
 基于 LangGraph StateGraph 实现：

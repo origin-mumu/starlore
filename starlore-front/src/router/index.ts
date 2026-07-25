@@ -64,6 +64,7 @@ const router = createRouter({
         guestAllowed: true
       }
     },
+
     {
       path: '/echobot',
       name: 'echobot',

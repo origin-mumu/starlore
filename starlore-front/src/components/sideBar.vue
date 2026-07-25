@@ -169,21 +169,25 @@ onMounted(async () => {
 }
 
 .tag-pill {
-  background: var(--tag-bg);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   color: var(--ink-soft);
   padding: 5px 12px;
   border-radius: var(--radius-sm);
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: all var(--transition);
-  border: 1px solid transparent;
 }
 
 .tag-pill:hover {
-  background: var(--tag-hover);
+  background: rgba(255, 255, 255, 0.95);
   color: var(--accent);
   border-color: var(--border-interactive);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .empty-tags {

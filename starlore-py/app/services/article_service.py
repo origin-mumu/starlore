@@ -223,47 +223,30 @@ async def get_article_by_id(db: AsyncSession, user_id: int, article_id: int) -> 
 
 async def get_blog_stats(db: AsyncSession, user_id: int, is_admin: bool = False) -> dict:
     """获取博客统计信息。"""
-    base_filter = True if is_admin else (Article.user_id == user_id)
-
-    # 发布文章总数
-    total_articles_result = await db.execute(
-        select(func.count()).where(Article.status == "published", base_filter if not is_admin else True)
-    )
-    total_articles = total_articles_result.scalar() or 0
-
-    # 分类总数
-    if is_admin:
-        total_cats_result = await db.execute(select(func.count()).select_from(Category))
-    else:
-        total_cats_result = await db.execute(select(func.count()).where(Category.user_id == user_id))
-    total_categories = total_cats_result.scalar() or 0
-
-    # 总浏览量
-    if is_admin:
-        total_views_result = await db.execute(
-            select(func.coalesce(func.sum(Article.view_count), 0)).where(Article.status == "published")
-        )
-    else:
-        total_views_result = await db.execute(
-            select(func.coalesce(func.sum(Article.view_count), 0)).where(
-                Article.status == "published", Article.user_id == user_id
-            )
-        )
-    total_views = total_views_result.scalar() or 0
-
-    # 最近 4 篇文章
-    recent_query = select(Article).where(Article.status == "published")
+    # 基础过滤条件
+    article_filter = [Article.status == "published"]
+    category_filter = []
+    
     if not is_admin:
-        recent_query = recent_query.where(Article.user_id == user_id)
-    recent_query = recent_query.order_by(Article.createdAt.desc()).limit(4)
+        article_filter.append(Article.user_id == user_id)
+        category_filter.append(Category.user_id == user_id)
+
+    # 1. 发布文章总数
+    total_articles = (await db.execute(select(func.count()).where(*article_filter))).scalar() or 0
+
+    # 2. 分类总数
+    total_categories = (await db.execute(select(func.count()).where(*category_filter))).scalar() or 0
+
+    # 3. 总浏览量
+    total_views = (await db.execute(select(func.coalesce(func.sum(Article.view_count), 0)).where(*article_filter))).scalar() or 0
+
+    # 4. 最近 4 篇文章
+    recent_query = select(Article).where(*article_filter).order_by(Article.createdAt.desc()).limit(4)
     recent_result = await db.execute(recent_query)
     popular_articles = [_to_summary(a) for a in recent_result.scalars().all()]
 
-    # Top 5 分类
-    if is_admin:
-        cats_query = select(Category).order_by(Category.article_count.desc()).limit(5)
-    else:
-        cats_query = select(Category).where(Category.user_id == user_id).order_by(Category.article_count.desc()).limit(5)
+    # 5. Top 5 分类
+    cats_query = select(Category).where(*category_filter).order_by(Category.article_count.desc()).limit(5)
     cats_result = await db.execute(cats_query)
     popular_categories = [
         {"id": c.id, "name": c.name, "article_count": c.article_count}
@@ -335,6 +318,14 @@ async def create_article(db: AsyncSession, user_id: int, req: CreateArticleReque
     # 更新分类计数
     await _update_category_count(db, article.category, user_id)
 
+    # 自动建立向量索引
+    if article.status == "published":
+        try:
+            from app.services import article_embedding_service
+            await article_embedding_service.index_article(db, article)
+        except Exception as e:
+            logger.warning("[RAG] 自动索引新文章失败: %s", e)
+
     return article
 
 
@@ -363,7 +354,7 @@ async def update_article(db: AsyncSession, article_id: int, req: UpdateArticleRe
         article.status = req.status
     if req.is_public is not None:
         article.is_public = req.is_public
- 
+
     article.updatedAt = datetime.now()
     await db.flush()
 
@@ -371,6 +362,19 @@ async def update_article(db: AsyncSession, article_id: int, req: UpdateArticleRe
     if req.category is not None and req.category != old_category:
         await _update_category_count(db, old_category, article.user_id)
         await _update_category_count(db, req.category, article.user_id)
+
+    # 自动刷新向量索引
+    from app.services import article_embedding_service
+    if article.status == "published":
+        try:
+            await article_embedding_service.index_article(db, article)
+        except Exception as e:
+            logger.warning("[RAG] 自动刷新文章索引失败: %s", e)
+    else:
+        try:
+            await article_embedding_service.remove_article(article_id, db)
+        except Exception as e:
+            logger.warning("[RAG] 自动移除未发布文章向量失败: %s", e)
 
     return article
 
@@ -384,6 +388,13 @@ async def delete_article(db: AsyncSession, article_id: int) -> Article:
 
     category = article.category
     user_id = article.user_id
+
+    # 自动清理向量索引与切片
+    try:
+        from app.services import article_embedding_service
+        await article_embedding_service.remove_article(article_id, db)
+    except Exception as e:
+        logger.warning("[RAG] 自动删除文章向量失败: %s", e)
 
     await db.delete(article)
     await db.flush()

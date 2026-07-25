@@ -25,26 +25,32 @@ async def search_articles_impl(
     """搜索文章，优先语义搜索，回退关键词搜索。"""
     articles = []
 
-    # 尝试语义搜索
+    # 1. 尝试语义搜索（支持 category 和 tag 筛选）
     if keyword:
-        similar = await article_embedding_service.search_similar(db, keyword, user_id, top_k=10)
+        similar = await article_embedding_service.search_similar(
+            db, keyword, user_id, top_k=10, category=category, tag=tag
+        )
         if similar:
             articles = similar
 
-    # 回退关键词搜索
+    # 2. 语义搜索未命中（或过滤后为空），回退到关键词搜索
     if not articles and keyword:
+        conditions = [
+            Article.user_id == user_id,
+            Article.status == "published",
+            or_(
+                Article.title.ilike(f"%{keyword}%"),
+                Article.description.ilike(f"%{keyword}%"),
+            ),
+        ]
+        if category:
+            conditions.append(Article.category == category)
         result = await db.execute(
-            select(Article).where(
-                Article.user_id == user_id,
-                Article.status == "published",
-                or_(
-                    Article.title.ilike(f"%{keyword}%"),
-                    Article.description.ilike(f"%{keyword}%"),
-                ),
-            ).order_by(Article.createdAt.desc()).limit(10)
+            select(Article).where(*conditions).order_by(Article.createdAt.desc()).limit(10)
         )
         articles = list(result.scalars().all())
 
+    # 3. 兜底搜索
     if not articles:
         query = select(Article).where(Article.user_id == user_id, Article.status == "published")
         if category:
@@ -236,7 +242,7 @@ async def delete_article_impl(db: AsyncSession, user_id: int, article_id: int) -
     await db.delete(article)
     await db.flush()
 
-    await article_embedding_service.remove_article(article_id)
+    await article_embedding_service.remove_article(article_id, db)
     return json.dumps({"success": True, "message": "文章删除成功"}, ensure_ascii=False)
 
 

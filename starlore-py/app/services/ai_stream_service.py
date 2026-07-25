@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
-async def _resolve_model(db: AsyncSession, model: str) -> ChatOpenAI:
+async def _resolve_model(db: AsyncSession, model: str, temperature: float = 0.7) -> ChatOpenAI:
     """解析模型配置，返回 LangChain ChatOpenAI 实例。"""
     # 优先从数据库读取配置
     db_config = await ai_config_service.get_config_by_key(db, model)
@@ -34,6 +34,7 @@ async def _resolve_model(db: AsyncSession, model: str) -> ChatOpenAI:
             base_url=base_url,
             api_key=db_config.apiKey,
             model=db_config.modelId,
+            temperature=temperature,
             streaming=True,
             **extra_kwargs,
         )

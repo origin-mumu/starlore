@@ -5,24 +5,16 @@ import { useThemeStore } from '@/stores/theme'
 const themeStore = useThemeStore()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
-// 全局背景使用的主题气泡颜色
+// 全局背景使用的主题气泡颜色（浅色模式具备多色彩搭配，深色模式具备极光夜空感）
 const themeBubbles: Record<string, string[]> = {
-  default: ['#FCC841', '#DFEFFC', '#DEDE92', '#DE4331', '#FE9750', '#FCC841'],
-  white: ['#C0C0C0', '#D8D8D8', '#E8E8E8'],
-  dark: ['#16007B'],
-  green: ['#EDDD62', '#9EE7D1', '#84D68A', '#EDDD62', '#88E6E5', '#A7F3D0'],
-  blue: ['#f7da3987', '#8fdbe9', '#fffef8'],
-  pink: ['#ff9a9e', '#fecfef', '#ffd93d'],
+  light: ['#DE4331', '#35BFAB', '#2FCBE7', '#D4638F', '#FCC841', '#FE9750'],
+  dark: ['#16007B', '#2A48F3', '#35BFAB', '#51D0B9', '#8B5CF6'],
 }
 
-// 深色主题需要调整滤镜强度
+// 滤镜强度
 const themeFilter: Record<string, string> = {
-  default: 'blur(50px)',
-  white: 'blur(50px)',
+  light: 'blur(50px)',
   dark: 'blur(40px)',
-  green: 'blur(50px)',
-  blue: 'blur(50px)',
-  pink: 'blur(50px)',
 }
 
 // Simplex Noise
@@ -122,7 +114,7 @@ const TARGET_FPS = 6
 
 function createBubbles(canvasWidth: number, canvasHeight: number) {
   bubbles = []
-  const colors = themeBubbles[themeStore.current] || themeBubbles.default
+  const colors = themeBubbles[themeStore.current] || themeBubbles.light
   const minDist = Math.max(MIN_RADIUS * 0.2, 80)
   const maxTries = 5000
   let tries = 0
@@ -216,16 +208,11 @@ function updatePhysics(t: number) {
 function draw(ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, width, height)
 
-  // 配色来自主题预设，但背景只承担氛围层，避免大色块压过正文。
   const themeAlpha: Record<string, number> = {
-    default: 0.32,
-    white: 0.2,
+    light: 0.32,
     dark: 0.45,
-    green: 0.28,
-    blue: 0.3,
-    pink: 0.3,
   }
-  const alpha = themeAlpha[themeStore.current] ?? 0.3
+  const alpha = themeAlpha[themeStore.current] ?? 0.32
 
   for (const b of bubbles) {
     ctx.save()
@@ -280,7 +267,7 @@ function resize() {
 }
 
 function updateBubbleColors() {
-  const colors = themeBubbles[themeStore.current] || themeBubbles.default
+  const colors = themeBubbles[themeStore.current] || themeBubbles.light
   bubbles.forEach((b, i) => {
     b.color = colors[i % colors.length]
   })
@@ -288,7 +275,7 @@ function updateBubbleColors() {
   // 更新 canvas 的滤镜强度
   const canvas = canvasRef.value
   if (canvas) {
-    const filter = themeFilter[themeStore.current] || themeFilter.default
+    const filter = themeFilter[themeStore.current] || themeFilter.light
     canvas.style.filter = filter
   }
 }

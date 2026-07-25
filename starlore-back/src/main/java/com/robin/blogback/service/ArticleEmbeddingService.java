@@ -41,6 +41,9 @@ public class ArticleEmbeddingService {
     @Autowired
     private ArticleMapper articleMapper;
 
+    @Autowired
+    private KnowledgeChunkService knowledgeChunkService;
+
     /**
      * 索引单篇文章到向量存储
      */
@@ -48,17 +51,20 @@ public class ArticleEmbeddingService {
         if (vectorStore == null) return;
         if (article == null || article.getId() == null) return;
 
-        String text = buildEmbeddingText(article);
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("articleId", article.getId());
-        metadata.put("userId", article.getUserId());
-        metadata.put("category", article.getCategory() != null ? article.getCategory() : "");
-        metadata.put("tags", article.getTags() != null ? String.join(",", article.getTags()) : "");
-
-        Document doc = new Document("article_" + article.getId(), text, metadata);
-        vectorStore.add(List.of(doc));
+        deleteArticleVectors(article.getId(), knowledgeChunkService.getChunks(article.getId()));
+        List<com.robin.blogback.entity.ArticleChunk> chunks = knowledgeChunkService.rebuildChunks(article);
+        addChunkDocuments(article, chunks);
         scheduleSave();
-        log.info("[RAG] 已索引文章: id={}, title={}", article.getId(), article.getTitle());
+        log.info("[RAG] 已索引文章切片: id={}, title={}, chunks={}",
+                article.getId(), article.getTitle(), chunks.size());
+    }
+
+    public synchronized void refreshArticleVectors(Article article) {
+        if (vectorStore == null || article == null || article.getId() == null) return;
+        List<com.robin.blogback.entity.ArticleChunk> chunks = knowledgeChunkService.ensureChunks(article);
+        deleteArticleVectors(article.getId(), chunks);
+        addChunkDocuments(article, chunks);
+        scheduleSave();
     }
 
     /**
@@ -66,7 +72,9 @@ public class ArticleEmbeddingService {
      */
     public synchronized void removeArticle(Integer articleId) {
         if (vectorStore == null) return;
-        vectorStore.delete(List.of("article_" + articleId));
+        List<com.robin.blogback.entity.ArticleChunk> chunks = knowledgeChunkService.getChunks(articleId);
+        deleteArticleVectors(articleId, chunks);
+        knowledgeChunkService.deleteChunks(articleId);
         scheduleSave();
         log.info("[RAG] 已移除文章向量: id={}", articleId);
     }
@@ -85,23 +93,11 @@ public class ArticleEmbeddingService {
                         .eq(Article::getUserId, userId)
                         .eq(Article::getStatus, "published"));
 
-        List<Document> documents = new ArrayList<>();
         for (Article article : articles) {
-            String text = buildEmbeddingText(article);
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("articleId", article.getId());
-            metadata.put("userId", article.getUserId());
-            metadata.put("category", article.getCategory() != null ? article.getCategory() : "");
-            metadata.put("tags", article.getTags() != null ? String.join(",", article.getTags()) : "");
-            documents.add(new Document("article_" + article.getId(), text, metadata));
+            indexArticle(article);
         }
-
-        if (!documents.isEmpty()) {
-            vectorStore.add(documents);
-            scheduleSave();
-        }
-        log.info("[RAG] 已重新索引 {} 篇文章 (userId={})", documents.size(), userId);
-        return documents.size();
+        log.info("[RAG] 已重新索引 {} 篇文章 (userId={})", articles.size(), userId);
+        return articles.size();
     }
 
     /**
@@ -111,13 +107,9 @@ public class ArticleEmbeddingService {
         if (vectorStore == null) return Collections.emptyList();
 
         try {
-            SearchRequest request = SearchRequest.builder()
-                    .query(query)
-                    .topK(topK)
-                    .similarityThreshold(0.3)
-                    .build();
-
-            List<Document> results = vectorStore.similaritySearch(request);
+            List<Document> results = vectorStore.similaritySearch(
+                    SearchRequest.builder().query(query).topK(Math.max(topK * 3, topK))
+                            .similarityThreshold(0.3).build());
             if (results == null || results.isEmpty()) return Collections.emptyList();
 
             // 过滤当前用户的文档，提取 articleId
@@ -131,6 +123,8 @@ public class ArticleEmbeddingService {
                         return id != null ? Integer.parseInt(id.toString()) : null;
                     })
                     .filter(Objects::nonNull)
+                    .distinct()
+                    .limit(topK)
                     .collect(Collectors.toList());
 
             if (articleIds.isEmpty()) return Collections.emptyList();
@@ -142,45 +136,6 @@ public class ArticleEmbeddingService {
                             .eq(Article::getStatus, "published"));
         } catch (Exception e) {
             log.error("[RAG] 语义搜索失败: {}", e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    /**
-     * 访客语义搜索公开相关文章
-     */
-    public List<Article> searchSimilarPublic(String query, int topK) {
-        if (vectorStore == null) return Collections.emptyList();
-
-        try {
-            SearchRequest request = SearchRequest.builder()
-                    .query(query)
-                    .topK(topK)
-                    .similarityThreshold(0.3)
-                    .build();
-
-            List<Document> results = vectorStore.similaritySearch(request);
-            if (results == null || results.isEmpty()) return Collections.emptyList();
-
-            // 提取 articleId（不需要按 userId 过滤，公开文章即可）
-            List<Integer> articleIds = results.stream()
-                    .map(doc -> {
-                        Object id = doc.getMetadata().get("articleId");
-                        return id != null ? Integer.parseInt(id.toString()) : null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
-            if (articleIds.isEmpty()) return Collections.emptyList();
-
-            // 批量查询公开文章 (published 且 isPublic = true)
-            return articleMapper.selectList(
-                    new LambdaQueryWrapper<Article>()
-                            .in(Article::getId, articleIds)
-                            .eq(Article::getStatus, "published")
-                            .eq(Article::getIsPublic, true));
-        } catch (Exception e) {
-            log.error("[RAG] 访客公开语义搜索失败: {}", e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -216,6 +171,37 @@ public class ArticleEmbeddingService {
     private synchronized void scheduleSave() {
         if (pendingSave != null) pendingSave.cancel(false);
         pendingSave = persistenceExecutor.schedule(this::saveToFile, 500, TimeUnit.MILLISECONDS);
+    }
+
+    private void addChunkDocuments(Article article, List<com.robin.blogback.entity.ArticleChunk> chunks) {
+        List<Document> documents = chunks.stream()
+                .filter(chunk -> Integer.valueOf(1).equals(chunk.getIsEnabled()))
+                .map(chunk -> {
+                    Map<String, Object> metadata = new HashMap<>();
+                    metadata.put("articleId", article.getId());
+                    metadata.put("userId", article.getUserId());
+                    metadata.put("articleTitle", article.getTitle());
+                    metadata.put("category", article.getCategory() != null ? article.getCategory() : "");
+                    metadata.put("tags", article.getTags() != null ? String.join(",", article.getTags()) : "");
+                    metadata.put("chunkId", chunk.getId());
+                    metadata.put("chunkIndex", chunk.getChunkIndex());
+                    return new Document(chunkDocumentId(article.getId(), chunk.getChunkIndex()),
+                            chunk.getContent(), metadata);
+                })
+                .toList();
+        if (!documents.isEmpty()) vectorStore.add(documents);
+    }
+
+    private void deleteArticleVectors(
+            Integer articleId, List<com.robin.blogback.entity.ArticleChunk> chunks) {
+        List<String> ids = new ArrayList<>();
+        ids.add("article_" + articleId);
+        chunks.forEach(chunk -> ids.add(chunkDocumentId(articleId, chunk.getChunkIndex())));
+        vectorStore.delete(ids);
+    }
+
+    private String chunkDocumentId(Integer articleId, Integer chunkIndex) {
+        return "article_" + articleId + "_chunk_" + chunkIndex;
     }
 
     private synchronized void saveToFile() {

@@ -3,10 +3,16 @@ import { ref, watch } from 'vue'
 
 const THEME_KEY = 'ro_blog_theme'
 
-export type ThemeName = 'default' | 'white' | 'dark' | 'green' | 'blue' | 'pink'
+export type ThemeName = 'light' | 'dark'
+
+function normalizeTheme(val: string | null): ThemeName {
+  if (val === 'dark') return 'dark'
+  return 'light'
+}
 
 export const useThemeStore = defineStore('theme', () => {
-  const saved = (localStorage.getItem(THEME_KEY) as ThemeName) || 'default'
+  const rawSaved = localStorage.getItem(THEME_KEY)
+  const saved = normalizeTheme(rawSaved)
   const current = ref<ThemeName>(saved)
 
   const setTheme = (name: ThemeName) => {
@@ -15,15 +21,18 @@ export const useThemeStore = defineStore('theme', () => {
     document.documentElement.setAttribute('data-theme', name)
   }
 
-  // 初始化时同步到 html
-  if (saved !== 'default') {
-    document.documentElement.setAttribute('data-theme', saved)
+  const toggleTheme = () => {
+    setTheme(current.value === 'dark' ? 'light' : 'dark')
   }
+
+  // 初始化同步到 html
+  document.documentElement.setAttribute('data-theme', saved)
 
   // 监听变化自动同步
   watch(current, (val) => {
     document.documentElement.setAttribute('data-theme', val)
   })
 
-  return { current, setTheme }
+  return { current, setTheme, toggleTheme }
 })
+

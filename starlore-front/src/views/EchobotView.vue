@@ -70,16 +70,27 @@ const toolStatus = ref<string | null>(null)
 const agentConfigDrawerOpen = ref(false)
 const agentConfigLoading = ref(false)
 const agentConfigForm = reactive({
-  modelName: 'glm-4-flash',
+  modelName: 'deepseek-chat',
   similarityThreshold: 0.6,
   topK: 5,
   temperature: 0.7,
   enableRerank: 1
 })
 
+const availableModels = ref<{ id: string; name: string; configured?: boolean }[]>([
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+  { id: 'mimo', name: '小米 MiMo' }
+])
+
 async function openAgentConfigDrawer() {
   agentConfigDrawerOpen.value = true
   agentConfigLoading.value = true
+  try {
+    const modelRes = await getAiModels()
+    if (modelRes && modelRes.models && modelRes.models.length) {
+      availableModels.value = modelRes.models.filter(m => !m.id.includes('embedding'))
+    }
+  } catch {}
   try {
     const res = await getAgentConfig()
     if (res.success && res.data) {

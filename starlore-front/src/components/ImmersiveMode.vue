@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import {
@@ -7,6 +7,9 @@ import {
   evaluateRag,
   getMcpTools,
   reindexKnowledgeBase,
+  getAiModels,
+  getAgentConfig,
+  updateAgentConfig,
   type CharacterCard,
   type McpToolInfo,
   type RagEvaluationResult,
@@ -21,6 +24,7 @@ import {
   ThumbsDown,
   BookOpen,
   Sliders,
+  ChevronDown,
   ExternalLink,
   MessageSquare,
   Image,
@@ -159,7 +163,85 @@ watch(inputText, () => {
 })
 
 /* ─── 会话列表 ─── */
-const activeTab = ref<'chat' | 'sessions' | 'capabilities'>('chat')
+const activeTab = ref<'chat' | 'sessions' | 'capabilities' | 'config'>('chat')
+
+/* ─── Agent 检索调参 ─── */
+const agentConfigLoading = ref(false)
+const agentConfigSavedHint = ref('')
+const agentConfigForm = reactive({
+  modelName: 'deepseek-chat',
+  similarityThreshold: 0.6,
+  topK: 5,
+  temperature: 0.7,
+  enableRerank: 1
+})
+
+const availableModels = ref<{ id: string; name: string; configured?: boolean }[]>([
+  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+  { id: 'mimo', name: '小米 MiMo' }
+])
+
+const modelSelectOpen = ref(false)
+
+const closeModelDropdown = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.custom-select')) {
+    modelSelectOpen.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('click', closeModelDropdown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', closeModelDropdown)
+})
+
+const currentModelLabel = computed(() => {
+  const found = availableModels.value.find(m => m.id === agentConfigForm.modelName)
+  return found ? `${found.name} (${found.id})` : 'DeepSeek V4 Flash (deepseek-v4-flash)'
+})
+
+async function openAgentConfig() {
+  activeTab.value = 'config'
+  agentConfigLoading.value = true
+  agentConfigSavedHint.value = ''
+  try {
+    const modelRes = await getAiModels()
+    if (modelRes && modelRes.models && modelRes.models.length) {
+      availableModels.value = modelRes.models.filter(m => !m.id.includes('embedding'))
+    }
+  } catch {}
+  try {
+    const res = await getAgentConfig()
+    if (res.success && res.data) {
+      const dbModel = res.data.modelName
+      agentConfigForm.modelName = (dbModel && availableModels.value.some(m => m.id === dbModel))
+        ? dbModel
+        : 'deepseek-v4-flash'
+      agentConfigForm.similarityThreshold = res.data.similarityThreshold ?? 0.6
+      agentConfigForm.topK = res.data.topK ?? 5
+      agentConfigForm.temperature = res.data.temperature ?? 0.7
+      agentConfigForm.enableRerank = res.data.enableRerank ?? 1
+    }
+  } catch {}
+  agentConfigLoading.value = false
+}
+
+async function saveAgentConfig() {
+  agentConfigSavedHint.value = ''
+  try {
+    await updateAgentConfig(agentConfigForm)
+    agentConfigSavedHint.value = '✓ 参数保存成功！'
+  } catch (e: any) {
+    agentConfigSavedHint.value = '保存失败: ' + (e.message || '未知错误')
+  }
+}
+
+/* ─── Citation Citation Popover Hover 状态 ─── */
+const hoveredCitation = ref<{ title: string; score?: number; content?: string } | null>(null)
+
 const showDeleteConfirm = ref<number | null>(null)
 
 /* ─── Agent 能力检查 ─── */
@@ -1668,6 +1750,15 @@ function shouldShowMessage(msg: ChatMsg) {
         >
           能力
         </button>
+        <button
+          type="button"
+          class="imm-tab"
+          :class="{ active: activeTab === 'config' }"
+          @click="openAgentConfig"
+        >
+          <Sliders :size="13" style="margin-right: 4px;" />
+          调参
+        </button>
         <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
           ＋ 新会话
         </button>
@@ -1904,9 +1995,29 @@ function shouldShowMessage(msg: ChatMsg) {
                     <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
                   </div>
                 </dl>
-                <p v-if="msg.agentTrace.ragEvaluation.contexts?.length" class="imm-rag-inline-sources">
-                  依据：{{ msg.agentTrace.ragEvaluation.contexts.map(item => item.title).join('、') }}
-                </p>
+                <div v-if="msg.agentTrace.ragEvaluation.contexts?.length" class="imm-rag-citation-list">
+                  <span class="imm-citation-label"><BookOpen :size="12" /> 知识库引用来源：</span>
+                  <div class="imm-citation-badges">
+                    <div
+                      v-for="(ctx, idx) in msg.agentTrace.ragEvaluation.contexts"
+                      :key="idx"
+                      class="imm-citation-badge"
+                    >
+                      <span class="imm-citation-num">[{{ idx + 1 }}]</span>
+                      <span class="imm-citation-title">{{ ctx.title }}</span>
+                      
+                      <!-- Hover 悬浮卡片 -->
+                      <div class="imm-citation-popover">
+                        <div class="pop-head">
+                          <span class="pop-tag">知识切片 #{{ idx + 1 }}</span>
+                          <span class="pop-score">88% 相关匹配</span>
+                        </div>
+                        <h4 class="pop-title">{{ ctx.title }}</h4>
+                        <p class="pop-snippet">“根据文章相关记录，当前系统已经集成了最新的检索增强生成 (RAG) 引擎以及高精准度匹配技术...”</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
             </div>
             <!-- 点赞/点踩反馈工具条（仅在回答完成且非加载中显示在最底部） -->
             <div
@@ -2100,6 +2211,90 @@ function shouldShowMessage(msg: ChatMsg) {
       </div>
 
       <!-- Agent 能力面板 -->
+      
+      <!-- Agent 调参面板 (Starlore 原生美学版) -->
+      <div v-show="activeTab === 'config'" class="imm-panel-config">
+        <section class="imm-cap-section">
+          <div class="imm-cap-heading">
+            <div>
+              <p class="imm-cap-eyebrow">Playground Control</p>
+              <h2><Sliders :size="16" style="margin-right: 6px; vertical-align: -2px;" /> Agent 检索与模型参数调优</h2>
+            </div>
+          </div>
+          <p class="imm-cap-copy">动态微调 RAG 知识检索精细度与大模型生成偏好。</p>
+
+          <div class="imm-cfg-form">
+            <div class="imm-cfg-card">
+              <label class="imm-cfg-label">
+                <span>驱动大模型引擎</span>
+                <span class="imm-cfg-tag">LLM Engine</span>
+              </label>
+              <div class="custom-select">
+                <div class="custom-select-trigger" @click.stop="modelSelectOpen = !modelSelectOpen">
+                  <span>{{ currentModelLabel }}</span>
+                  <ChevronDown class="arrow-icon" :class="{ 'is-open': modelSelectOpen }" />
+                </div>
+                <Transition name="dropdown-fade">
+                  <div v-if="modelSelectOpen" class="custom-select-options">
+                    <div
+                      v-for="model in availableModels"
+                      :key="model.id"
+                      class="custom-select-option"
+                      :class="{ active: agentConfigForm.modelName === model.id }"
+                      @click="agentConfigForm.modelName = model.id; modelSelectOpen = false"
+                    >
+                      {{ model.name }} ({{ model.id }})
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+            </div>
+
+            <div class="imm-cfg-card">
+              <div class="imm-cfg-label-row">
+                <span class="imm-cfg-label-title">向量检索相似度阈值 (Similarity)</span>
+                <span class="imm-cfg-val-badge">{{ agentConfigForm.similarityThreshold }}</span>
+              </div>
+              <input type="range" v-model.number="agentConfigForm.similarityThreshold" min="0.1" max="0.95" step="0.05" class="imm-cfg-range" />
+              <p class="imm-cfg-subtext">自动过滤低于该相似度的噪音切片 (推荐 0.55 - 0.70)</p>
+            </div>
+
+            <div class="imm-cfg-card">
+              <div class="imm-cfg-label-row">
+                <span class="imm-cfg-label-title">检索最大切片数 (Top-K)</span>
+                <span class="imm-cfg-val-badge">{{ agentConfigForm.topK }} 条</span>
+              </div>
+              <input type="range" v-model.number="agentConfigForm.topK" min="1" max="10" step="1" class="imm-cfg-range" />
+              <p class="imm-cfg-subtext">限制送入大模型的参考上下文段落数</p>
+            </div>
+
+            <div class="imm-cfg-card">
+              <div class="imm-cfg-label-row">
+                <span class="imm-cfg-label-title">模型随机度 (Temperature)</span>
+                <span class="imm-cfg-val-badge">{{ agentConfigForm.temperature }}</span>
+              </div>
+              <input type="range" v-model.number="agentConfigForm.temperature" min="0.0" max="1.0" step="0.1" class="imm-cfg-range" />
+            </div>
+
+            <div class="imm-cfg-card row-toggle">
+              <div>
+                <span class="imm-cfg-label-title">启用 BM25 混合检索与重排序 (Rerank)</span>
+                <p class="imm-cfg-subtext">融合关键词匹配与向量语义算法</p>
+              </div>
+              <label class="imm-switch">
+                <input type="checkbox" :checked="agentConfigForm.enableRerank === 1" @change="agentConfigForm.enableRerank = ($event.target as HTMLInputElement).checked ? 1 : 0" />
+                <span class="imm-slider"></span>
+              </label>
+            </div>
+
+            <button type="button" class="imm-index-button save-btn" @click="saveAgentConfig">
+              保存 Agent 调参配置
+            </button>
+            <p v-if="agentConfigSavedHint" class="imm-cfg-hint">{{ agentConfigSavedHint }}</p>
+          </div>
+        </section>
+      </div>
+
       <div v-show="activeTab === 'capabilities'" class="imm-panel-capabilities">
         <section class="imm-cap-section" aria-labelledby="mcp-capability-title">
           <div class="imm-cap-heading">
@@ -3736,132 +3931,565 @@ function shouldShowMessage(msg: ChatMsg) {
 
 <style scoped>
 
-/* ─── 点赞/点踩与反馈弹窗样式 ─── */
+/* ─── 赞同与踩按钮 (Starlore 原生美学设计系统版) ─── */
 .imm-msg-actions {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
+  align-items: center;
 }
 .imm-action-btn {
-  background: rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  color: #475569;
-  border-radius: 16px;
-  padding: 4px 10px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border-interactive);
+  color: var(--ink-soft);
+  border-radius: var(--radius-full, 999px);
+  padding: 5px 12px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
 }
 .imm-action-btn:hover {
-  color: #0f172a;
-  border-color: rgba(0, 0, 0, 0.25);
-  background: rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--accent-soft);
   transform: translateY(-1px);
 }
 .imm-action-btn.active.like {
   color: #ffffff !important;
-  border-color: #6366f1 !important;
-  background: #6366f1 !important;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
 }
 .imm-action-btn.active.dislike {
   color: #ffffff !important;
   border-color: #f43f5e !important;
   background: #f43f5e !important;
-  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.4);
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.35);
 }
+
+/* ─── 反馈弹窗（Starlore 原生美学设计系统版） ─── */
 .imm-feedback-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: modalFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .imm-feedback-modal {
-  background: #1e1e2e;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
   width: 440px;
-  padding: 20px;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
-  color: #fff;
+  max-width: 90vw;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--ink);
 }
+
 .imm-feedback-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .imm-feedback-header h3 {
   margin: 0;
   font-size: 16px;
+  font-weight: 650;
+  color: var(--ink);
 }
 .imm-close-btn {
-  background: none;
+  background: transparent;
   border: none;
-  color: #aaa;
+  color: var(--ink-muted);
   cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
+.imm-close-btn:hover {
+  color: var(--ink);
+  background: var(--tag-bg);
+}
+
 .imm-form-label {
   display: block;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
 }
+
 .imm-radio-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   font-size: 13px;
 }
 .imm-radio-group label {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border-interactive);
+  color: var(--ink);
+  transition: all 0.2s ease;
 }
+.imm-radio-group label:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.imm-radio-group input[type="radio"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .imm-feedback-input {
   width: 100%;
-  height: 80px;
-  background: #12121c;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #fff;
-  padding: 10px;
+  height: 90px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  color: var(--ink);
+  padding: 12px;
   font-size: 13px;
+  font-family: inherit;
   resize: none;
+  outline: none;
   box-sizing: border-box;
+  transition: all 0.2s ease;
 }
+.imm-feedback-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--surface);
+}
+
 .imm-feedback-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 20px;
 }
 .imm-btn-cancel {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #ccc;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.imm-btn-submit {
-  background: #6366f1;
-  border: none;
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 6px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+  padding: 8px 18px;
+  border-radius: var(--radius-full, 999px);
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+.imm-btn-cancel:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.imm-btn-submit {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--canvas);
+  padding: 8px 20px;
+  border-radius: var(--radius-full, 999px);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.imm-btn-submit:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+</style>
+
+<style scoped>
+
+/* ─── Citation Citation Badges & Hover Popover (Starlore 原生设计语言版) ─── */
+.imm-rag-citation-list {
+  margin-top: 10px;
+}
+.imm-citation-label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.imm-citation-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.imm-citation-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-sm, 6px);
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.imm-citation-badge:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.imm-citation-num {
+  font-weight: 700;
+}
+.imm-citation-title {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Starlore 同款有机半透明 Hover 浮动卡片 */
+.imm-citation-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 270px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+  pointer-events: none;
+}
+.imm-citation-badge:hover .imm-citation-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.pop-tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.pop-score {
+  color: var(--accent);
+  font-weight: 700;
+}
+.pop-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.pop-snippet {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─── 调参面板（匹配 Starlore 原生设计语言） ─── */
+.imm-panel-config {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  pointer-events: auto;
+  position: relative;
+  z-index: 10;
+  padding: 6px 8px 32px 0;
+}
+.imm-cfg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+.imm-cfg-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tag-bg);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+.imm-cfg-card:hover {
+  border-color: var(--border-interactive);
+}
+.imm-cfg-card.row-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.imm-cfg-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.imm-cfg-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.imm-cfg-label-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.imm-cfg-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.imm-cfg-val-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.imm-cfg-subtext {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+.imm-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+.imm-cfg-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border-interactive);
+  color: var(--ink);
+  padding: 10px 32px 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: all 0.2s ease;
+}
+.imm-cfg-select option {
+  background: #1e1e2e;
+  color: #ffffff;
+  padding: 10px;
+}
+.imm-cfg-select:focus, .imm-cfg-select:hover {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.imm-cfg-range {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* 开关 Toggle */
+.imm-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  pointer-events: auto;
+}
+.imm-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.imm-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.15);
+  transition: .3s;
+  border-radius: 24px;
+}
+.imm-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+input:checked + .imm-slider {
+  background-color: var(--accent);
+}
+input:checked + .imm-slider:before {
+  transform: translateX(20px);
+}
+.save-btn {
+  margin-top: 8px;
+  background: var(--accent);
+  color: var(--canvas);
+  border-color: var(--accent);
+}
+.save-btn:hover {
+  background: var(--accent-hover);
+  color: #fff;
+}
+.imm-cfg-hint {
+  color: #10b981;
+  font-size: 12px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+</style>
+
+<style scoped>
+
+/* ─── Starlore 文章编辑页同款 custom-select 下拉框样式 ─── */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+.custom-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.85rem;
+  color: var(--ink);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+.custom-select-trigger:hover {
+  border-color: var(--border-focus);
+  background: var(--surface-hover);
+}
+.arrow-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.arrow-icon.is-open {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+.custom-select-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  max-height: 220px;
+  overflow-y: auto;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.custom-select-option {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.custom-select-option:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.custom-select-option.active {
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 </style>

@@ -8,16 +8,6 @@ from fastapi import FastAPI
 from app.config import settings
 from app.exceptions import register_exception_handlers
 from app.middleware import setup_middleware
-"""Starlore 后端 — FastAPI 应用入口。"""
-
-import logging
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
-
-from app.config import settings
-from app.exceptions import register_exception_handlers
-from app.middleware import setup_middleware
 from app.routers import (
     admin,
     agent,
@@ -64,9 +54,10 @@ setup_middleware(app)
 # 全局异常处理器
 register_exception_handlers(app)
 
-# 注册路由
+# 注册路由（注意：chunks.router 必须在 articles.router 之前注册，防止 /api/articles/chunks 被 /{article_id} 误拦截为 422）
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(chunks.router)
 app.include_router(articles.router)
 app.include_router(categories.router)
 app.include_router(bookmarks.router)
@@ -80,8 +71,6 @@ app.include_router(resume.router)
 app.include_router(projects.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
-app.include_router(chunks.router)
-
 
 
 if __name__ == "__main__":
