@@ -1,16 +1,16 @@
 package com.robin.blogback.controller;
 
 import com.robin.blogback.dto.*;
-import com.robin.blogback.dto.Result;
+import com.robin.blogback.dto.SimpleResponse;
 import com.robin.blogback.service.AiQuotaService;
 import com.robin.blogback.service.AiService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import lombok.Data;
 import java.util.Map;
 
 @RestController
@@ -22,6 +22,12 @@ public class AiSessionController {
 
     @Autowired
     private AiQuotaService aiQuotaService;
+
+    @Autowired
+    private com.robin.blogback.mapper.AgentConfigMapper agentConfigMapper;
+
+    @Autowired
+    private com.robin.blogback.mapper.AiMessageFeedbackMapper aiMessageFeedbackMapper;
 
     @GetMapping("/models")
     public ResponseEntity<?> getModels() {
@@ -89,7 +95,6 @@ public class AiSessionController {
         }
     }
 
-    /** 获取当前用户 AI 配额信息 */
     @GetMapping("/quota")
     public ResponseEntity<?> getQuota(HttpServletRequest request) {
         Integer userId = (Integer) request.getAttribute("userId");
@@ -97,14 +102,8 @@ public class AiSessionController {
         return ResponseEntity.ok(Map.of("data", quota));
     }
 
-    @Autowired
-    private com.robin.blogback.mapper.AgentConfigMapper agentConfigMapper;
-
-    @Autowired
-    private com.robin.blogback.mapper.AiMessageFeedbackMapper aiMessageFeedbackMapper;
-
     @GetMapping("/agent-config")
-    public Result<com.robin.blogback.entity.AgentConfig> getAgentConfig(HttpServletRequest request) {
+    public SimpleResponse getAgentConfig(HttpServletRequest request) {
         Integer userIdInt = (Integer) request.getAttribute("userId");
         Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
 
@@ -122,7 +121,7 @@ public class AiSessionController {
             config.setEnableRerank(1);
             agentConfigMapper.insert(config);
         }
-        return Result.ok("获取Agent配置成功", config);
+        return SimpleResponse.ok("获取Agent配置成功", config);
     }
 
     @Data
@@ -135,7 +134,7 @@ public class AiSessionController {
     }
 
     @PutMapping("/agent-config")
-    public Result<String> updateAgentConfig(HttpServletRequest request, @RequestBody AgentConfigRequestDTO req) {
+    public SimpleResponse updateAgentConfig(HttpServletRequest request, @RequestBody AgentConfigRequestDTO req) {
         Integer userIdInt = (Integer) request.getAttribute("userId");
         Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
 
@@ -155,7 +154,7 @@ public class AiSessionController {
         if (req.getEnableRerank() != null) config.setEnableRerank(req.getEnableRerank());
         agentConfigMapper.updateById(config);
 
-        return Result.ok("Agent配置修改成功");
+        return SimpleResponse.ok("Agent配置修改成功");
     }
 
     @Data
@@ -167,7 +166,7 @@ public class AiSessionController {
     }
 
     @PostMapping("/messages/{messageId}/feedback")
-    public Result<String> submitFeedback(HttpServletRequest request, @PathVariable Long messageId, @RequestBody FeedbackRequestDTO req) {
+    public SimpleResponse submitFeedback(HttpServletRequest request, @PathVariable Long messageId, @RequestBody FeedbackRequestDTO req) {
         Integer userIdInt = (Integer) request.getAttribute("userId");
         Long userId = userIdInt != null ? userIdInt.longValue() : 1L;
 
@@ -180,6 +179,6 @@ public class AiSessionController {
         fb.setComment(req.getComment());
         aiMessageFeedbackMapper.insert(fb);
 
-        return Result.ok("反馈提交成功，感谢您的评价！");
+        return SimpleResponse.ok("反馈提交成功，感谢您的评价！");
     }
 }

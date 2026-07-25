@@ -1,7 +1,7 @@
 package com.robin.blogback.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.robin.blogback.dto.Result;
+import com.robin.blogback.dto.SimpleResponse;
 import com.robin.blogback.entity.Article;
 import com.robin.blogback.entity.ArticleChunk;
 import com.robin.blogback.mapper.ArticleChunkMapper;
@@ -40,75 +40,82 @@ public class KnowledgeChunkController {
     }
 
     @GetMapping("/chunks")
-    public Result<Map<String, Object>> getAllChunks(
+    public SimpleResponse getAllChunks(
             HttpServletRequest request,
+            @RequestParam(required = false) Long articleId,
+            @RequestParam(required = false) String articleCategory,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "12") int limit,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String search) {
+            @RequestParam(defaultValue = "12") int limit) {
+
         Integer userId = (Integer) request.getAttribute("userId");
-        if (userId == null) {
-            return Result.error("未登录");
+        List<Article> articles = articleMapper.selectList(
+                new LambdaQueryWrapper<Article>()
+                        .eq(userId != null, Article::getUserId, userId)
+                        .eq(articleCategory != null && !articleCategory.isEmpty(), Article::getCategory, articleCategory)
+        );
+
+        if (articles.isEmpty()) {
+            Map<String, Object> emptyPayload = new LinkedHashMap<>();
+            emptyPayload.put("items", List.of());
+            emptyPayload.put("pagination", Map.of("total", 0, "page", page, "limit", limit, "totalPages", 0));
+            emptyPayload.put("categories", List.of());
+            return SimpleResponse.ok("获取切片成功", emptyPayload);
         }
 
-        int safeLimit = Math.max(1, Math.min(limit, 48));
-        int safePage = Math.max(1, page);
-        LambdaQueryWrapper<Article> articleQuery = new LambdaQueryWrapper<Article>()
-                .eq(Article::getUserId, userId)
-                .orderByDesc(Article::getUpdatedAt);
-        if (category != null && !category.isBlank()) {
-            articleQuery.eq(Article::getCategory, category.trim());
+        Map<Integer, Article> articleMap = new LinkedHashMap<>();
+        for (Article article : articles) {
+            articleMap.put(article.getId(), article);
         }
-        List<Article> articles = articleMapper.selectList(articleQuery);
 
-        String normalizedSearch = search == null ? "" : search.trim().toLowerCase();
-        List<ChunkView> allMatches = articles.stream()
-                .flatMap(article -> knowledgeChunkService.ensureChunks(article).stream()
-                        .map(chunk -> toView(chunk, article)))
-                .filter(chunk -> normalizedSearch.isEmpty()
-                        || chunk.getContent().toLowerCase().contains(normalizedSearch)
-                        || chunk.getArticleTitle().toLowerCase().contains(normalizedSearch))
+        List<ArticleChunk> chunks = articleChunkMapper.selectList(
+                new LambdaQueryWrapper<ArticleChunk>()
+                        .in(ArticleChunk::getArticleId, articleMap.keySet())
+                        .eq(articleId != null, ArticleChunk::getArticleId, articleId)
+                        .orderByAsc(ArticleChunk::getArticleId)
+                        .orderByAsc(ArticleChunk::getChunkIndex)
+        );
+
+        List<ChunkView> allMatches = chunks.stream()
+                .filter(chunk -> {
+                    if (keyword == null || keyword.trim().isEmpty()) return true;
+                    return chunk.getContent() != null && chunk.getContent().toLowerCase().contains(keyword.trim().toLowerCase());
+                })
+                .map(chunk -> toView(chunk, articleMap.get(chunk.getArticleId() == null ? null : chunk.getArticleId().intValue())))
+                .filter(view -> view.getArticleTitle() != null)
                 .toList();
-
-        long total = allMatches.size();
-        int pages = Math.max(1, (int) Math.ceil((double) total / safeLimit));
-        safePage = Math.min(safePage, pages);
-        int from = Math.min((safePage - 1) * safeLimit, allMatches.size());
-        int to = Math.min(from + safeLimit, allMatches.size());
 
         List<String> categories = articleMapper.selectList(
-                        new LambdaQueryWrapper<Article>()
-                                .eq(Article::getUserId, userId)
-                                .select(Article::getCategory))
-                .stream()
-                .map(Article::getCategory)
-                .filter(value -> value != null && !value.isBlank())
-                .distinct()
-                .sorted()
-                .toList();
+                new LambdaQueryWrapper<Article>().eq(userId != null, Article::getUserId, userId)
+        ).stream().map(Article::getCategory).filter(c -> c != null && !c.isEmpty()).distinct().toList();
+
+        int total = allMatches.size();
+        int totalPages = (int) Math.ceil((double) total / limit);
+        int from = Math.min((page - 1) * limit, total);
+        int to = Math.min(from + limit, total);
 
         Map<String, Object> pagination = new LinkedHashMap<>();
-        pagination.put("current", safePage);
         pagination.put("total", total);
-        pagination.put("pages", pages);
-        pagination.put("limit", safeLimit);
+        pagination.put("page", page);
+        pagination.put("limit", limit);
+        pagination.put("totalPages", totalPages);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("items", allMatches.subList(from, to));
         payload.put("pagination", pagination);
         payload.put("categories", categories);
-        return Result.ok("获取切片成功", payload);
+        return SimpleResponse.ok("获取切片成功", payload);
     }
 
     @GetMapping("/{articleId}/chunks")
-    public Result<List<ArticleChunk>> getArticleChunks(@PathVariable Long articleId) {
+    public SimpleResponse getArticleChunks(@PathVariable Long articleId) {
         LambdaQueryWrapper<ArticleChunk> wrapper = new LambdaQueryWrapper<ArticleChunk>()
                 .eq(ArticleChunk::getArticleId, articleId)
                 .orderByAsc(ArticleChunk::getChunkIndex);
         List<ArticleChunk> chunks = articleChunkMapper.selectList(wrapper);
 
-        if (chunks.isEmpty()) chunks = knowledgeChunkService.ensureChunks(articleMapper.selectById(articleId));
-        return Result.ok("获取切片成功", chunks);
+        if (chunks.isEmpty() && articleId != null) chunks = knowledgeChunkService.ensureChunks(articleMapper.selectById(articleId.intValue()));
+        return SimpleResponse.ok("获取切片成功", chunks);
     }
 
     @Data
@@ -118,10 +125,10 @@ public class KnowledgeChunkController {
     }
 
     @PutMapping("/chunks/{chunkId}")
-    public Result<String> updateChunk(@PathVariable Long chunkId, @RequestBody ChunkUpdateRequest req) {
+    public SimpleResponse updateChunk(@PathVariable Long chunkId, @RequestBody ChunkUpdateRequest req) {
         ArticleChunk chunk = articleChunkMapper.selectById(chunkId);
         if (chunk == null) {
-            return Result.error("切片不存在");
+            return SimpleResponse.fail("切片不存在");
         }
         if (req.getContent() != null) {
             chunk.setContent(req.getContent());
@@ -131,29 +138,29 @@ public class KnowledgeChunkController {
             chunk.setIsEnabled(req.getIsEnabled());
         }
         articleChunkMapper.updateById(chunk);
-        Article article = articleMapper.selectById(chunk.getArticleId());
-        articleEmbeddingService.refreshArticleVectors(article);
-        return Result.ok("切片更新成功");
+        Article article = chunk.getArticleId() != null ? articleMapper.selectById(chunk.getArticleId().intValue()) : null;
+        if (article != null) articleEmbeddingService.refreshArticleVectors(article);
+        return SimpleResponse.ok("切片更新成功");
     }
 
     @PostMapping("/{articleId}/reindex")
-    public Result<String> reindexArticle(@PathVariable Long articleId) {
-        Article article = articleMapper.selectById(articleId);
+    public SimpleResponse reindexArticle(@PathVariable Long articleId) {
+        Article article = articleId != null ? articleMapper.selectById(articleId.intValue()) : null;
         if (article == null) {
-            return Result.error("文章不存在");
+            return SimpleResponse.fail("文章不存在");
         }
         articleEmbeddingService.indexArticle(article);
-        return Result.ok("文章向量索引重建成功");
+        return SimpleResponse.ok("文章向量索引重建成功");
     }
 
     @PostMapping("/reindex")
-    public Result<String> reindexAll(HttpServletRequest request) {
+    public SimpleResponse reindexAll(HttpServletRequest request) {
         Integer userId = (Integer) request.getAttribute("userId");
         if (userId == null) {
-            return Result.error("未登录");
+            return SimpleResponse.fail("未登录");
         }
         int count = articleEmbeddingService.reindexAll(userId);
-        return Result.ok("已重建 " + count + " 篇文章的向量索引");
+        return SimpleResponse.ok("已重建 " + count + " 篇文章的向量索引");
     }
 
     private ChunkView toView(ArticleChunk chunk, Article article) {
