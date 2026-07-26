@@ -54,9 +54,9 @@ ol {
 
 /* Design Tokens */
 :root {
-  /* Canvas — neutral soft white */
-  --canvas: #F7F8F6;
-  --canvas-deep: #EEF2F0;
+  /* Canvas — mirrors the reference project's active "晴空" theme */
+  --canvas: #edf6fc;
+  --canvas-deep: #cfe1ea;
 
   /* Multi-Accent Palette System */
   --accent-emerald: #35BFAB;
@@ -69,10 +69,10 @@ ol {
   --accent-amber-soft: rgba(245, 166, 35, 0.14);
 
   /* Background orbs — quiet sky, mint and pale starlight */
-  --orb-1: rgba(126, 199, 218, 0.11);
-  --orb-2: rgba(151, 207, 180, 0.1);
-  --orb-3: rgba(235, 215, 145, 0.075);
-  --orb-glow: rgba(160, 216, 222, 0.2);
+  --orb-1: transparent;
+  --orb-2: transparent;
+  --orb-3: transparent;
+  --orb-glow: rgba(143, 219, 233, 0.28);
 
   /* Stars */
   --star-color: rgba(180, 160, 140, 0.4);
@@ -96,13 +96,13 @@ ol {
   --warm-soft: #FFF2D8;
 
   /* Surface — shared soft-glass system */
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-hover: rgba(255, 255, 255, 0.9);
+  --surface: rgba(255, 255, 255, 0.6);
+  --surface-hover: rgba(255, 255, 255, 0.8);
   --glass-bg: rgba(255, 255, 255, 0.6);
 
   /* Borders — bright glass edge */
-  --border: rgba(255, 255, 255, 0.88);
-  --border-interactive: rgba(255, 255, 255, 0.98);
+  --border: #FFFFFF;
+  --border-interactive: #FFFFFF;
   --border-focus: var(--accent);
 
   /* Tags & badges — translucent frosted glass white */
@@ -269,6 +269,7 @@ html.immersive-mode-active .site-footer {
     opacity: 0;
     transform: scale(0.95) translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
