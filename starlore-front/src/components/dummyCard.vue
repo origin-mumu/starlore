@@ -104,8 +104,8 @@ const formatDate = (dateString: string) => {
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.03em;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: var(--tag-bg);
+  border: 1px solid var(--badge-border);
   color: var(--ink-soft);
   padding: 3px 10px;
   border-radius: var(--radius-sm);

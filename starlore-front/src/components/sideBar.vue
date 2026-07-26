@@ -169,8 +169,8 @@ onMounted(async () => {
 }
 
 .tag-pill {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: var(--tag-bg);
+  border: 1px solid var(--badge-border);
   color: var(--ink-soft);
   padding: 5px 12px;
   border-radius: var(--radius-sm);
@@ -184,7 +184,7 @@ onMounted(async () => {
 }
 
 .tag-pill:hover {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--tag-hover);
   color: var(--accent);
   border-color: var(--border-interactive);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);

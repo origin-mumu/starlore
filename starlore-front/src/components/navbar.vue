@@ -307,6 +307,23 @@ const mobileMoreItems = computed(() => {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06) inset;
 }
 
+:global([data-theme='dark'] .navbar) {
+  background: rgba(9, 11, 24, 0.9);
+  border-color: var(--border);
+  box-shadow:
+    0 1px 0 rgba(99, 133, 255, 0.08) inset,
+    0 12px 30px rgba(0, 0, 0, 0.42);
+}
+
+:global([data-theme='dark'] .nav-link:hover) {
+  background: var(--surface-hover);
+}
+
+:global([data-theme='dark'] .nav-link.active) {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--border-interactive) inset;
+}
+
 .nav-divider {
   width: 1px;
   height: 16px;

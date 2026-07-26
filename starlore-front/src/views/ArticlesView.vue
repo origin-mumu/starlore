@@ -165,6 +165,10 @@ const testResult = ref<any | null>(null)
 /* ─── 删除确认 Modal ─── */
 const confirmModalOpen = ref(false)
 const targetDeleteArticleId = ref<number | null>(null)
+const deletingArticle = ref(false)
+const targetDeleteArticle = computed(() =>
+  articles.value.find(article => article.id === targetDeleteArticleId.value) || null
+)
 
 /* ─── 初始化数据 ─── */
 onMounted(async () => {
@@ -292,13 +296,19 @@ function handleDeleteArticle(id: number, e: Event) {
 }
 
 async function confirmDeleteArticle() {
-  if (!targetDeleteArticleId.value) return
+  if (!targetDeleteArticleId.value || deletingArticle.value) return
+  deletingArticle.value = true
   try {
     await deleteArticleService(targetDeleteArticleId.value)
     notify('删除成功', '星记已从数据库中抹除')
+    confirmModalOpen.value = false
+    targetDeleteArticleId.value = null
     fetchArticles(currentPage.value, activeCategory.value === '全部' ? undefined : activeCategory.value)
-  } catch {}
-  confirmModalOpen.value = false
+  } catch {
+    notify('删除失败', '暂时无法删除这篇星记，请稍后重试')
+  } finally {
+    deletingArticle.value = false
+  }
 }
 
 /* 文件库 API */
@@ -1385,10 +1395,13 @@ async function runRetrievalTest() {
     <ConfirmModal
       :show="confirmModalOpen"
       title="确认删除星记"
-      message="此操作不可撤销，文章及相关向量索引将被永久删除。"
-      confirm-text="确认删除"
+      message="删除后无法恢复，正文、知识切片及相关向量索引都会被永久移除。"
+      :subject="targetDeleteArticle?.title || ''"
+      confirm-text="删除星记"
+      tone="danger"
+      :busy="deletingArticle"
       @confirm="confirmDeleteArticle"
-      @cancel="confirmModalOpen = false"
+      @cancel="confirmModalOpen = false; targetDeleteArticleId = null"
     />
   </div>
 </template>
@@ -1580,13 +1593,13 @@ async function runRetrievalTest() {
 }
 .filter-pill:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(255, 255, 255, 0.8);
+  background: var(--tag-bg);
+  border-color: var(--badge-border);
 }
 .filter-pill.active {
   color: var(--accent);
-  background: rgba(37, 99, 235, 0.1);
-  border-color: rgba(37, 99, 235, 0.2);
+  background: var(--accent-soft);
+  border-color: var(--border-interactive);
 }
 .article-count {
   flex: 0 0 auto;
@@ -1640,8 +1653,8 @@ async function runRetrievalTest() {
   gap: 16px;
   min-height: 48px;
   padding: 7px 14px 7px 20px;
-  border-top: 1px solid rgba(72, 86, 88, 0.08);
-  background: rgba(255, 255, 255, 0.42);
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklch, var(--surface) 82%, transparent);
   font-family: var(--font-ui, Inter, "Noto Sans SC", system-ui, sans-serif);
   font-size: 0.75rem;
 }

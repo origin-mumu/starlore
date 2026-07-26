@@ -2826,13 +2826,25 @@ onUnmounted(() => {
   border: 0;
 }
 
-:global([data-theme='dark']) .knowledge-home {
+:global([data-theme='dark'] .knowledge-home) {
   --soft-glass: rgba(255, 255, 255, 0.055);
   --soft-glass-strong: rgba(255, 255, 255, 0.085);
   --soft-glass-border: rgba(99, 133, 255, 0.15);
   --soft-glass-shadow:
     0 36px 50px -28px rgba(0, 0, 0, 0.55),
     inset 0 0 20px rgba(255, 255, 255, 0.025);
+}
+
+:global([data-theme='dark'] .knowledge-search) {
+  box-shadow:
+    0 18px 36px -28px rgba(0, 0, 0, 0.76),
+    inset 0 0 16px rgba(255, 255, 255, 0.025);
+}
+
+:global([data-theme='dark'] .knowledge-search button) {
+  color: oklch(0.985 0.004 260);
+  background: var(--accent);
+  box-shadow: 0 8px 18px color-mix(in oklch, var(--accent) 28%, transparent);
 }
 
 .hero-section {
