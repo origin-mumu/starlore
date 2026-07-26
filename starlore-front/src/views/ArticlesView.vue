@@ -1640,13 +1640,13 @@ async function runRetrievalTest() {
   gap: 16px;
   min-height: 48px;
   padding: 7px 14px 7px 20px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in oklch, var(--canvas-deep) 48%, transparent);
+  border-top: 1px solid rgba(72, 86, 88, 0.08);
+  background: rgba(255, 255, 255, 0.42);
   font-family: var(--font-ui, Inter, "Noto Sans SC", system-ui, sans-serif);
   font-size: 0.75rem;
 }
 .chunk-badge {
-  color: var(--ink-muted);
+  color: color-mix(in srgb, var(--ink-muted) 88%, var(--ink-soft));
   display: flex;
   align-items: center;
   gap: 7px;
