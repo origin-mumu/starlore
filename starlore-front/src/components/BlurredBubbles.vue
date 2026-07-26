@@ -7,7 +7,7 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 
 // 全局背景使用的主题气泡颜色（浅色模式具备多色彩搭配，深色模式具备极光夜空感）
 const themeBubbles: Record<string, string[]> = {
-  light: ['#DE4331', '#35BFAB', '#2FCBE7', '#D4638F', '#FCC841', '#FE9750'],
+  light: ['#9FD5E3', '#C7E6D5', '#E9E3AE', '#DCEAF8'],
   dark: ['#16007B', '#2A48F3', '#35BFAB', '#51D0B9', '#8B5CF6'],
 }
 
@@ -106,7 +106,7 @@ let height = 0
 const COUNT = 6
 const MIN_RADIUS = 250
 const MAX_RADIUS = 400
-const BOTTOM_BAND_START = 0.6
+const BOTTOM_BAND_START = 0.72
 const SPEED = 0.12
 const NOISE_SCALE = 0.0008
 const NOISE_TIME_SCALE = 0.00015
@@ -209,7 +209,7 @@ function draw(ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, width, height)
 
   const themeAlpha: Record<string, number> = {
-    light: 0.32,
+    light: 0.14,
     dark: 0.45,
   }
   const alpha = themeAlpha[themeStore.current] ?? 0.32

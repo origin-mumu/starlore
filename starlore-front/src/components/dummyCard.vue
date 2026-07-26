@@ -55,8 +55,8 @@ const formatDate = (dateString: string) => {
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: background var(--transition);
 }
 

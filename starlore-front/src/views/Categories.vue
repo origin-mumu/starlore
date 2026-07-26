@@ -179,7 +179,10 @@ const confirmDeleteCat = async () => {
   padding: 12px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   align-items: center;
 }
 .add-card input {
@@ -194,7 +197,15 @@ const confirmDeleteCat = async () => {
   font-family: inherit;
 }
 
-.categories-panel { padding: 8px; background: #FFFFFF; }
+.categories-panel {
+  padding: 8px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
 .categories-grid { display: grid; gap: 0; }
 
 .category-row {

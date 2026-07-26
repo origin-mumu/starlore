@@ -593,8 +593,8 @@ const handleChangePassword = async () => {
   border-radius: var(--radius-lg);
   padding: 32px;
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .section-heading {

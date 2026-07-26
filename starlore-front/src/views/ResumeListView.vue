@@ -299,15 +299,15 @@ const handleCopy = async (item: ResumeData) => {
 .resume-card {
   background: var(--glass-bg);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: all 0.25s;
 }
 .resume-card:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
 }
 .card-header {

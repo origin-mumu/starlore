@@ -93,6 +93,7 @@ const articles = ref<Article[]>([])
 const filteredArticles = ref<Article[]>([])
 const categories = ref<Category[]>([])
 const activeCategory = ref('全部')
+const articleSearch = ref('')
 const isLoading = ref(false)
 const hasArticles = computed(() => filteredArticles.value.length > 0)
 
@@ -168,6 +169,7 @@ const targetDeleteArticleId = ref<number | null>(null)
 /* ─── 初始化数据 ─── */
 onMounted(async () => {
   const initialCat = (route.query.category as string) || '全部'
+  articleSearch.value = (route.query.search as string) || ''
   activeCategory.value = initialCat
 
   await Promise.all([
@@ -192,13 +194,15 @@ function closeChunkCategory(event: MouseEvent) {
 }
 
 watch(
-  () => route.query.category,
-  newCat => {
-    if (newCat && newCat !== activeCategory.value) {
-      activeCategory.value = newCat as string
-      fetchArticles(1, newCat as string)
-    }
-  }
+  () => [route.query.category, route.query.search],
+  ([newCat, newSearch]) => {
+    const nextCategory = (newCat as string) || '全部'
+    const nextSearch = (newSearch as string) || ''
+    if (nextCategory === activeCategory.value && nextSearch === articleSearch.value) return
+    activeCategory.value = nextCategory
+    articleSearch.value = nextSearch
+    fetchArticles(1, nextCategory === '全部' ? undefined : nextCategory)
+  },
 )
 
 watch(currentTab, tab => {
@@ -231,6 +235,7 @@ async function fetchArticles(page = currentPage.value, category?: string) {
   try {
     const params: any = { page, limit: pageSize.value }
     if (category && category !== '全部') params.category = category
+    if (articleSearch.value.trim()) params.search = articleSearch.value.trim()
 
     const res = userStore.isLoggedIn
       ? ((await getAllArticlesService(params)) as any)
@@ -255,12 +260,19 @@ async function fetchArticles(page = currentPage.value, category?: string) {
 function filterCategory(cat: string) {
   activeCategory.value = cat
   currentPage.value = 1
-  if (cat === '全部') {
-    router.push({ path: '/articles' })
-  } else {
-    router.push({ path: '/articles', query: { category: cat } })
-  }
+  const query: Record<string, string> = {}
+  if (cat !== '全部') query.category = cat
+  if (articleSearch.value.trim()) query.search = articleSearch.value.trim()
+  router.push({ path: '/articles', query })
   fetchArticles(1, cat === '全部' ? undefined : cat)
+}
+
+function submitArticleSearch() {
+  const query: Record<string, string> = {}
+  if (activeCategory.value !== '全部') query.category = activeCategory.value
+  if (articleSearch.value.trim()) query.search = articleSearch.value.trim()
+  router.push({ path: '/articles', query })
+  fetchArticles(1, activeCategory.value === '全部' ? undefined : activeCategory.value)
 }
 
 function goToPage(p: number) {
@@ -736,6 +748,16 @@ async function runRetrievalTest() {
           <main class="post-list">
             <!-- 分类 Filter -->
             <div class="list-toolbar">
+              <form class="article-search" role="search" @submit.prevent="submitArticleSearch">
+                <Search :size="16" aria-hidden="true" />
+                <input
+                  v-model="articleSearch"
+                  type="search"
+                  placeholder="搜索知识"
+                  aria-label="搜索知识"
+                />
+                <button type="submit">搜索</button>
+              </form>
               <div class="filter-bar" aria-label="按星域筛选">
                 <button
                   class="filter-pill"
@@ -1386,12 +1408,13 @@ async function runRetrievalTest() {
   align-items: stretch;
   gap: 26px;
   padding-top: 34px;
-  background: #FFFFFF;
+  background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-  backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .header-main {
   display: flex;
@@ -1495,11 +1518,47 @@ async function runRetrievalTest() {
 }
 .list-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   min-height: 42px;
   margin-bottom: 14px;
+}
+.article-search {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 5px 14px;
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink-muted);
+}
+.article-search:focus-within {
+  border-color: var(--accent);
+}
+.article-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 0.86rem/1.4 var(--font-ui, Inter, "Noto Sans SC", system-ui, sans-serif);
+}
+.article-search button {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 650;
 }
 .filter-bar {
   display: flex;
@@ -1555,7 +1614,10 @@ async function runRetrievalTest() {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  background: var(--glass-bg);
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart), border-color 180ms var(--ease-out-quart);
 }
 .card :deep(.article-card) {

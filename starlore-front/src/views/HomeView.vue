@@ -1,12 +1,10 @@
 <script lang="ts" setup>
-import { onMounted, ref, nextTick } from 'vue'
+import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { gsap } from 'gsap'
+import { useRouter } from 'vue-router'
 import { getBlogStatsService } from '@/api/article'
-import SideBar from '@/components/sideBar.vue'
 import { Article } from '@/type/Article'
-import DummyCard from '@/components/dummyCard.vue'
 import { useUserStore } from '@/stores/user'
-import { useThemeStore } from '@/stores/theme'
-import ParticleGlobe from '@/components/ParticleGlobe.vue'
 import {
   ArrowRight,
   Zap,
@@ -38,19 +36,47 @@ import {
   AlertTriangle,
   Clock,
   Check,
+  Plus,
+  MessageCircle,
+  FileText,
+  ChevronRight,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
-const themeStore = useThemeStore()
+const router = useRouter()
+const guestVisual = ref<HTMLElement | null>(null)
+const guestOrb = ref<HTMLElement | null>(null)
+let guestVisualContext: gsap.Context | null = null
 
-const themeColors: Record<string, string> = {
-  light: '#E85D2A',
-  dark: '#6385FF',
+const moveGuestOrb = (event: MouseEvent) => {
+  if (!guestVisual.value || !guestOrb.value) return
+  const rect = guestVisual.value.getBoundingClientRect()
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 68
+  const y = ((event.clientY - rect.top) / rect.height - 0.5) * 52
+  gsap.to(guestOrb.value, {
+    x,
+    y,
+    rotationX: -y * 0.45,
+    rotationY: x * 0.5,
+    rotation: x * 0.08,
+    duration: 0.5,
+    ease: 'power3.out',
+    overwrite: 'auto',
+  })
 }
 
-const themeSecondaryColors: Record<string, string> = {
-  light: '#FFAE19', // Amber
-  dark: '#E5B869',  // Soft starlight gold
+const resetGuestOrb = () => {
+  if (!guestOrb.value) return
+  gsap.to(guestOrb.value, {
+    x: 0,
+    y: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotation: 0,
+    duration: 1,
+    ease: 'power3.out',
+    overwrite: 'auto',
+  })
 }
 
 const demoArticles: Article[] = [
@@ -189,6 +215,37 @@ const agentSteps = [
 
 const data = ref()
 const articles = ref<Article[]>()
+const searchQuery = ref('')
+
+interface KnowledgeCategory {
+  id?: number
+  name: string
+  article_count?: number
+}
+
+const categories = computed<KnowledgeCategory[]>(() => data.value?.popularCategories ?? [])
+const totalArticles = computed(() => data.value?.totalArticles ?? articles.value?.length ?? 0)
+const totalCategories = computed(() => data.value?.totalCategories ?? categories.value.length)
+const recentArticles = computed(() => (articles.value ?? []).slice(0, 6))
+const displayName = computed(
+  () => userStore.user?.nickname || userStore.user?.username || '探索者',
+)
+
+const formatKnowledgeDate = (value?: string) => {
+  if (!value) return '最近更新'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '最近更新'
+  const diff = Date.now() - date.getTime()
+  const day = 24 * 60 * 60 * 1000
+  if (diff < day && date.getDate() === new Date().getDate()) return '今天'
+  if (diff < day * 2) return '昨天'
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+const openKnowledgeSearch = () => {
+  const query = searchQuery.value.trim()
+  router.push(query ? { path: '/articles', query: { search: query } } : '/articles')
+}
 
 const handleCardMouseMove = (e: MouseEvent) => {
   const card = e.currentTarget as HTMLElement
@@ -221,17 +278,34 @@ onMounted(async () => {
     articles.value = demoArticles
     nextTick(() => {
       observeScroll()
+      if (!guestVisual.value) return
+      guestVisualContext = gsap.context(() => {
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          gsap.to('.reference-orb-ring', {
+            rotation: 360,
+            duration: 28,
+            repeat: -1,
+            ease: 'none',
+            transformOrigin: '50% 50%',
+          })
+        }
+      }, guestVisual.value)
     })
     return
   }
   try {
     const res = await getBlogStatsService()
-    data.value = res.data
-    articles.value = res.data?.popularArticles ?? []
+    const stats = res.data?.data ?? res.data
+    data.value = stats
+    articles.value = stats?.popularArticles ?? []
   } catch (err) {
     console.error('获取博客统计失败:', err)
     articles.value = []
   }
+})
+
+onUnmounted(() => {
+  guestVisualContext?.revert()
 })
 </script>
 
@@ -246,7 +320,7 @@ onMounted(async () => {
           <div class="hero-text-content">
             <div class="kicker-pill fade-in-up">
               <span class="pill-dot"></span>
-              <span class="pill-text">✦ Starlore Knowledge OS v2.0</span>
+              <span class="pill-text">✦ 让知识形成自己的星系</span>
             </div>
 
             <h1 class="hero-title fade-in-up" style="animation-delay: 0.1s">
@@ -279,13 +353,23 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Right Interactive WebGL Globe -->
-          <div class="hero-visual-container fade-in-up" style="animation-delay: 0.25s">
-            <ParticleGlobe 
-              :key="themeStore.current" 
-              :color="themeColors[themeStore.current] || '#E85D2A'" 
-              :secondaryColor="themeSecondaryColors[themeStore.current] || '#FFAE19'"
-            />
+          <!-- Reference-inspired geometric object -->
+          <div
+            ref="guestVisual"
+            class="hero-visual-container fade-in-up"
+            style="animation-delay: 0.25s"
+            @mousemove="moveGuestOrb"
+            @mouseleave="resetGuestOrb"
+          >
+            <div ref="guestOrb" class="reference-orb editorial-process" aria-hidden="true">
+              <span class="editorial-index">01—03</span>
+              <span class="editorial-word editorial-word--solid">记录</span>
+              <span class="editorial-word editorial-word--outline">连接</span>
+              <span class="editorial-word editorial-word--soft">再发现</span>
+              <span class="editorial-star">✦</span>
+              <span class="reference-orb-ring editorial-arc"></span>
+            </div>
+            <span class="reference-orb-caption">CAPTURE · CONNECT · REDISCOVER</span>
           </div>
         </div>
       </section>
@@ -644,57 +728,160 @@ onMounted(async () => {
 
     <!-- Logged-In User Home Page -->
     <template v-else>
-      <!-- Hero Section -->
-      <section class="hero-section">
-        <div class="hero-container">
-          <div class="hero-content fade-in-up">
-            <span class="hero-kicker">PERSONAL STARLORE</span>
-            <h1 class="hero-title-user">记录创造的<br />每一刻</h1>
-            <p class="hero-desc-user">代码、设计、思考。在这里分享我的学习旅程和项目实践。</p>
-            <div class="hero-actions">
-              <router-link to="/articles" class="btn-primary">阅读星记</router-link>
+      <main class="knowledge-home">
+        <section class="knowledge-hero">
+          <div class="knowledge-intro">
+            <div class="knowledge-intro-copy">
+              <p class="knowledge-eyebrow">我的知识库</p>
+              <h1>
+                <span>{{ displayName }}，</span>
+                知识正在形成星系
+              </h1>
+              <p>搜索、续写，或从一条旧知识重新出发。</p>
+            </div>
+            <div class="knowledge-constellation" aria-hidden="true">
+              <svg viewBox="0 0 240 190" role="presentation">
+                <path class="constellation-path" d="M24 110 L73 54 L122 91 L178 38 L216 104 L164 150 L93 143 L24 110" />
+                <path class="constellation-path constellation-path-faint" d="M73 54 L93 143 M122 91 L164 150 M122 91 L216 104" />
+                <circle class="constellation-halo halo-one" cx="122" cy="91" r="35" />
+                <circle class="constellation-halo halo-two" cx="178" cy="38" r="18" />
+                <circle class="constellation-node node-small" cx="24" cy="110" r="4" />
+                <circle class="constellation-node node-medium" cx="73" cy="54" r="6" />
+                <circle class="constellation-node node-core" cx="122" cy="91" r="13" />
+                <circle class="constellation-node node-small" cx="178" cy="38" r="4" />
+                <circle class="constellation-node node-medium" cx="216" cy="104" r="6" />
+                <circle class="constellation-node node-small" cx="164" cy="150" r="4" />
+                <circle class="constellation-node node-small" cx="93" cy="143" r="4" />
+                <path class="constellation-spark" d="M122 82 L124.5 88.5 L131 91 L124.5 93.5 L122 100 L119.5 93.5 L113 91 L119.5 88.5 Z" />
+              </svg>
+              <span>KNOWLEDGE MAP</span>
+            </div>
+            <div class="knowledge-hero-actions">
+              <span class="knowledge-index">{{ totalArticles }} NOTES · {{ totalCategories }} SPACES</span>
+              <router-link to="/articles/edit" class="knowledge-create">
+                <Plus :size="18" />
+                新建知识
+              </router-link>
             </div>
           </div>
 
-          <!-- 右侧 3D Parallax 装饰卡片 (使用和未登录相同的 ParticleGlobe 组件) -->
-          <div class="hero-visual hero-visual-container fade-in-up" style="animation-delay: 0.3s">
-            <ParticleGlobe 
-              :key="themeStore.current" 
-              :color="themeColors[themeStore.current] || '#E85D2A'" 
-              :secondaryColor="themeSecondaryColors[themeStore.current] || '#FFAE19'"
+          <form class="knowledge-search" role="search" @submit.prevent="openKnowledgeSearch">
+            <Search :size="21" aria-hidden="true" />
+            <label class="sr-only" for="knowledge-search-input">搜索知识库</label>
+            <input
+              id="knowledge-search-input"
+              v-model="searchQuery"
+              type="search"
+              placeholder="搜索标题、正文与分类"
+              autocomplete="off"
             />
-          </div>
-        </div>
-      </section>
+            <button type="submit">搜索</button>
+          </form>
 
-      <!-- Articles Section -->
-      <section class="section-parchment">
-        <div class="container">
-          <div class="section-header-logged fade-in-up" style="animation-delay: 0.25s">
-            <h2 class="section-heading">最新星记</h2>
-            <router-link to="/articles" class="see-all">查看全部 <span>→</span></router-link>
-          </div>
-          <div class="content-layout">
-            <main class="articles-grid">
-              <div
-                v-if="articles && articles.length > 0"
-                v-for="(article, index) in articles"
+          <nav class="knowledge-shortcuts" aria-label="快捷操作">
+            <router-link to="/echobot" class="ask-knowledge">
+              <MessageCircle :size="17" />
+              询问知识库
+            </router-link>
+            <router-link to="/articles">
+              浏览全部知识
+              <span>{{ totalArticles }}</span>
+            </router-link>
+            <router-link to="/vr">
+              查看知识图谱
+              <ChevronRight :size="15" />
+            </router-link>
+          </nav>
+        </section>
+
+        <div class="knowledge-dashboard">
+          <section class="knowledge-recent" aria-labelledby="recent-heading">
+            <div class="knowledge-section-heading">
+              <div>
+                <h2 id="recent-heading">最近访问</h2>
+                <p>继续阅读或整理最近接触的内容</p>
+              </div>
+              <router-link to="/articles">全部知识 <ChevronRight :size="16" /></router-link>
+            </div>
+
+            <div v-if="recentArticles.length" class="knowledge-list">
+              <router-link
+                v-for="article in recentArticles"
                 :key="article.id"
-                class="fade-in-up"
-                :style="{ animationDelay: `${0.3 + index * 0.08}s` }"
+                :to="`/articles/${article.id}`"
+                class="knowledge-row"
               >
-                <DummyCard v-bind="article" />
+                <span class="knowledge-file-icon"><FileText :size="18" /></span>
+                <span class="knowledge-row-main">
+                  <strong>{{ article.title || '未命名知识' }}</strong>
+                  <small>{{ article.description || '打开继续阅读与整理' }}</small>
+                </span>
+                <span class="knowledge-row-meta">
+                  <span v-if="article.category" class="knowledge-category">{{ article.category }}</span>
+                  <time>{{ formatKnowledgeDate(article.createdAt) }}</time>
+                </span>
+                <ChevronRight :size="17" class="row-arrow" />
+              </router-link>
+            </div>
+
+            <div v-else class="knowledge-empty">
+              <span class="knowledge-file-icon"><FileText :size="20" /></span>
+              <div>
+                <h3>知识库还是空的</h3>
+                <p>先记录一个想法，以后就能在这里快速找到它。</p>
               </div>
-              <div v-else class="empty-state fade-in-up" style="animation-delay: 0.3s">
-                <p class="empty-title">还没有星记</p>
-                <p class="empty-desc">开始写你的第一篇星记吧</p>
-                <router-link to="/articles/edit" class="btn-primary">写星记</router-link>
+              <router-link to="/articles/edit">创建第一条知识</router-link>
+            </div>
+          </section>
+
+          <aside class="knowledge-sidebar">
+            <section class="knowledge-spaces" aria-labelledby="spaces-heading">
+              <div class="knowledge-section-heading spaces-heading">
+                <div>
+                  <h2 id="spaces-heading">知识空间</h2>
+                  <p>{{ totalCategories }} 个空间</p>
+                </div>
+                <router-link to="/categories" aria-label="管理知识空间">
+                  <ChevronRight :size="17" />
+                </router-link>
               </div>
-            </main>
-            <SideBar />
-          </div>
+
+              <div v-if="categories.length" class="space-list">
+                <router-link
+                  v-for="category in categories.slice(0, 6)"
+                  :key="category.name"
+                  :to="{ path: '/articles', query: { category: category.name } }"
+                  class="space-row"
+                >
+                  <span class="space-dot" aria-hidden="true"></span>
+                  <span>{{ category.name }}</span>
+                  <small>{{ category.article_count ?? 0 }}</small>
+                </router-link>
+              </div>
+              <div v-else class="spaces-empty">
+                <p>用空间组织同一主题下的知识。</p>
+                <router-link to="/categories">创建知识空间</router-link>
+              </div>
+            </section>
+
+            <router-link
+              v-if="recentArticles.length"
+              :to="`/articles/${recentArticles[recentArticles.length - 1].id}`"
+              class="rediscover-card"
+            >
+              <span class="rediscover-label">随机重读</span>
+              <strong>{{ recentArticles[recentArticles.length - 1].title }}</strong>
+              <p>重新看看一条旧知识，也许会有新的发现。</p>
+              <span class="rediscover-link">打开知识 <ChevronRight :size="15" /></span>
+            </router-link>
+
+            <div class="library-summary">
+              <span><strong>{{ totalArticles }}</strong> 条知识</span>
+              <span><strong>{{ totalCategories }}</strong> 个空间</span>
+            </div>
+          </aside>
         </div>
-      </section>
+      </main>
     </template>
   </div>
 </template>
@@ -719,28 +906,34 @@ onMounted(async () => {
 .kicker-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--warm-soft);
-  border: 1px solid var(--border-interactive);
-  border-radius: var(--radius-full);
-  margin-bottom: 24px;
+  gap: 10px;
+  padding: 0;
+  margin-bottom: 28px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.kicker-pill::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
 }
 
 .kicker-pill .pill-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
+  width: 5px;
+  height: 5px;
+  background: #829bd1;
   border-radius: 50%;
-  animation: pulse-pill 2s infinite;
+  box-shadow: 0 0 0 4px rgba(130, 155, 209, 0.1);
+  animation: none;
 }
 
 .kicker-pill .pill-text {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: 0.05em;
-  font-family: 'Fira Code', 'Consolas', monospace;
+  color: var(--ink-soft);
+  font: 650 0.72rem/1 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  letter-spacing: 0.08em;
 }
 
 @keyframes pulse-pill {
@@ -749,12 +942,119 @@ onMounted(async () => {
   100% { transform: scale(0.9); opacity: 0.6; }
 }
 
-/* 3D Visual container */
+/* Knowledge map visual */
 .hero-visual-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  perspective: 1000px;
+  min-height: 470px;
+  padding-bottom: 34px;
+  overflow: visible;
+  perspective: 900px;
+}
+
+.reference-orb {
+  position: relative;
+  width: min(34vw, 410px);
+  min-height: 340px;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+.editorial-process::before {
+  content: '';
+  position: absolute;
+  inset: 5% -8%;
+  background:
+    radial-gradient(circle at 34% 42%, rgba(116, 161, 224, 0.14), transparent 42%),
+    radial-gradient(circle at 71% 58%, rgba(174, 126, 204, 0.1), transparent 48%);
+  filter: blur(32px);
+}
+
+.editorial-index {
+  position: absolute;
+  top: 4%;
+  right: 4%;
+  color: var(--ink-muted);
+  font: 650 0.62rem/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  transform: translateZ(-30px);
+}
+
+.editorial-word {
+  position: absolute;
+  z-index: 2;
+  color: var(--ink);
+  font: 850 clamp(3.2rem, 6vw, 5.7rem)/0.82 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  letter-spacing: -0.09em;
+  white-space: nowrap;
+  transform-style: preserve-3d;
+  text-shadow:
+    1px 1px 0 color-mix(in srgb, var(--ink) 80%, transparent),
+    2px 2px 0 color-mix(in srgb, var(--ink) 62%, transparent),
+    3px 3px 0 color-mix(in srgb, var(--ink) 38%, transparent),
+    10px 16px 28px rgba(28, 25, 32, 0.13);
+}
+
+.editorial-word--solid {
+  top: 14%;
+  left: 2%;
+  transform: translateZ(52px) rotate(-2deg);
+}
+
+.editorial-word--outline {
+  top: 41%;
+  right: 4%;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--ink);
+  transform: translateZ(8px) rotate(1deg);
+  text-shadow: 8px 12px 24px rgba(28, 25, 32, 0.09);
+}
+
+.editorial-word--soft {
+  left: 13%;
+  bottom: 5%;
+  color: var(--ink-soft);
+  font-size: clamp(2.7rem, 5vw, 4.8rem);
+  transform: translateZ(30px) rotate(-1deg);
+  text-shadow:
+    1px 1px 0 color-mix(in srgb, var(--ink-soft) 56%, transparent),
+    2px 2px 0 color-mix(in srgb, var(--ink-soft) 30%, transparent),
+    9px 14px 25px rgba(28, 25, 32, 0.1);
+}
+
+.editorial-star {
+  position: absolute;
+  z-index: 3;
+  top: 38%;
+  left: 2%;
+  color: #829bd1;
+  font: 700 1.8rem/1 Georgia, serif;
+  transform: translateZ(75px);
+  filter: drop-shadow(7px 10px 10px rgba(72, 91, 145, 0.2));
+}
+
+.editorial-arc {
+  position: absolute;
+  z-index: 1;
+  inset: 8% 0 12% 8%;
+  border: 1px solid color-mix(in srgb, var(--ink-muted) 22%, transparent);
+  border-radius: 50%;
+  transform: rotate(-18deg);
+  translate: 0 0 -45px;
+  box-shadow: 0 22px 45px rgba(93, 108, 158, 0.08);
+}
+
+.reference-orb-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: max-content;
+  color: var(--ink-muted);
+  font: 650 0.6rem/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  transform: translateX(-50%);
 }
 
 .instrument-panel {
@@ -1908,6 +2208,633 @@ onMounted(async () => {
 }
 
 /* ── Logged-In Styles ── */
+.knowledge-home {
+  --soft-glass: rgba(255, 255, 255, 0.6);
+  --soft-glass-strong: rgba(255, 255, 255, 0.72);
+  --soft-glass-border: rgba(255, 255, 255, 0.88);
+  --soft-glass-shadow:
+    0 40px 50px -32px rgba(72, 53, 42, 0.14),
+    inset 0 0 20px rgba(255, 255, 255, 0.25);
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 128px 0 72px;
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  position: relative;
+  isolation: isolate;
+}
+
+.knowledge-home::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  inset: 82px -8vw auto;
+  height: 560px;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink-muted) 42%, transparent) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  opacity: 0.34;
+  mask-image: linear-gradient(to bottom, black 5%, black 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 5%, black 65%, transparent 100%);
+}
+
+.knowledge-home::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 118px;
+  left: 8%;
+  width: 78%;
+  height: 420px;
+  background:
+    radial-gradient(circle at 24% 48%, rgba(111, 169, 231, 0.17), transparent 38%),
+    radial-gradient(circle at 76% 42%, rgba(151, 128, 218, 0.14), transparent 39%);
+  filter: blur(42px);
+  pointer-events: none;
+}
+
+.knowledge-hero {
+  width: 100%;
+  min-height: 430px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.knowledge-intro {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px 170px;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.knowledge-intro-copy {
+  min-width: 0;
+}
+
+.knowledge-eyebrow,
+.section-caption {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.knowledge-intro h1 {
+  max-width: 680px;
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: clamp(2.65rem, 5.2vw, 4.8rem);
+  font-weight: 850;
+  line-height: 0.98;
+  letter-spacing: -0.075em;
+}
+
+.knowledge-intro h1 span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink-soft);
+  font-size: 0.34em;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.knowledge-intro p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.knowledge-hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.knowledge-index {
+  color: var(--ink-muted);
+  font: 650 0.64rem/1.3 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.knowledge-create {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--canvas);
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: var(--shadow-button);
+  transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
+}
+
+.knowledge-create:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-button-hover);
+}
+
+.knowledge-constellation {
+  position: relative;
+  width: 230px;
+  justify-self: center;
+  color: var(--ink);
+}
+
+.knowledge-constellation svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.knowledge-constellation > span {
+  display: block;
+  margin-top: -12px;
+  color: var(--ink-muted);
+  font: 650 0.58rem/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
+.constellation-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.22;
+  vector-effect: non-scaling-stroke;
+}
+
+.constellation-path-faint {
+  stroke-dasharray: 3 5;
+  opacity: 0.12;
+}
+
+.constellation-halo {
+  fill: rgba(116, 137, 215, 0.08);
+  stroke: rgba(116, 137, 215, 0.15);
+  stroke-width: 1;
+}
+
+.halo-two {
+  fill: rgba(145, 197, 211, 0.08);
+  stroke: rgba(145, 197, 211, 0.16);
+}
+
+.constellation-node {
+  fill: var(--canvas);
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.node-core {
+  fill: var(--ink);
+  stroke: var(--canvas);
+  stroke-width: 4;
+}
+
+.node-medium {
+  fill: rgba(116, 137, 215, 0.62);
+  stroke: var(--canvas);
+  stroke-width: 3;
+}
+
+.constellation-spark {
+  fill: var(--canvas);
+}
+
+.knowledge-search {
+  position: relative;
+  z-index: 1;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px 8px 20px;
+  border: 1px solid var(--soft-glass-border);
+  border-radius: var(--radius-full);
+  background: var(--soft-glass-strong);
+  color: var(--ink-muted);
+  box-shadow:
+    0 18px 32px -26px rgba(72, 53, 42, 0.2),
+    inset 0 0 16px rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: border-color 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
+}
+
+.knowledge-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.knowledge-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 1rem/1.4 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+}
+
+.knowledge-search input::placeholder {
+  color: var(--ink-muted);
+}
+
+.knowledge-search button {
+  min-width: 72px;
+  min-height: 46px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--canvas);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.knowledge-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 16px;
+}
+
+.knowledge-shortcuts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-muted);
+  font: 550 0.8rem/1 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  text-decoration: none;
+}
+
+.knowledge-shortcuts a:hover {
+  color: var(--ink);
+}
+
+.knowledge-shortcuts a span {
+  min-width: 22px;
+  padding: 3px 6px;
+  border-radius: var(--radius-full);
+  background: var(--tag-bg);
+  text-align: center;
+  font-size: 0.68rem;
+}
+
+.knowledge-shortcuts .ask-knowledge {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.knowledge-shortcuts .ask-knowledge:hover {
+  border-color: var(--border-interactive);
+  color: var(--accent);
+}
+
+.knowledge-file-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: var(--accent-sky-soft);
+  color: var(--accent-sky);
+}
+
+.knowledge-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 20px;
+  align-items: start;
+}
+
+.knowledge-recent,
+.knowledge-spaces {
+  border: 1px solid var(--soft-glass-border);
+  border-radius: 28px;
+  background: var(--soft-glass);
+  box-shadow: var(--soft-glass-shadow);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.knowledge-recent {
+  padding: 24px 26px 16px;
+}
+
+.knowledge-spaces {
+  padding: 24px 20px 20px;
+}
+
+.knowledge-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.knowledge-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.knowledge-section-heading p {
+  margin: 5px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+}
+
+.knowledge-section-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: 1.18rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.knowledge-section-heading a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.knowledge-section-heading a:hover {
+  color: var(--accent);
+}
+
+.knowledge-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 78px;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  text-decoration: none;
+  transition: padding 180ms var(--ease-out-quart), background 180ms var(--ease-out-quart);
+}
+
+.knowledge-row:hover {
+  padding-inline: 12px;
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.knowledge-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.knowledge-row-main strong,
+.knowledge-row-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-row-main strong {
+  font-size: 0.92rem;
+  font-weight: 650;
+  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+}
+
+.knowledge-row-main small {
+  color: var(--ink-muted);
+  font-size: 0.77rem;
+}
+
+.knowledge-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.knowledge-category {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--tag-bg);
+  color: var(--ink-soft);
+}
+
+.row-arrow {
+  color: var(--ink-muted);
+}
+
+.space-list {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+}
+
+.space-row {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+
+.space-row:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.space-row small {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.space-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-sky);
+  opacity: 0.7;
+}
+
+.space-row:nth-child(2n) .space-dot {
+  background: var(--accent-amber);
+}
+
+.space-row:nth-child(3n) .space-dot {
+  background: var(--accent-emerald);
+}
+
+.library-summary {
+  display: flex;
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.rediscover-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid var(--soft-glass-border);
+  border-radius: 22px;
+  background: var(--soft-glass);
+  color: var(--ink);
+  box-shadow: var(--soft-glass-shadow);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  text-decoration: none;
+}
+
+.rediscover-label {
+  margin-bottom: 14px;
+  color: var(--ink-muted);
+  font: 650 0.7rem/1 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.rediscover-card strong {
+  overflow: hidden;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rediscover-card p {
+  margin: 7px 0 16px;
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.rediscover-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.library-summary span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.library-summary strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.knowledge-empty,
+.spaces-empty {
+  color: var(--ink-muted);
+}
+
+.knowledge-empty {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 30px 4px;
+}
+
+.knowledge-empty h3,
+.knowledge-empty p {
+  margin: 0;
+}
+
+.knowledge-empty h3 {
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.knowledge-empty p,
+.spaces-empty p {
+  margin-top: 5px;
+  font-size: 0.8rem;
+}
+
+.knowledge-empty a,
+.spaces-empty a {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.spaces-empty {
+  padding: 18px 4px;
+}
+
+.spaces-empty a {
+  margin-left: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:global([data-theme='dark']) .knowledge-home {
+  --soft-glass: rgba(255, 255, 255, 0.055);
+  --soft-glass-strong: rgba(255, 255, 255, 0.085);
+  --soft-glass-border: rgba(99, 133, 255, 0.15);
+  --soft-glass-shadow:
+    0 36px 50px -28px rgba(0, 0, 0, 0.55),
+    inset 0 0 20px rgba(255, 255, 255, 0.025);
+}
+
 .hero-section {
   padding: 140px 0 64px;
 }
@@ -2282,6 +3209,19 @@ onMounted(async () => {
 
 /* ── Responsive ── */
 @media (max-width: 1024px) {
+  .knowledge-dashboard {
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 28px;
+  }
+
+  .quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quick-action:nth-child(3) {
+    border-left: 1px solid var(--border);
+  }
+
   .hero-grid {
     grid-template-columns: 1fr;
     gap: 40px;
@@ -2336,6 +3276,137 @@ onMounted(async () => {
 }
 
 @media (max-width: 600px) {
+  .knowledge-home {
+    width: min(100% - 28px, 1080px);
+    padding: 96px 0 40px;
+  }
+
+  .knowledge-home::before {
+    inset-inline: -14px;
+    height: 440px;
+    background-size: 20px 20px;
+  }
+
+  .knowledge-hero {
+    min-height: auto;
+    padding-top: 32px;
+  }
+
+  .knowledge-intro {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .knowledge-intro h1 {
+    font-size: 2.35rem;
+  }
+
+  .knowledge-intro p:last-child {
+    max-width: 28ch;
+    font-size: 0.86rem;
+  }
+
+  .knowledge-create {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .knowledge-constellation {
+    width: 92px;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .knowledge-constellation > span {
+    display: none;
+  }
+
+  .knowledge-hero-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .knowledge-index {
+    font-size: 0.58rem;
+  }
+
+  .knowledge-search {
+    min-height: 58px;
+    padding-left: 16px;
+  }
+
+  .knowledge-search button {
+    min-width: 58px;
+    min-height: 42px;
+  }
+
+  .knowledge-shortcuts {
+    flex-wrap: wrap;
+    gap: 12px 18px;
+  }
+
+  .knowledge-shortcuts .ask-knowledge {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .quick-actions {
+    margin: 20px 0 38px;
+    gap: 10px;
+  }
+
+  .quick-action {
+    min-height: 78px;
+    padding: 13px 11px;
+    border-radius: 17px;
+  }
+
+  .quick-action-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .knowledge-dashboard {
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+
+  .knowledge-recent,
+  .knowledge-spaces {
+    border-radius: 22px;
+  }
+
+  .knowledge-recent {
+    padding: 22px 18px 12px;
+  }
+
+  .knowledge-spaces {
+    padding: 22px 18px;
+  }
+
+  .knowledge-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .knowledge-row-meta {
+    display: none;
+  }
+
+  .knowledge-empty {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .knowledge-empty a {
+    width: 100%;
+    margin-left: 54px;
+  }
+
   .bento-grid {
     grid-template-columns: 1fr;
   }
