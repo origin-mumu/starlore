@@ -615,20 +615,30 @@ const formatDate = (dateString: string) => {
   font-family: 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
   font-size: 14px;
   line-height: 22px;
+}
+
+.typography :deep(.line-numbers-wrapper) {
   padding-top: 16px;
   padding-bottom: 16px;
 }
 
-.typography :deep(code) {
-  flex: 1;
-  overflow-x: auto;
-  color: oklch(0.84 0.018 255);
+.typography :deep(:not(pre) > code) {
+  padding: 0.12em 0.38em;
+  border: 1px solid color-mix(in oklch, var(--accent) 13%, var(--border));
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--accent-soft) 82%, var(--surface));
+  color: color-mix(in oklch, var(--accent) 72%, var(--ink));
+  font-size: 0.88em;
+  font-weight: 600;
+  line-height: inherit;
 }
 
 .typography :deep(pre code),
 .typography :deep(pre code.hljs) {
+  flex: 1;
   display: block;
   min-width: 0;
+  overflow-x: auto;
   padding: 16px 18px !important;
   background: transparent !important;
   border: 0 !important;
@@ -636,6 +646,18 @@ const formatDate = (dateString: string) => {
   color: oklch(0.84 0.018 255);
   scrollbar-width: thin;
   scrollbar-color: oklch(0.58 0.04 255) transparent;
+}
+
+.typography::selection,
+.typography :deep(*)::selection {
+  background: color-mix(in oklch, var(--accent) 28%, transparent);
+  color: var(--ink);
+}
+
+.typography :deep(pre *)::selection,
+.typography :deep(pre code)::selection {
+  background: oklch(0.5 0.11 28);
+  color: oklch(0.97 0.01 255);
 }
 
 /* Atom One Dark tokens scoped to article code blocks. Keep these after the

@@ -1637,8 +1637,14 @@ async function runRetrievalTest() {
   flex: 1;
   border: 0;
   border-radius: 0;
+  background: transparent;
   box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transform: none;
+}
+.card :deep(.article-card:hover) {
+  background: transparent;
 }
 .card:hover {
   transform: translateY(-2px);
