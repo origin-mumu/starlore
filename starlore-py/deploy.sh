@@ -20,7 +20,7 @@ if command -v docker &> /dev/null; then
 else
     echo "未检测到 Docker，尝试基于 Linux Systemd 后台运行..."
     pip install -r requirements.txt
-    nohup uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 4 > uvicorn.log 2>&1 &
+    nohup uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 > uvicorn.log 2>&1 &
     echo "已在后台启动 uvicorn 服务，日志输出在 uvicorn.log"
 fi
 

@@ -22,5 +22,5 @@ COPY . .
 
 EXPOSE 5000
 
-# 启动 uvicorn 生产服务器（4个 worker 协程进程）
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4"]
+# 小规格服务器使用单 worker，避免重复加载 AI/RAG 依赖造成资源争抢
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
