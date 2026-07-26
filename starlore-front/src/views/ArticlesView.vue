@@ -86,7 +86,7 @@ interface Category {
 }
 
 const currentPage = ref(1)
-const pageSize = ref(5)
+const pageSize = ref(6)
 const totalArticles = ref(0)
 const totalPages = ref(0)
 const articles = ref<Article[]>([])
