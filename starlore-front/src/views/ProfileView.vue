@@ -324,10 +324,19 @@ const handleChangePassword = async () => {
             <el-dialog
               v-model="profileDialogVisible"
               title="编辑资料"
-              width="460px"
+              width="640px"
+              class="account-dialog account-dialog--profile"
+              align-center
               :close-on-click-modal="false"
               destroy-on-close
             >
+              <template #header>
+                <div class="dialog-heading">
+                  <span class="dialog-kicker">个人资料</span>
+                  <h2>编辑资料</h2>
+                  <p>完善公开信息，让你的个人空间更容易被识别。</p>
+                </div>
+              </template>
               <form @submit.prevent="handleUpdateProfile" class="profile-form">
                 <div class="form-field">
                   <label>用户名</label>
@@ -357,15 +366,6 @@ const handleChangePassword = async () => {
                   />
                 </div>
                 <div class="form-field">
-                  <label for="profile-bio">个人简介</label>
-                  <textarea
-                    id="profile-bio"
-                    v-model="profileForm.bio"
-                    rows="3"
-                    placeholder="介绍一下自己吧..."
-                  ></textarea>
-                </div>
-                <div class="form-field">
                   <label for="profile-location">所在地</label>
                   <input
                     id="profile-location"
@@ -392,13 +392,22 @@ const handleChangePassword = async () => {
                     placeholder="https://github.com/yourname"
                   />
                 </div>
+                <div class="form-field form-field--wide">
+                  <label for="profile-bio">个人简介</label>
+                  <textarea
+                    id="profile-bio"
+                    v-model="profileForm.bio"
+                    rows="3"
+                    placeholder="介绍一下自己吧..."
+                  ></textarea>
+                </div>
                 <p v-if="profileMsg" class="form-msg">
                   {{ profileMsg }}
                 </p>
               </form>
               <template #footer>
-                <button class="btn-cancel" @click="profileDialogVisible = false">取消</button>
-                <button class="btn-primary" :disabled="profileLoading" @click="handleUpdateProfile">
+                <button type="button" class="btn-cancel" @click="profileDialogVisible = false">取消</button>
+                <button type="button" class="btn-primary" :disabled="profileLoading" @click="handleUpdateProfile">
                   <span v-if="profileLoading" class="btn-spinner"></span>
                   {{ profileLoading ? '保存中...' : '保存' }}
                 </button>
@@ -421,10 +430,19 @@ const handleChangePassword = async () => {
             <el-dialog
               v-model="passwordDialogVisible"
               title="修改密码"
-              width="420px"
+              width="440px"
+              class="account-dialog account-dialog--password"
+              align-center
               :close-on-click-modal="false"
               destroy-on-close
             >
+              <template #header>
+                <div class="dialog-heading">
+                  <span class="dialog-kicker">账户安全</span>
+                  <h2>修改密码</h2>
+                  <p>建议使用至少 8 位且不与其他网站重复的密码。</p>
+                </div>
+              </template>
               <form @submit.prevent="handleChangePassword" class="password-form">
                 <div class="form-field">
                   <label for="old-password">原密码</label>
@@ -465,8 +483,8 @@ const handleChangePassword = async () => {
                 </p>
               </form>
               <template #footer>
-                <button class="btn-cancel" @click="passwordDialogVisible = false">取消</button>
-                <button class="btn-primary" :disabled="passwordLoading" @click="handleChangePassword">
+                <button type="button" class="btn-cancel" @click="passwordDialogVisible = false">取消</button>
+                <button type="button" class="btn-primary" :disabled="passwordLoading" @click="handleChangePassword">
                   <span v-if="passwordLoading" class="btn-spinner"></span>
                   {{ passwordLoading ? '修改中...' : '确认修改' }}
                 </button>
@@ -646,30 +664,37 @@ const handleChangePassword = async () => {
 }
 
 .profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.profile-form .form-field--wide,
+.profile-form .form-msg {
+  grid-column: 1 / -1;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .form-field label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
+  padding-left: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .form-field input,
 .form-field textarea {
-  padding: 12px 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 15px;
-  background: var(--surface);
+  min-height: 50px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 14px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.56);
   color: var(--ink);
   outline: none;
   transition: all var(--transition);
@@ -679,8 +704,8 @@ const handleChangePassword = async () => {
 
 .form-field textarea {
   resize: vertical;
-  min-height: 80px;
-  border-radius: var(--radius-sm);
+  min-height: 92px;
+  line-height: 1.65;
 }
 
 .form-field input::placeholder,
@@ -933,30 +958,105 @@ const handleChangePassword = async () => {
 }
 
 :deep(.el-dialog) {
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  font-family: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.72), transparent 42%),
+    rgba(237, 246, 252, 0.82);
+  backdrop-filter: blur(28px) saturate(1.08);
+  -webkit-backdrop-filter: blur(28px) saturate(1.08);
+  box-shadow:
+    0 36px 80px -28px rgba(52, 79, 94, 0.34),
+    0 12px 30px -20px rgba(52, 79, 94, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+:deep(.account-dialog) {
+  width: min(var(--el-dialog-width), calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 32px));
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 :deep(.el-dialog__header) {
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid rgba(92, 77, 61, 0.1);
   margin: 0;
 }
 
-:deep(.el-dialog__title) {
-  font-size: 16px;
-  font-weight: 600;
+.dialog-heading {
+  padding-right: 36px;
+}
+
+.dialog-heading h2 {
+  margin: 8px 0 3px;
   color: var(--ink);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.dialog-heading p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dialog-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-muted);
+  font-family: Inter, "Noto Sans SC", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.dialog-kicker::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  content: "";
+}
+
+:deep(.account-dialog .el-dialog__headerbtn) {
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+:deep(.account-dialog .el-dialog__headerbtn:hover) {
+  background: var(--accent-soft);
 }
 
 :deep(.el-dialog__body) {
-  padding: 24px;
+  padding: 22px 28px 24px;
+}
+
+:deep(.account-dialog .el-dialog__body) {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 :deep(.el-dialog__footer) {
-  padding: 16px 24px 20px;
+  flex: 0 0 auto;
+  padding: 16px 28px 20px;
+  border-top: 1px solid rgba(92, 77, 61, 0.1);
+  background: transparent;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -965,7 +1065,28 @@ const handleChangePassword = async () => {
 .password-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+}
+
+:deep(.account-dialog--password .el-dialog__body) {
+  padding-top: 24px;
+  padding-bottom: 26px;
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog) {
+  border-color: rgba(130, 151, 255, 0.18);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(99, 133, 255, 0.1), transparent 38%),
+    rgba(16, 12, 38, 0.96);
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+:global([data-theme="dark"]) .form-field input,
+:global([data-theme="dark"]) .form-field textarea {
+  border-color: rgba(130, 151, 255, 0.16);
+  background: rgba(255, 255, 255, 0.065);
 }
 
 /* ─── Project ───────────────────────────────────────── */
@@ -1077,6 +1198,40 @@ const handleChangePassword = async () => {
 
   .sidebar-area {
     position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .profile-form {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-form .form-field--wide,
+  .profile-form .form-msg {
+    grid-column: auto;
+  }
+
+  :deep(.account-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 24px);
+    border-radius: 20px;
+  }
+
+  :deep(.account-dialog .el-dialog__header) {
+    padding: 18px 18px 14px;
+  }
+
+  :deep(.account-dialog .el-dialog__body) {
+    padding: 18px;
+  }
+
+  :deep(.account-dialog .el-dialog__footer) {
+    padding: 14px 18px 18px;
+  }
+
+  :deep(.account-dialog .el-dialog__footer .btn-cancel),
+  :deep(.account-dialog .el-dialog__footer .btn-primary) {
+    min-height: 44px;
   }
 }
 </style>

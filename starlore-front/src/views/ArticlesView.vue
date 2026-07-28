@@ -1178,7 +1178,7 @@ async function runRetrievalTest() {
               <div v-else-if="testResult.scores" class="metrics-grid">
                 <div class="metric-card">
                   <div class="metric-info">
-                    <span class="metric-label">📖 忠实度 (Faithfulness)</span>
+                    <span class="metric-label"> 忠实度 (Faithfulness)</span>
                     <span class="metric-val">{{ Math.round((testResult.scores.faithfulness || 0.92) * 100) }}%</span>
                   </div>
                   <div class="metric-progress-track">
@@ -1189,7 +1189,7 @@ async function runRetrievalTest() {
 
                 <div class="metric-card">
                   <div class="metric-info">
-                    <span class="metric-label">💡 回答相关度 (Answer Relevancy)</span>
+                    <span class="metric-label"> 回答相关度 (Answer Relevancy)</span>
                     <span class="metric-val">{{ Math.round((testResult.scores.answerRelevance || 0.85) * 100) }}%</span>
                   </div>
                   <div class="metric-progress-track">
@@ -1200,7 +1200,7 @@ async function runRetrievalTest() {
 
                 <div class="metric-card">
                   <div class="metric-info">
-                    <span class="metric-label">🔍 上下文精准度 (Context Precision)</span>
+                    <span class="metric-label"> 上下文精准度 (Context Precision)</span>
                     <span class="metric-val">{{ Math.round((testResult.scores.contextPrecision || 0.90) * 100) }}%</span>
                   </div>
                   <div class="metric-progress-track">
@@ -1211,7 +1211,7 @@ async function runRetrievalTest() {
 
                 <div class="metric-card">
                   <div class="metric-info">
-                    <span class="metric-label">📌 上下文召回率 (Context Recall)</span>
+                    <span class="metric-label"> 上下文召回率 (Context Recall)</span>
                     <span class="metric-val">{{ Math.round((testResult.scores.contextRecall || 0.88) * 100) }}%</span>
                   </div>
                   <div class="metric-progress-track">
