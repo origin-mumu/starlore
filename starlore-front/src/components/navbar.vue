@@ -10,13 +10,11 @@ const userStore = useUserStore()
 const route = useRoute()
 
 const navItems = computed(() => {
-  const items: { name: string; path: string }[] = [
-    { name: '首页', path: '/' },
-    { name: '星记', path: '/articles' },
-  ]
+  const items: { name: string; path: string }[] = [{ name: '首页', path: '/' }]
   if (!userStore.isLoggedIn) {
     items.push({ name: '关于我', path: '/about' })
   }
+  items.push({ name: '星记', path: '/articles' })
   items.push(
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
