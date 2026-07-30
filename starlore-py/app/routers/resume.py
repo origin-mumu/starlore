@@ -180,11 +180,14 @@ async def export_pdf(
     db: AsyncSession = Depends(get_db),
 ):
     """导出简历为 PDF（调用外部 starlore-pdf 服务）。"""
+    import base64
     import json
     import os
     import urllib.parse
+    from urllib.parse import urlparse
     import httpx
     from fastapi.responses import Response
+    from app.config import settings
 
     r = await resume_service.get_by_id(db, resume_id, user.id)
 
@@ -196,8 +199,28 @@ async def export_pdf(
     except (json.JSONDecodeError, TypeError):
         content_obj = {}
 
+    photo_url = r.photo_url or ""
+    if photo_url:
+        parsed_photo_url = urlparse(photo_url)
+        if parsed_photo_url.hostname in {"127.0.0.1", "localhost", "minio"}:
+            object_name = parsed_photo_url.path.rsplit("/", 1)[-1]
+            if object_name:
+                photo_url = f"{settings.minio_public_url.rstrip('/')}/{object_name}"
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
+            embedded_photo_url = photo_url
+            if photo_url:
+                try:
+                    photo_response = await client.get(photo_url)
+                    photo_response.raise_for_status()
+                    content_type = photo_response.headers.get("content-type", "image/jpeg")
+                    encoded_photo = base64.b64encode(photo_response.content).decode("ascii")
+                    embedded_photo_url = f"data:{content_type};base64,{encoded_photo}"
+                except httpx.HTTPError:
+                    # 保留原地址作为降级方案，避免头像下载异常阻断整份简历导出。
+                    embedded_photo_url = photo_url
+
             resp = await client.post(
                 f"{pdf_service_url}/api/pdf/resume",
                 json={
@@ -208,7 +231,7 @@ async def export_pdf(
                         "jobTitle": r.job_title or "",
                         "phone": r.phone or "",
                         "email": r.email or "",
-                        "photoUrl": r.photo_url or "",
+                        "photoUrl": embedded_photo_url,
                         "content": content_obj,
                     },
                 },
