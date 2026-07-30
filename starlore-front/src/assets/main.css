@@ -103,6 +103,56 @@
   border-color: var(--border-interactive);
 }
 
+/* Pointer-following light used by interactive content cards. */
+.starlore-spotlight {
+  --spot-x: 50%;
+  --spot-y: 50%;
+  position: relative;
+  isolation: isolate;
+}
+
+.starlore-spotlight:hover {
+  background-image:
+    radial-gradient(
+      360px circle at var(--spot-x) var(--spot-y),
+      color-mix(in oklch, var(--accent-sky) 10%, transparent),
+      transparent 72%
+    );
+}
+
+@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+  .starlore-spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 1.25px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      radial-gradient(
+        230px circle at var(--spot-x) var(--spot-y),
+        color-mix(in oklch, var(--accent-sky) 62%, transparent),
+        color-mix(in oklch, var(--warm) 24%, transparent) 52%,
+        transparent 78%
+      );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    transition: opacity 260ms var(--ease-out-quart);
+  }
+
+  .starlore-spotlight:hover::after {
+    opacity: 1;
+  }
+}
+
 /* Section Heading */
 .section-heading {
   font-size: 1.6rem;

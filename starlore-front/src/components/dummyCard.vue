@@ -15,7 +15,7 @@ const formatDate = (dateString: string) => {
 
 <template>
   <div
-    class="article-card"
+    class="article-card starlore-spotlight"
     @click="router.push({ name: 'articleDetail', params: { id: props.id } })"
   >
     <!-- 封面图 -->

@@ -102,6 +102,8 @@ import com.starlore.app.theme.isAppInDarkTheme
 import com.starlore.app.ui.components.glasense.DialogItemData
 import com.starlore.app.ui.components.glasense.DialogState
 import com.starlore.app.ui.components.glasense.GlasenseBottomBar
+import com.starlore.app.ui.components.glasense.GlasenseBackButton
+import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.GlasenseButton
 import com.starlore.app.ui.components.glasense.GlasenseDialog
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
@@ -767,62 +769,35 @@ fun DetailScreen(
             ) {
                 // This lambda is empty as the component handles its own content
             }
-            // Back button positioned at the top-start of the screen
-            GlasenseButton(
-                enabled = true,
-                shape = CircleShape,
-                onClick = { activity?.finish() }, // Closes the current activity, navigating back
+            GlasenseBackButton(
+                onClick = { activity?.finish() },
+                backdrop = backdrop,
                 modifier = Modifier
                     .padding(top = statusBarHeight, start = 12.dp)
                     .size(48.dp)
-                    .align(Alignment.TopStart),
-                colors = AppButtonColors.action()
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_forward_nav),
-                    contentDescription = stringResource(R.string.back),
-                    modifier = Modifier.width(32.dp)
-                )
-            }
-            val sharedInteractionSource = remember { MutableInteractionSource() }
-            GlasenseButton(
-                enabled = true,
-                interactionSource = sharedInteractionSource,
-                shape = CircleShape,
-                onClick = {},
+                    .align(Alignment.TopStart)
+            )
+            GlasenseNavigationButton(
                 modifier = Modifier
                     .padding(top = statusBarHeight, end = 12.dp)
                     .size(48.dp)
-                    .align(Alignment.TopEnd),
-                colors = AppButtonColors.action()
+                    .align(Alignment.TopEnd)
+                    .onGloballyPositioned { moreButtonBounds = it },
+                isActive = false,
+                onClick = {
+                    moreButtonBounds?.let {
+                        showMenu(it.boundsInWindow(), moreMenu)
+                    }
+                },
+                backdrop = backdrop,
+                liquidGlass = true
             ) {
-                Box(
-                    modifier = Modifier
-                        .onGloballyPositioned { coordinates ->
-                            moreButtonBounds = coordinates
-                        }
-                        .height(48.dp)
-                        .width(48.dp)
-                        .clickable(
-                            interactionSource = sharedInteractionSource,
-                            indication = null
-                        ) {
-                            moreButtonBounds?.let {
-                                showMenu(
-                                    it.boundsInWindow(),
-                                    moreMenu
-                                )
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_ellipsis),
-                        contentDescription = stringResource(R.string.more),
-                        modifier = Modifier.width(32.dp),
-                        tint = AppColors.primary
-                    )
-                }
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_ellipsis),
+                    contentDescription = stringResource(R.string.more),
+                    modifier = Modifier.size(22.dp),
+                    tint = AppColors.primary
+                )
             }
             GlasenseBottomBar(
                 modifier = Modifier.align(Alignment.BottomCenter),

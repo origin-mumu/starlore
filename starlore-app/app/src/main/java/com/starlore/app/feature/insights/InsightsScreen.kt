@@ -70,6 +70,7 @@ import com.starlore.app.theme.AppButtonColors
 import com.starlore.app.theme.AppColors
 import com.starlore.app.ui.components.glasense.GlasenseButtonToolBar
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
+import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.GlasensePageHeader
 import com.starlore.app.ui.components.glasense.isScrolledPast
 import com.starlore.app.ui.components.packed.CardWithTitle
@@ -157,9 +158,7 @@ fun BoxScope.InsightsScreen(viewModel: TodoViewModel) {
             .height(48.dp)
             .padding(horizontal = 12.dp)
     ) {
-        GlasenseButtonToolBar(
-            enabled = true,
-            shape = CircleShape,
+        GlasenseNavigationButton(
             onClick = {
                 context.startActivity(
                     SettingsActivity.createIntent(context, SettingsDestination.SETTINGS)
@@ -168,13 +167,15 @@ fun BoxScope.InsightsScreen(viewModel: TodoViewModel) {
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .size(48.dp),
-            colors = AppButtonColors.action(),
-            interactionSource = remember { MutableInteractionSource() }
+            isActive = false,
+            backdrop = backdrop,
+            liquidGlass = true
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_gear),
                 contentDescription = stringResource(R.string.settings),
-                modifier = Modifier.width(32.dp)
+                modifier = Modifier.size(22.dp),
+                tint = AppColors.primary
             )
         }
     }

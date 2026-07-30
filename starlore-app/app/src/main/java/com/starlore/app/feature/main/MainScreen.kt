@@ -4,13 +4,16 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -18,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,8 @@ import com.starlore.app.ui.components.glasense.glasenseHighlight
 import com.starlore.app.ui.components.glasense.material.MaterialRecipes
 import com.starlore.app.ui.components.glasense.material.rememberMaterialRenderEffectOrNull
 import com.starlore.app.ui.components.liquid.liquidGlassCapsule
+import com.starlore.app.ui.components.liquid.LiquidBottomTab
+import com.starlore.app.ui.components.liquid.LiquidBottomTabs
 import com.kyant.shapes.Capsule
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -60,8 +66,13 @@ import com.kyant.backdrop.shadow.Shadow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 sealed class Screen(val route: String, val title: String, val iconRes: Int) {
     object Home : Screen("home", "Home", R.drawable.ic_star)
@@ -153,7 +164,6 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
 
     val cardBg = AppColors.cardBackground
     val primaryColor = AppColors.primary
-    val onPrimaryColor = AppColors.onPrimary
     val contentVariantColor = AppColors.contentVariant
 
     val surfaceColor = AppPageColor
@@ -166,170 +176,173 @@ fun MainShell(authSessionVersion: Int, onLogout: () -> Unit) {
         drawContent()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .appPageBackground()
+            // Each active destination paints the same full-screen page background.
+            // Keep only a solid fallback here to avoid drawing all six gradients twice.
+            .background(surfaceColor)
     ) {
+        val useNavigationRail = maxWidth >= 600.dp
+
         // Active Content View
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(backdrop)
+                .padding(start = if (useNavigationRail) 112.dp else 0.dp)
         ) {
-            when (currentRoute) {
-                Screen.Home.route -> HomeScreen(
-                    accountSessionKey = authSessionVersion,
-                    refreshToken = contentVersion,
-                    onAskAi = { context.startActivity(ChatActivity.createIntent(context)) },
-                    onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
-                    onOpenArticles = { currentRoute = Screen.Articles.route },
-                    onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) }
-                )
-                Screen.Articles.route -> ArticlesScreen(
-                    onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) },
-                    onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
-                    onManageCategories = {
-                        categoryManagerLauncher.launch(CategoryManageActivity.createIntent(context))
-                    },
-                    isOverlayOpen = hasOverlay,
-                    accountSessionKey = authSessionVersion,
-                    refreshToken = contentVersion
-                )
-                Screen.Diverge.route -> DivergeScreen()
-                Screen.Profile.route -> ProfileScreen(onLogout = onLogout)
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 960.dp)
+                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .layerBackdrop(backdrop)
+            ) {
+                when (currentRoute) {
+                    Screen.Home.route -> HomeScreen(
+                        accountSessionKey = authSessionVersion,
+                        refreshToken = contentVersion,
+                        onAskAi = { context.startActivity(ChatActivity.createIntent(context)) },
+                        onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
+                        onOpenArticles = { currentRoute = Screen.Articles.route },
+                        onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) }
+                    )
+                    Screen.Articles.route -> ArticlesScreen(
+                        onArticleClick = { detailLauncher.launch(ArticleDetailActivity.createIntent(context, it)) },
+                        onCreateArticle = { editorLauncher.launch(ArticleEditorActivity.createIntent(context)) },
+                        onManageCategories = {
+                            categoryManagerLauncher.launch(CategoryManageActivity.createIntent(context))
+                        },
+                        isOverlayOpen = hasOverlay,
+                        accountSessionKey = authSessionVersion,
+                        refreshToken = contentVersion
+                    )
+                    Screen.Diverge.route -> DivergeScreen()
+                    Screen.Profile.route -> ProfileScreen(onLogout = onLogout)
+                }
             }
         }
 
         if (!hasOverlay) {
-            // Unified Floating bottom navigation bar
-            val liquidGlass = LocalGlasenseSettings.current.liquidGlass
-            val materialEffect = rememberMaterialRenderEffectOrNull(MaterialRecipes.thin())
-            val bottomNavBackdrop = if (liquidGlass) {
-                Modifier.liquidGlassCapsule(
-                    backdrop = backdrop,
-                    surfaceColor = cardBg.copy(alpha = .24f),
-                    blurRadius = 8.dp,
-                    lensRadius = 24.dp
-                )
-            } else materialEffect?.let { renderEffect ->
-                Modifier.drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { Capsule() },
-                    shadow = {
-                        Shadow(
-                            radius = 24.dp,
-                            color = Color.Black.copy(alpha = 0.08f),
-                            offset = DpOffset(0.dp, 8.dp)
-                        )
-                    },
-                    innerShadow = null,
-                    highlight = {
-                        Highlight.Default.copy(
-                            style = HighlightStyle.Default(
-                                angle = 90f
-                            )
-                        )
-                    },
-                    effects = {
-                        padding = 8f.dp.toPx() * 2
-                        effect(renderEffect)
-                        blur(16f.dp.toPx(), TileMode.Clamp)
-                    },
-                    onDrawSurface = {
-                        drawRect(cardBg.copy(alpha = 0.25f))
-                    }
-                )
-            } ?: Modifier
-                .clip(Capsule())
-                .background(cardBg.copy(alpha = 0.8f))
-                .glasenseHighlight(Capsule())
-
-
-        BoxWithConstraints(
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 16.dp)
-                .navigationBarsPadding()
-                .fillMaxWidth()
-                .height(64.dp)
-                .then(bottomNavBackdrop)
-                .align(Alignment.BottomCenter)
-        ) {
-            val totalWidth = maxWidth
-            val tabWidth = totalWidth / items.size
-            val selectedIndex = items.indexOfFirst { it.route == currentRoute }
-
-            val indicatorWidth = 80.dp
-            val indicatorHeight = 48.dp
-
-            val targetOffset = (tabWidth * selectedIndex) + (tabWidth - indicatorWidth) / 2
-            val animatedOffset by animateDpAsState(
-                targetValue = targetOffset,
-                animationSpec = spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 300f
-                ),
-                label = "indicator_offset"
-            )
-
-            val liquidGlass = LocalGlasenseSettings.current.liquidGlass
-
-            // 1. Sliding active indicator in the background layer
-            Box(
-                modifier = Modifier
-                    .offset(x = animatedOffset)
-                    .align(Alignment.CenterStart)
-            ) {
-                GlasenseNavigationButton(
+            if (useNavigationRail) {
+                TabletNavigationRail(
+                    items = items,
+                    currentRoute = currentRoute,
+                    onRouteSelected = { currentRoute = it },
                     modifier = Modifier
-                        .size(width = indicatorWidth, height = indicatorHeight),
-                    isActive = true,
-                    onClick = {},
-                    backdrop = backdrop,
-                    liquidGlass = liquidGlass
-                ) {}
+                        .align(Alignment.CenterStart)
+                        .padding(start = 20.dp)
+                        .systemBarsPadding()
+                )
+                return@BoxWithConstraints
             }
 
-            // 2. Foreground navigation items Row
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
+            LiquidBottomTabs(
+                selectedTabIndex = items.indexOfFirst { it.route == currentRoute },
+                onTabSelected = { index -> currentRoute = items[index].route },
+                backdrop = backdrop,
+                tabsCount = items.size,
+                accentColor = primaryColor,
+                containerColor = cardBg.copy(alpha = .40f),
+                modifier = Modifier
+                    .padding(horizontal = 32.dp)
+                    .padding(bottom = 12.dp)
+                    .navigationBarsPadding()
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.BottomCenter)
             ) {
                 items.forEach { screen ->
                     val isActive = currentRoute == screen.route
-
                     val iconTint by animateColorAsState(
-                        targetValue = if (isActive) onPrimaryColor else contentVariantColor,
+                        targetValue = if (isActive) primaryColor else contentVariantColor,
                         animationSpec = spring(stiffness = 300f),
                         label = "icon_tint"
                     )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                if (currentRoute != screen.route) {
-                                    currentRoute = screen.route
-                                }
-                            },
-                        contentAlignment = Alignment.Center
+                    LiquidBottomTab(
+                        onClick = {
+                            if (currentRoute != screen.route) currentRoute = screen.route
+                        }
                     ) {
                         Icon(
                             painter = painterResource(id = screen.iconRes),
                             contentDescription = screen.title,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                             tint = iconTint
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TabletNavigationRail(
+    items: List<Screen>,
+    currentRoute: String,
+    onRouteSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .width(76.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .background(AppColors.cardBackground.copy(alpha = 0.82f))
+            .glasenseHighlight(RoundedCornerShape(30.dp))
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { screen ->
+            val selected = currentRoute == screen.route
+            val tint by animateColorAsState(
+                targetValue = if (selected) AppColors.onPrimary else AppColors.contentVariant,
+                animationSpec = spring(stiffness = 300f),
+                label = "rail_icon_tint"
+            )
+            val backgroundColor by animateColorAsState(
+                targetValue = if (selected) AppColors.primary else Color.Transparent,
+                animationSpec = spring(stiffness = 300f),
+                label = "rail_item_background"
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 64.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onRouteSelected(screen.route) }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(backgroundColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(screen.iconRes),
+                        contentDescription = screen.title,
+                        modifier = Modifier.size(22.dp),
+                        tint = tint
+                    )
+                }
+                Text(
+                    text = screen.title,
+                    color = if (selected) AppColors.primary else AppColors.contentVariant,
+                    fontSize = 10.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

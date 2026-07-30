@@ -74,7 +74,7 @@ class ArticleDetailActivity : AppCompatActivity() {
                     }
                     androidx.compose.runtime.key(contentVersion) {
                         androidx.compose.foundation.layout.Box(
-                            modifier = Modifier.fillMaxSize().layerBackdrop(backdrop)
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             ArticleDetailScreen(
                                 articleId = articleId,

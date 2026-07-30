@@ -3,12 +3,16 @@ import { RouterView, useRoute } from 'vue-router'
 
 import navbar from './components/navbar.vue'
 import BlurredBubbles from './components/BlurredBubbles.vue'
-import { ref, onMounted } from 'vue'
+import CosmicBackdrop from './components/CosmicBackdrop.vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const isAppReady = ref(false)
 const userStore = useUserStore()
 const route = useRoute()
+const showAmbientBackdrop = computed(
+  () => !['/echobot', '/vr', '/login'].includes(route.path),
+)
 const APP_LOADING_MIN_MS = 120
 const ICP_RECORD_NUMBER = '豫ICP备2026009410号'
 const MIIT_URL = 'https://beian.miit.gov.cn/'
@@ -28,12 +32,42 @@ const makeAppReadySoon = () => {
   })
 }
 
+let spotlightFrame = 0
+let pendingSpotlightEvent: PointerEvent | null = null
+
+const applyCardSpotlight = () => {
+  spotlightFrame = 0
+  const event = pendingSpotlightEvent
+  if (!event) return
+  const target = event.target instanceof Element
+    ? event.target.closest<HTMLElement>('.starlore-spotlight')
+    : null
+  if (!target) return
+  const rect = target.getBoundingClientRect()
+  target.style.setProperty('--spot-x', `${event.clientX - rect.left}px`)
+  target.style.setProperty('--spot-y', `${event.clientY - rect.top}px`)
+}
+
+const handleSpotlightPointer = (event: PointerEvent) => {
+  if (event.pointerType && event.pointerType !== 'mouse') return
+  pendingSpotlightEvent = event
+  if (!spotlightFrame) spotlightFrame = requestAnimationFrame(applyCardSpotlight)
+}
+
 onMounted(() => {
   makeAppReadySoon()
+  if (window.matchMedia('(pointer: fine)').matches) {
+    document.addEventListener('pointermove', handleSpotlightPointer, { passive: true })
+  }
   // 尝试恢复登录状态
   if (userStore.isLoggedIn) {
     userStore.fetchCurrentUser()
   }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointermove', handleSpotlightPointer)
+  if (spotlightFrame) cancelAnimationFrame(spotlightFrame)
 })
 </script>
 
@@ -44,6 +78,7 @@ onMounted(() => {
   >
     <!-- 全局背景装饰 - 模糊气泡 -->
     <BlurredBubbles />
+    <CosmicBackdrop v-if="showAmbientBackdrop" />
     <div v-if="!isAppReady" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>
@@ -96,6 +131,8 @@ onMounted(() => {
 }
 
 .router-outlet {
+  position: relative;
+  z-index: 1;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -171,6 +208,8 @@ onMounted(() => {
 }
 
 .site-footer {
+  position: relative;
+  z-index: 1;
   margin-top: auto;
   text-align: center;
   padding: 40px 0 30px;

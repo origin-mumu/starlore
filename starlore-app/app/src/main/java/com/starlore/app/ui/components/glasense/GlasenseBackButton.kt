@@ -16,7 +16,7 @@ import com.starlore.glasense.core.component.Icon
 @Composable
 fun GlasenseBackButton(
     onClick: () -> Unit,
-    backdrop: LayerBackdrop,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     GlasenseNavigationButton(

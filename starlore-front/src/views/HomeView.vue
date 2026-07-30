@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import { gsap } from 'gsap'
 import { useRouter } from 'vue-router'
+import StellarDotsBand from '@/components/StellarDotsBand.vue'
 import { getBlogStatsService } from '@/api/article'
 import { Article } from '@/type/Article'
 import { useUserStore } from '@/stores/user'
@@ -374,6 +375,10 @@ onUnmounted(() => {
         </div>
       </section>
 
+      <div class="container">
+        <StellarDotsBand />
+      </div>
+
       <!-- Features Section -->
       <section id="features" class="section-parchment">
         <div class="container">
@@ -386,7 +391,7 @@ onUnmounted(() => {
             <div
               v-for="(feature, i) in features"
               :key="feature.title"
-              class="feature-card scroll-reveal"
+              class="feature-card starlore-spotlight scroll-reveal"
               :class="{ 'feature-card--large': feature.large }"
               :style="{ 
                 transitionDelay: `${i * 0.08}s`,
@@ -740,28 +745,27 @@ onUnmounted(() => {
               <p>搜索、续写，或从一条旧知识重新出发。</p>
             </div>
             <div class="knowledge-constellation" aria-hidden="true">
-              <svg viewBox="0 0 240 190" role="presentation">
-                <path class="constellation-path" d="M24 110 L73 54 L122 91 L178 38 L216 104 L164 150 L93 143 L24 110" />
-                <path class="constellation-path constellation-path-faint" d="M73 54 L93 143 M122 91 L164 150 M122 91 L216 104" />
-                <circle class="constellation-halo halo-one" cx="122" cy="91" r="35" />
-                <circle class="constellation-halo halo-two" cx="178" cy="38" r="18" />
-                <circle class="constellation-node node-small" cx="24" cy="110" r="4" />
-                <circle class="constellation-node node-medium" cx="73" cy="54" r="6" />
-                <circle class="constellation-node node-core" cx="122" cy="91" r="13" />
-                <circle class="constellation-node node-small" cx="178" cy="38" r="4" />
-                <circle class="constellation-node node-medium" cx="216" cy="104" r="6" />
-                <circle class="constellation-node node-small" cx="164" cy="150" r="4" />
-                <circle class="constellation-node node-small" cx="93" cy="143" r="4" />
-                <path class="constellation-spark" d="M122 82 L124.5 88.5 L131 91 L124.5 93.5 L122 100 L119.5 93.5 L113 91 L119.5 88.5 Z" />
+              <svg viewBox="0 0 260 250" role="presentation">
+                <ellipse class="constellation-path orbit-one" cx="130" cy="124" rx="98" ry="43" transform="rotate(-18 130 124)" />
+                <ellipse class="constellation-path orbit-two" cx="130" cy="124" rx="84" ry="62" transform="rotate(38 130 124)" />
+                <path class="constellation-path constellation-path-faint orbit-trail" d="M53 80 C91 31 178 32 216 82 C242 116 229 174 183 205" />
+
+                <circle class="constellation-halo halo-outer" cx="130" cy="124" r="39" />
+                <circle class="constellation-halo halo-inner" cx="130" cy="124" r="25" />
+                <circle class="constellation-node node-core" cx="130" cy="124" r="14" />
+                <path class="constellation-spark" d="M130 114 L133 121 L140 124 L133 127 L130 134 L127 127 L120 124 L127 121 Z" />
+
+                <circle class="constellation-node node-accent" cx="73" cy="61" r="7" />
+                <circle class="constellation-node node-sky" cx="211" cy="84" r="6" />
+                <circle class="constellation-node node-warm" cx="214" cy="159" r="5" />
+                <circle class="constellation-node node-small" cx="49" cy="155" r="4" />
+                <circle class="constellation-node node-small" cx="104" cy="196" r="4" />
+                <circle class="constellation-node node-muted" cx="184" cy="207" r="3" />
+                <circle class="constellation-star-dot" cx="36" cy="91" r="2" />
+                <circle class="constellation-star-dot" cx="224" cy="53" r="2.5" />
+                <circle class="constellation-star-dot" cx="231" cy="188" r="1.8" />
               </svg>
               <span>KNOWLEDGE MAP</span>
-            </div>
-            <div class="knowledge-hero-actions">
-              <span class="knowledge-index">{{ totalArticles }} NOTES · {{ totalCategories }} SPACES</span>
-              <router-link to="/articles/edit" class="knowledge-create">
-                <Plus :size="18" />
-                新建知识
-              </router-link>
             </div>
           </div>
 
@@ -779,6 +783,10 @@ onUnmounted(() => {
           </form>
 
           <nav class="knowledge-shortcuts" aria-label="快捷操作">
+            <router-link to="/articles/edit" class="knowledge-create">
+              <Plus :size="17" />
+              新建知识
+            </router-link>
             <router-link to="/echobot" class="ask-knowledge">
               <MessageCircle :size="17" />
               询问知识库
@@ -2311,20 +2319,6 @@ onUnmounted(() => {
   font-size: 0.9rem;
 }
 
-.knowledge-hero-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.knowledge-index {
-  color: var(--ink-muted);
-  font: 650 0.64rem/1.3 'Inter', system-ui, sans-serif;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-}
-
 .knowledge-create {
   min-height: 44px;
   display: inline-flex;
@@ -2351,9 +2345,11 @@ onUnmounted(() => {
 
 .knowledge-constellation {
   position: relative;
-  width: 230px;
+  width: 280px;
+  grid-column: 2 / 4;
   justify-self: center;
   color: var(--ink);
+  transform: translateY(76px);
 }
 
 .knowledge-constellation svg {
@@ -2364,7 +2360,7 @@ onUnmounted(() => {
 
 .knowledge-constellation > span {
   display: block;
-  margin-top: -12px;
+  margin-top: -4px;
   color: var(--ink-muted);
   font: 650 0.58rem/1 'Inter', system-ui, sans-serif;
   letter-spacing: 0.14em;
@@ -2380,8 +2376,17 @@ onUnmounted(() => {
 }
 
 .constellation-path-faint {
-  stroke-dasharray: 3 5;
-  opacity: 0.12;
+  stroke-dasharray: 3 7;
+  opacity: 0.16;
+}
+
+.orbit-one {
+  stroke: color-mix(in srgb, var(--accent-sky) 58%, currentColor);
+  opacity: 0.28;
+}
+
+.orbit-two {
+  opacity: 0.17;
 }
 
 .constellation-halo {
@@ -2390,14 +2395,19 @@ onUnmounted(() => {
   stroke-width: 1;
 }
 
-.halo-two {
-  fill: rgba(145, 197, 211, 0.08);
-  stroke: rgba(145, 197, 211, 0.16);
+.halo-outer {
+  fill: rgba(116, 137, 215, 0.055);
+  stroke-dasharray: 2 5;
+}
+
+.halo-inner {
+  fill: rgba(145, 197, 211, 0.1);
+  stroke: rgba(145, 197, 211, 0.2);
 }
 
 .constellation-node {
   fill: var(--canvas);
-  stroke: currentColor;
+  stroke: color-mix(in srgb, var(--ink) 72%, transparent);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
@@ -2408,10 +2418,33 @@ onUnmounted(() => {
   stroke-width: 4;
 }
 
-.node-medium {
-  fill: rgba(116, 137, 215, 0.62);
+.node-accent,
+.node-sky,
+.node-warm {
   stroke: var(--canvas);
   stroke-width: 3;
+}
+
+.node-accent {
+  fill: color-mix(in srgb, var(--accent) 68%, var(--canvas));
+}
+
+.node-sky {
+  fill: color-mix(in srgb, var(--accent-sky) 62%, var(--canvas));
+}
+
+.node-warm {
+  fill: color-mix(in srgb, var(--warm) 62%, var(--canvas));
+}
+
+.node-muted {
+  fill: var(--ink-muted);
+  stroke: none;
+}
+
+.constellation-star-dot {
+  fill: var(--ink-muted);
+  opacity: 0.42;
 }
 
 .constellation-spark {
@@ -2421,7 +2454,8 @@ onUnmounted(() => {
 .knowledge-search {
   position: relative;
   z-index: 1;
-  min-height: 64px;
+  width: min(640px, 100%);
+  min-height: 60px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -2469,6 +2503,7 @@ onUnmounted(() => {
 }
 
 .knowledge-shortcuts {
+  width: min(640px, 100%);
   display: flex;
   align-items: center;
   gap: 22px;
@@ -2505,6 +2540,17 @@ onUnmounted(() => {
   background: var(--glass-bg);
   color: var(--ink);
   box-shadow: var(--shadow-sm);
+}
+
+.knowledge-shortcuts .knowledge-create {
+  min-height: 38px;
+  padding: 0 15px;
+  color: var(--canvas);
+  font-size: 0.8rem;
+}
+
+.knowledge-shortcuts .knowledge-create:hover {
+  color: var(--canvas);
 }
 
 .knowledge-shortcuts .ask-knowledge:hover {
@@ -3330,24 +3376,15 @@ onUnmounted(() => {
     width: 92px;
     grid-column: 2;
     grid-row: 1;
+    transform: none;
   }
 
   .knowledge-constellation > span {
     display: none;
   }
 
-  .knowledge-hero-actions {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .knowledge-index {
-    font-size: 0.58rem;
-  }
-
   .knowledge-search {
+    width: 100%;
     min-height: 58px;
     padding-left: 16px;
   }
@@ -3358,13 +3395,21 @@ onUnmounted(() => {
   }
 
   .knowledge-shortcuts {
+    width: 100%;
     flex-wrap: wrap;
     gap: 12px 18px;
   }
 
   .knowledge-shortcuts .ask-knowledge {
-    width: 100%;
+    flex: 1;
     justify-content: center;
+  }
+
+  .knowledge-shortcuts .knowledge-create {
+    width: auto;
+    flex: 1;
+    justify-content: center;
+    font-size: 0.8rem;
   }
 
   .quick-actions {

@@ -1,6 +1,7 @@
 package com.starlore.app.feature.chat
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,8 +38,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.Backdrop
 import com.starlore.app.theme.AppSpecs
 import com.starlore.app.ui.components.glasense.GlasenseDynamicSmallTitle
@@ -52,13 +55,23 @@ import com.starlore.app.data.api.AiSessionRow
 import com.starlore.app.data.api.CharacterCard
 import com.starlore.app.feature.article.MarkdownText
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppPageColor
 import com.starlore.app.theme.appPageBackground
+import com.starlore.app.ui.components.glasense.GlasenseBackButton
+import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
+import com.starlore.app.ui.components.glasense.GlasenseSwipeable
+import com.starlore.app.ui.components.glasense.SwipeableActionButton
+import com.starlore.app.ui.components.glasense.isScrolledPast
+import com.starlore.app.ui.components.glasense.rememberSwipeableListState
+import com.starlore.app.ui.components.AppForwardPage
+import com.starlore.app.ui.components.appScrollBreathingRoom
 import com.starlore.app.ui.components.liquid.LiquidGlassButton
 import com.starlore.app.ui.components.liquid.liquidGlass
 import com.starlore.app.ui.components.liquid.liquidGlassCapsule
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
 import kotlinx.coroutines.delay
+import kotlinx.collections.immutable.persistentListOf
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,13 +122,29 @@ fun EchobotScreen(
         )
         drawContent()
     }
+    var pageWidth by remember { mutableFloatStateOf(0f) }
+    val chatPageOffset by animateFloatAsState(
+        targetValue = if (showSessions) -pageWidth * .24f else 0f,
+        animationSpec = tween(durationMillis = if (showSessions) 300 else 280),
+        label = "chat-page-offset"
+    )
 
-    Box(Modifier.fillMaxSize().appPageBackground()) {
-        Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .appPageBackground()
+            .onSizeChanged { pageWidth = it.width.toFloat() }
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationX = chatPageOffset }
+        ) {
+            Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             if (messages.isEmpty()) {
                 EmptyChannel(
                     modifier = Modifier.fillMaxSize(),
-                    topPadding = statusBarHeight + 92.dp,
+                    topPadding = statusBarHeight + 78.dp,
                     bottomPadding = 112.dp,
                     onPrompt = { inputText.value = it }
                 )
@@ -127,12 +156,11 @@ fun EchobotScreen(
                     contentPadding = PaddingValues(
                         start = 14.dp,
                         end = 14.dp,
-                        top = statusBarHeight + 92.dp,
+                        top = statusBarHeight + 78.dp,
                         bottom = 116.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    item { PinnedIntro() }
                     items(messages) { message ->
                         MessageBubble(
                             message = message,
@@ -169,27 +197,32 @@ fun EchobotScreen(
                 action = { TextButton(onClick = viewModel::clearError) { Text("知道了") } }
             ) { Text(message) }
         }
+
+        }
+
+        AppForwardPage(
+            visible = showSessions,
+            onBack = { showSessions = false }
+        ) {
+            SessionHistoryPageV2(
+                sessions = viewModel.sessions,
+                activeSessionId = viewModel.activeSessionId.value,
+                isBusy = isSending,
+                onBack = { showSessions = false },
+                onNewSession = {
+                    viewModel.newSession()
+                    showSessions = false
+                },
+                onSelectSession = {
+                    viewModel.selectSession(it)
+                    showSessions = false
+                },
+                onDeleteSession = viewModel::deleteSession
+            )
+        }
     }
 
-    if (showSessions) {
-        SessionHistorySheet(
-            sessions = viewModel.sessions,
-            activeSessionId = viewModel.activeSessionId.value,
-            isBusy = isSending,
-            onDismiss = { showSessions = false },
-            onNewSession = {
-                viewModel.newSession()
-                showSessions = false
-            },
-            onSelectSession = {
-                viewModel.selectSession(it)
-                showSessions = false
-            },
-            onDeleteSession = viewModel::deleteSession
-        )
-    }
-
-    GlasensePopup(
+    if (!showSessions) GlasensePopup(
         popupState = PopupState(showCharacters, characterAnchorBounds),
         onDismiss = { showCharacters = false },
         width = 270.dp,
@@ -231,50 +264,46 @@ fun EchobotScreen(
 @Composable
 private fun ChannelHeader(
     modifier: Modifier = Modifier,
-    backdrop: Backdrop,
+    backdrop: LayerBackdrop,
     statusBarHeight: androidx.compose.ui.unit.Dp,
     onBack: (() -> Unit)?,
     onOpenHistory: () -> Unit
 ) {
     Row(
         modifier = modifier.fillMaxWidth()
-            .padding(top = statusBarHeight + 8.dp, start = 12.dp, end = 12.dp),
+            .padding(top = statusBarHeight + 6.dp, start = 14.dp, end = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CircleIconButton(R.drawable.ic_chevron_forward_compact, "返回", onBack, backdrop, rotate = 180f)
+        GlasenseBackButton(
+            onClick = { onBack?.invoke() },
+            backdrop = backdrop,
+            modifier = Modifier.size(42.dp)
+        )
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp).weight(1f).height(58.dp)
+            modifier = Modifier.padding(horizontal = 6.dp).weight(1f).height(50.dp)
                 .liquidGlassCapsule(backdrop, surfaceColor = AppColors.cardBackground.copy(alpha = .24f))
-                .padding(horizontal = 18.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Starlore AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                Text("与你的知识一起思考", color = AppColors.contentVariant, fontSize = 12.sp)
+                Text("Starlore AI", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                Text("与你的知识一起思考", color = AppColors.contentVariant, fontSize = 11.sp)
             }
         }
-        CircleIconButton(R.drawable.ic_ellipsis, "会话与更多", onOpenHistory, backdrop)
-    }
-}
-
-@Composable
-private fun CircleIconButton(
-    icon: Int,
-    label: String,
-    onClick: (() -> Unit)?,
-    backdrop: Backdrop,
-    rotate: Float = 0f
-) {
-    LiquidGlassButton(
-        onClick = { onClick?.invoke() },
-        enabled = onClick != null,
-        backdrop = backdrop,
-        modifier = Modifier.size(52.dp),
-        surfaceColor = AppColors.cardBackground.copy(alpha = .2f)
-    ) {
-        Icon(
-            painterResource(icon), label, Modifier.size(21.dp).graphicsLayer { rotationZ = rotate }, AppColors.content
-        )
+        GlasenseNavigationButton(
+            modifier = Modifier.size(42.dp),
+            isActive = false,
+            onClick = onOpenHistory,
+            backdrop = backdrop,
+            liquidGlass = true
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_ellipsis),
+                "会话与更多",
+                Modifier.size(20.dp),
+                AppColors.primary
+            )
+        }
     }
 }
 
@@ -291,7 +320,6 @@ private fun EmptyChannel(
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = topPadding, bottom = bottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { PinnedIntro() }
         item {
             Column(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
@@ -322,21 +350,8 @@ private fun EmptyChannel(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PinnedIntro() {
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(AppColors.primary.copy(alpha = .1f)).padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Icon(painterResource(R.drawable.ic_pin), null, Modifier.size(18.dp), AppColors.primary)
-        Column(Modifier.weight(1f)) {
-            Text("置顶说明", color = AppColors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("内容仅用于辅助思考，重要结论请自行核对", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        item(key = "empty-channel-overscroll-room") {
+            Spacer(Modifier.height(280.dp))
         }
     }
 }
@@ -429,74 +444,311 @@ private fun ChannelComposer(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SessionHistorySheet(
+private fun SessionHistoryPageV2(
     sessions: List<AiSessionRow>,
     activeSessionId: Int?,
     isBusy: Boolean,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onNewSession: () -> Unit,
     onSelectSession: (Int) -> Unit,
     onDeleteSession: (Int) -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AppColors.pageBackground) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    val listState = rememberLazyListState()
+    val swipeableState = rememberSwipeableListState()
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val isSmallTitleVisible by listState.isScrolledPast(statusBarHeight + 24.dp)
+    val pageColor = AppPageColor
+    val backdrop = rememberLayerBackdrop {
+        drawRect(
+            color = pageColor,
+            size = Size(size.width * 3, size.height * 3),
+            topLeft = Offset(-size.width, -size.height)
+        )
+        drawContent()
+    }
+    val deleteAction = persistentListOf(
+        SwipeableActionButton(
+            index = 0,
+            color = AppColors.error,
+            icon = painterResource(R.drawable.ic_trash),
+            iconColor = AppColors.onError,
+            contentDescription = "删除会话",
+            isDestructive = true,
+            triggerOnDeepSwipe = true
+        )
+    )
+
+    Box(Modifier.fillMaxSize().appPageBackground()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().layerBackdrop(backdrop),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = statusBarHeight + 76.dp,
+                bottom = 180.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("会话记录", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onNewSession, enabled = !isBusy) { Text("＋ 新会话") }
-        }
-        if (sessions.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                Text("还没有历史会话", color = AppColors.contentVariant)
+            item(key = "session-page-heading") {
+                Column(Modifier.padding(start = 4.dp, bottom = 18.dp)) {
+                    Text("会话记录", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("${sessions.size} 个历史会话", color = AppColors.contentVariant, fontSize = 12.sp)
+                }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sessions, key = { it.id }) { session ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                if (session.id == activeSessionId) AppColors.primary.copy(alpha = 0.12f)
-                                else AppColors.cardBackground.copy(alpha = 0.65f)
-                            )
-                            .clickable(enabled = !isBusy) { onSelectSession(session.id) }
-                            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            if (sessions.isEmpty()) {
+                item(key = "empty-sessions") {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                session.title,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                fontWeight = if (session.id == activeSessionId) FontWeight.Bold else FontWeight.Medium
-                            )
-                            Text(
-                                session.updatedAt.take(16).replace('T', ' '),
-                                color = AppColors.contentVariant,
-                                fontSize = 11.sp
-                            )
-                        }
-                        IconButton(onClick = { onDeleteSession(session.id) }, enabled = !isBusy) {
+                        Box(
+                            Modifier.size(64.dp).clip(RoundedCornerShape(22.dp))
+                                .background(AppColors.primary.copy(alpha = .1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_trash),
-                                contentDescription = "删除会话",
-                                tint = AppColors.error,
-                                modifier = Modifier.size(18.dp)
+                                painterResource(R.drawable.ic_nav_sparkle_filled),
+                                null,
+                                Modifier.size(28.dp),
+                                AppColors.primary
                             )
                         }
+                        Text("还没有历史会话", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "开始一次对话后，会话会保存在这里",
+                            color = AppColors.contentVariant,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
+            items(sessions, key = { it.id }) { session ->
+                val isActive = session.id == activeSessionId
+                GlasenseSwipeable(
+                    key = session.id,
+                    modifier = Modifier.fillMaxWidth(),
+                    listState = swipeableState,
+                    actions = deleteAction,
+                    onAction = { onDeleteSession(session.id) }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (isActive) AppColors.cardBackground.copy(alpha = .92f)
+                                else AppColors.cardBackground.copy(alpha = .78f)
+                            )
+                            .glasenseHighlight(RoundedCornerShape(20.dp))
+                            .clickable(enabled = !isBusy) { onSelectSession(session.id) }
+                            .padding(horizontal = 17.dp, vertical = 15.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape).background(
+                                if (isActive) AppColors.primary
+                                else AppColors.primary.copy(alpha = .12f)
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_nav_sparkle_filled),
+                                null,
+                                Modifier.size(18.dp),
+                                if (isActive) AppColors.onPrimary else AppColors.primary
+                            )
+                        }
+                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                            Text(
+                                session.title,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                if (isActive) "当前会话 · ${session.updatedAt.take(16).replace('T', ' ')}"
+                                else session.updatedAt.take(16).replace('T', ' '),
+                                color = if (isActive) AppColors.primary else AppColors.contentVariant,
+                                fontSize = 11.sp,
+                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        }
+                        Icon(
+                            painterResource(R.drawable.ic_chevron_forward_compact),
+                            "右滑管理",
+                            Modifier.size(16.dp),
+                            AppColors.contentVariant.copy(alpha = .55f)
+                        )
+                    }
+                }
+            }
+            appScrollBreathingRoom(key = "session-scroll-breathing-room")
         }
-        Spacer(Modifier.navigationBarsPadding())
+
+        GlasenseDynamicSmallTitle(
+            modifier = Modifier.align(Alignment.TopCenter),
+            title = "会话记录",
+            statusBarHeight = statusBarHeight,
+            isVisible = isSmallTitleVisible,
+            backdrop = backdrop,
+            surfaceColor = pageColor
+        ) {}
+        GlasenseBackButton(
+            onClick = onBack,
+            backdrop = backdrop,
+            modifier = Modifier.padding(top = statusBarHeight, start = 12.dp).size(48.dp)
+                .align(Alignment.TopStart)
+        )
+        GlasenseNavigationButton(
+            modifier = Modifier.padding(top = statusBarHeight, end = 12.dp).size(48.dp)
+                .align(Alignment.TopEnd),
+            isActive = false,
+            onClick = onNewSession,
+            backdrop = backdrop,
+            liquidGlass = true
+        ) {
+            Icon(painterResource(R.drawable.ic_add), "新会话", Modifier.size(22.dp), AppColors.primary)
+        }
+    }
+}
+
+@Composable
+private fun SessionHistoryPage(
+    sessions: List<AiSessionRow>,
+    activeSessionId: Int?,
+    isBusy: Boolean,
+    onBack: () -> Unit,
+    onNewSession: () -> Unit,
+    onSelectSession: (Int) -> Unit,
+    onDeleteSession: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .appPageBackground()
+            .systemBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.ic_forward_nav),
+                    "返回",
+                    Modifier.size(22.dp),
+                    AppColors.content
+                )
+            }
+            Column(Modifier.weight(1f).padding(start = 6.dp)) {
+                Text("会话记录", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                Text("${sessions.size} 个历史会话", color = AppColors.contentVariant, fontSize = 11.sp)
+            }
+            TextButton(
+                onClick = onNewSession,
+                enabled = !isBusy,
+                colors = ButtonDefaults.textButtonColors(contentColor = AppColors.primary)
+            ) {
+                Text("新会话", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (sessions.isEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                overscrollEffect = rememberOverscrollEffect(),
+                contentPadding = PaddingValues(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                item {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.size(64.dp).clip(CircleShape)
+                                .background(AppColors.primary.copy(alpha = .1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_nav_sparkle_filled),
+                                null,
+                                Modifier.size(28.dp),
+                                AppColors.primary
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text("还没有历史会话", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "开始一次对话后，会话会保存在这里",
+                            color = AppColors.contentVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                overscrollEffect = rememberOverscrollEffect(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                    items(sessions, key = { it.id }) { session ->
+                        val isActive = session.id == activeSessionId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(
+                                    if (isActive) AppColors.primary.copy(alpha = 0.1f)
+                                    else AppColors.cardBackground.copy(alpha = 0.58f)
+                                )
+                                .glasenseHighlight(RoundedCornerShape(22.dp))
+                                .clickable(enabled = !isBusy) { onSelectSession(session.id) }
+                                .padding(start = 18.dp, top = 14.dp, bottom = 14.dp, end = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier.size(38.dp).clip(CircleShape).background(
+                                    if (isActive) AppColors.primary
+                                    else AppColors.primary.copy(alpha = .1f)
+                                ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_nav_sparkle_filled),
+                                    null,
+                                    Modifier.size(18.dp),
+                                    if (isActive) AppColors.onPrimary else AppColors.primary
+                                )
+                            }
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                Text(
+                                    session.title,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold
+                                )
+                                Text(
+                                    session.updatedAt.take(16).replace('T', ' '),
+                                    color = AppColors.contentVariant,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            IconButton(onClick = { onDeleteSession(session.id) }, enabled = !isBusy) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_trash),
+                                    contentDescription = "删除会话",
+                                    tint = AppColors.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+        }
     }
 }
 

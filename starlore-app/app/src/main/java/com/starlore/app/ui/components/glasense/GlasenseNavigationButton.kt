@@ -45,17 +45,27 @@ fun GlasenseNavigationButton(
     modifier: Modifier = Modifier,
     isActive: Boolean,
     onClick: () -> Unit,
-    backdrop: LayerBackdrop,
+    backdrop: LayerBackdrop? = null,
     liquidGlass: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val tint = AppColors.primary
 
-    if (liquidGlass) {
+    if (liquidGlass && backdrop != null) {
         LiquidGlassButton(
             onClick = onClick,
             backdrop = backdrop,
-            modifier = modifier.fillMaxHeight(),
+            modifier = modifier
+                .dropShadow(
+                    Capsule(),
+                    androidx.compose.ui.graphics.shadow.Shadow(
+                        12.dp,
+                        Color.Black.copy(alpha = 0.16f),
+                        0.dp,
+                        DpOffset(0.dp, 4.dp)
+                    )
+                )
+                .fillMaxHeight(),
             tint = if (isActive) tint else Color.Unspecified,
             surfaceColor = if (isActive) Color.Unspecified else AppColors.cardBackground.copy(alpha = .22f)
         ) {
@@ -68,15 +78,15 @@ fun GlasenseNavigationButton(
         rememberMaterialRenderEffectOrNull(
             if (liquidGlass) MaterialRecipes.thin() else MaterialRecipes.appBar()
         )
-    val backdropModifier = materialEffect?.let { renderEffect ->
+    val backdropModifier = if (backdrop != null) materialEffect?.let { renderEffect ->
         Modifier.drawBackdrop(
             backdrop = backdrop,
             shape = { Capsule() },
             shadow = {
                 Shadow(
-                    radius = 24.dp,
-                    color = Color.Black.copy(alpha = 0.08f),
-                    offset = DpOffset(0.dp, 8.dp)
+                    radius = 14.dp,
+                    color = Color.Black.copy(alpha = 0.14f),
+                    offset = DpOffset(0.dp, 5.dp)
                 )
             },
             innerShadow = null,
@@ -111,14 +121,15 @@ fun GlasenseNavigationButton(
                 }
             }
         )
-    } ?: Modifier
+    } else null
+    val resolvedBackdropModifier = backdropModifier ?: Modifier
         .dropShadow(
             Capsule(),
             androidx.compose.ui.graphics.shadow.Shadow(
-                24.dp,
-                Color.Black.copy(alpha = 0.08f),
+                14.dp,
+                Color.Black.copy(alpha = 0.14f),
                 0.dp,
-                DpOffset(0.dp, 8.dp)
+                DpOffset(0.dp, 5.dp)
             )
         )
         .clip(Capsule())
@@ -127,7 +138,7 @@ fun GlasenseNavigationButton(
     val finalModifier =
         Modifier
             .fillMaxSize()
-            .then(backdropModifier)
+            .then(resolvedBackdropModifier)
             .then(if (!liquidGlass) Modifier.glasenseHighlight(100.dp) else Modifier)
 
     // The base button with shape, click handling, shadow, and colors.

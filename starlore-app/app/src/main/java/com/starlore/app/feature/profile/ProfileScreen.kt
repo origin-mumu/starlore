@@ -265,14 +265,14 @@ fun ProfileScreen(
                 )
             }
 
-            // Log out button (Premium Red Glass Capsule)
+            // Log out button
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(AppColors.error.copy(alpha = 0.12f))
+                    .background(AppColors.error)
                     .glasenseHighlight(RoundedCornerShape(24.dp))
                     .clickable {
                         SettingsManager.clearAccountSession()
@@ -282,7 +282,7 @@ fun ProfileScreen(
             ) {
                 Text(
                     text = "退出登录",
-                    color = AppColors.error,
+                    color = AppColors.onError,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )

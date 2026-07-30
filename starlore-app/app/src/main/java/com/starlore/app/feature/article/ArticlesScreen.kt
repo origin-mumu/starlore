@@ -180,7 +180,11 @@ fun ArticlesScreen(
                             }
                         }
                     } else {
-                        items(articles) { article ->
+                        items(
+                            items = articles,
+                            key = { article -> article.id },
+                            contentType = { "article" }
+                        ) { article ->
                             ArticleFeedCard(article = article, onClick = { onArticleClick(article.id) })
                         }
                     }
@@ -287,7 +291,11 @@ fun CategorySelectorList(
                 onClick = { onCategorySelect(null) }
             )
         }
-        items(categories) { category ->
+        items(
+            items = categories,
+            key = { category -> category.id },
+            contentType = { "category" }
+        ) { category ->
             CategoryChip(
                 name = category.name,
                 isSelected = selectedCategory == category.name,

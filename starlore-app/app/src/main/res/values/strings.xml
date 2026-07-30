@@ -21,8 +21,8 @@
     <string name="ai" translatable="false">AI</string>
     <string name="appearance">Appearance</string>
     <string name="background_style">Background</string>
-    <string name="macaron_background">Macaron color blend</string>
-    <string name="macaron_background_description">A soft peach, mint and sky color blend beneath the glass surfaces.</string>
+    <string name="macaron_background">Starlore sky glow</string>
+    <string name="macaron_background_description">The same pale-blue canvas and soft atmospheric glow used by Starlore on the web.</string>
     <string name="data_storage"><![CDATA[Data & Storage]]></string>
     <string name="general">General</string>
     <string name="credits">Credits</string>

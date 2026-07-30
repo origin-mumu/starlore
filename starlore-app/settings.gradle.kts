@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "Starlore"
 include(":app")
 include(":glasense-ui")
+include(":webview")

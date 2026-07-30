@@ -52,7 +52,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.starlore.app.ui.components.glasense.GlasenseMenu
+import com.starlore.app.ui.components.glasense.GlasenseBackButton
+import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.MenuItemData
 import com.starlore.app.ui.components.glasense.MenuState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
@@ -105,10 +108,16 @@ fun ArticleDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .appPageBackground()
     ) {
-
-        when (val state = detailState) {
+        // Record only the page content. Overlay controls sample this layer, so including
+        // the controls themselves would create a recursive HWUI RenderNode graph.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .appPageBackground()
+                .layerBackdrop(backdrop)
+        ) {
+            when (val state = detailState) {
             is ArticleDetailUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = AppColors.primary)
@@ -215,52 +224,37 @@ fun ArticleDetailScreen(
                     }
                 }
             }
+            }
         }
 
 
         // 6. Action Buttons Bar (Always Visible)
-        val btnBgColor = AppColors.cardBackground
-
         Box(
             modifier = Modifier
                 .statusBarsPadding()
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            // Back button on the left
-            Box(
+            GlasenseBackButton(
+                onClick = onBack,
+                backdrop = backdrop,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(start = 16.dp)
                     .size(48.dp)
-                    .clip(CircleShape)
-                    .background(btnBgColor)
-                    .glasenseHighlight(CircleShape)
-                    .clickable { onBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_arrow_up),
-                    contentDescription = "Back",
-                    modifier = Modifier
-                        .size(20.dp)
-                        .graphicsLayer { rotationZ = -90f },
-                    tint = AppColors.primary
-                )
-            }
+            )
 
             // More button on the right
-            Box(
+            GlasenseNavigationButton(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
                     .size(48.dp)
-                    .onGloballyPositioned { moreButtonCoordinates = it }
-                    .clip(CircleShape)
-                    .background(btnBgColor)
-                    .glasenseHighlight(CircleShape)
-                    .clickable {
-                        val anchor = moreButtonCoordinates?.boundsInWindow() ?: return@clickable
+                    .onGloballyPositioned { moreButtonCoordinates = it },
+                isActive = false,
+                onClick = {
+                        val anchor = moreButtonCoordinates?.boundsInWindow()
+                            ?: return@GlasenseNavigationButton
                         menuState = MenuState(
                             isVisible = true,
                             anchorBounds = anchor,
@@ -287,7 +281,8 @@ fun ArticleDetailScreen(
                             )
                         )
                     },
-                contentAlignment = Alignment.Center
+                backdrop = backdrop,
+                liquidGlass = true
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_ellipsis),

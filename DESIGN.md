@@ -1,6 +1,6 @@
 # Design — Starlore
 
-> Last updated: 2026-06-12
+> Last updated: 2026-07-30
 
 ## 设计哲学
 
@@ -32,18 +32,16 @@ Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认�
 
 ---
 
-## 多主题系统
+## 明暗主题系统
 
-通过 `<html data-theme="xxx">` 切换 6 套完整配色方案，所有颜色通过 CSS Custom Properties 驱动。
+当前实现只支持 `light` 和 `dark` 两套主题。`useThemeStore` 将主题名写入 `<html data-theme="light|dark">`，并通过 `localStorage: ro_blog_theme` 持久化。颜色、表面、边框和阴影均由 CSS Custom Properties 驱动。
 
-| 主题 | 画布 | 强调色 | 墨色 | 气质 |
-|------|------|--------|------|------|
-| **default** | `#FFFCF7` 暖白 | `#E85D2A` 活力橙 | `#1A1410` 暖炭 | 温暖、文学 |
-| **white** | `#F5F5F5` 纯灰 | `#333333` 炭灰 | `#1A1A1A` 墨黑 | 极简、素净 |
-| **dark** | `#0F1117` 深空 | `#7B9AFF` 柔蓝 | `#F0F0F2` 银白 | 深邃、科幻 |
-| **green** | `#F0F7EE` 薄荷 | `#4A8C5C` 翡翠 | `#1A3A2D` 深苔 | 自然、清新 |
-| **blue** | `#EEF3F8` 浅海 | `#3B7DD8` 海蓝 | `#1A2A3E` 深海 | 海洋、沉静 |
-| **pink** | `#FDF2F6` 裸粉 | `#D4638F` 玫瑰 | `#2D1B24` 暗莓 | 柔美、浪漫 |
+每套主题内部包含 emerald、sky、rose、amber 等语义强调色；这些是同一主题内的功能色，不是可独立切换的主题。
+
+| 主题 | 画布 | 主强调色 | 墨色 | 气质 |
+|------|------|----------|------|------|
+| **light** | `#EDF6FC` 晴空浅蓝 | `#DE4331` 日落红 | `#1A1410` 暖炭 | 温暖、轻盈、清晰 |
+| **dark** | `#0A051F` 深空紫黑 | `#2A48F3` 星海蓝 | `#E6E8E8` 银白 | 深邃、沉浸、探索 |
 
 ---
 
@@ -91,9 +89,9 @@ Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认�
 
 /* 圆角 */
 --radius-sm:   6px
---radius-md:   12px
---radius-lg:   20px
---radius-xl:   28px
+--radius-md:   10px
+--radius-lg:   24px
+--radius-xl:   32px
 --radius-full: 9999px   /* 胶囊形 */
 
 /* 过渡 */
@@ -141,7 +139,7 @@ Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认�
 
 ## 布局
 
-- 内容最大宽度：420px（移动优先）
+- 全局内容最大宽度：1080px；页面在小屏断点下折叠为单列
 - 水平内边距：`clamp(16px, 4vw, 32px)`
 - 卡片：20-24px 圆角，磨砂玻璃 + 彩色阴影光晕
 - 导航栏：浮动胶囊条，`border-radius: 999px`，`backdrop-filter: blur(30px)`
@@ -210,7 +208,7 @@ Layer 4: 发光效果（box-shadow 穿透各层）
 - **移动端：** 底部浮动胶囊导航栏，68px 高，28px 圆角
 - 激活标签：彩色强调色 + 微妙光晕背景
 - 未激活：ghost 文字色
-- 主题切换器：导航栏中的彩色圆点
+- 主题切换器：桌面导航栏中的太阳/月亮图标按钮；移动端更多菜单沿用明暗模式切换
 
 ### 卡片
 
@@ -227,6 +225,9 @@ Layer 4: 发光效果（box-shadow 穿透各层）
   transform: translateY(-2px);
 }
 ```
+
+- 需要强调交互性的内容卡可使用 `.starlore-spotlight`：鼠标位置通过 `--spot-x` / `--spot-y` 驱动径向柔光和 1.25px 局部边框高光
+- 追光只在精确指针设备上更新坐标；触控设备保留静态卡片状态
 
 ### 按钮
 
@@ -259,6 +260,7 @@ Layer 4: 发光效果（box-shadow 穿透各层）
 | `trace-pulse` | 脉冲 | Agent 状态指示 |
 | `ring-rotate` | 旋转 | VR 加载环 |
 | `bar-slide` | 滑动 | 加载进度条 |
+| `orbit-drift` | 星轨线稿缓慢平移、旋转和缩放 | 普通页面全局环境背景 |
 
 ### 过渡参数
 
@@ -296,7 +298,9 @@ Layer 4: 发光效果（box-shadow 穿透各层）
 
 | 组件 | 技术 | 描述 |
 |------|------|------|
-| `BlurredBubbles.vue` | Simplex 噪声 + 物理模拟 | 漂浮模糊光球，碰撞避免、速度阻尼、边界力，per-theme 调色板，6 FPS 节流 |
+| `BlurredBubbles.vue` | Simplex 噪声 + 物理模拟 | 漂浮模糊光球，碰撞避免、速度阻尼、边界力，light/dark 两套调色板，6 FPS 节流 |
+| `CosmicBackdrop.vue` | Canvas + SVG | 低密度闪烁星尘、稀疏点状流星和缓慢漂移的轨道线稿；页面隐藏时暂停，移动端降低星点数量 |
+| `StellarDotsBand.vue` | Canvas 正弦波 | 首页首屏与内容区之间的三行点阵星河；离开视口时暂停 |
 | `AICore.vue` | 2D Canvas + 透视投影 | 1200 粒子 3D 球体，鼠标拖拽旋转，状态响应变色（signal/core/void 三类粒子） |
 | `ImmersiveMode.vue` | 全屏 Canvas | 800 粒子 3D 球 + 250 星星 + 多层正弦波浪 + 液态 blob 形态 |
 | `StarfieldCanvas.vue` | Canvas + 视差 | 视差星空 + 流星 + 知识节点光晕 + 旋转虚线环 + 卫星点 |
@@ -346,6 +350,8 @@ Echobot（AI 助手）拥有专属全屏沉浸模式：
 - **多列布局：** 文章卡片 `columns: 2` + `break-inside: avoid`
 - **全屏视图：** `max-height: 100vh; overflow: hidden`（Echobot、VR）
 - **性能降级：** 移动端减少粒子数（`isMobile ? 100 : 250` 星星），Three.js 像素比上限 1.2（桌面 1.5）
+- **普通页面环境层：** `CosmicBackdrop` 桌面 76 个星点、移动端 34 个；登录、Echobot 和 VR 页面不挂载
+- **文章阅读反馈：** 文章详情页顶部使用 3px 固定进度线，按正文区域而非整页高度计算
 
 ---
 
@@ -452,7 +458,7 @@ Echobot（AI 助手）拥有专属全屏沉浸模式：
 
 ### 已实现
 
-- `aria-label` 用于交互元素（主题圆点、菜单切换）
+- `aria-label` 用于交互元素（明暗主题按钮、菜单切换）
 - `aria-hidden="true"` 用于装饰元素（背景 Canvas、分隔线）
 - `rel="noopener noreferrer"` 用于外部链接
 - `autocomplete` 用于登录/注册表单
@@ -473,9 +479,9 @@ Echobot（AI 助手）拥有专属全屏沉浸模式：
 
 ## 反模式
 
-- ~~暖色羊皮纸色调~~（已转向多主题系统）
+- 不把主题内的 emerald、sky、rose、amber 功能色误写成独立主题；当前只支持 light/dark
 - 不使用衬线字体作为 UI 字体（正文用衬线营造文学感，UI 元素用无衬线）
-- 不使用纯白背景（所有浅色主题都有微妙色调）
+- 不使用纯白背景（light 主题使用带色调的浅蓝画布）
 - 不使用纯黑 `#000` 或纯白 `#fff`（所有中性色带宇宙/主题色调）
 - 不使用无色阴影（所有阴影带色调）
 - 不使用静态背景（每页都有动态光球或星空）

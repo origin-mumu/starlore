@@ -14,6 +14,7 @@ declare module 'vue' {
     AICore: typeof import('./src/components/AICore.vue')['default']
     BlurredBubbles: typeof import('./src/components/BlurredBubbles.vue')['default']
     ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
+    CosmicBackdrop: typeof import('./src/components/CosmicBackdrop.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     FloatingParticles: typeof import('./src/components/FloatingParticles.vue')['default']
@@ -26,6 +27,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SideBar: typeof import('./src/components/sideBar.vue')['default']
+    StellarDotsBand: typeof import('./src/components/StellarDotsBand.vue')['default']
     Wave: typeof import('./src/components/wave.vue')['default']
   }
 }

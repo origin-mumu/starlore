@@ -126,7 +126,7 @@ const githubStats = [
           <h2 class="section-heading">技术栈</h2>
         </div>
         <div class="tech-grid fade-in-up" style="animation-delay: 0.15s">
-          <div v-for="tech in techStack" :key="tech.category" class="tech-card">
+          <div v-for="tech in techStack" :key="tech.category" class="tech-card starlore-spotlight">
             <div class="tech-card-header">
               <div class="tech-card-icon">
                 <component :is="tech.icon" :size="20" />
@@ -153,7 +153,7 @@ const githubStats = [
           <div
             v-for="(project, i) in projects"
             :key="project.name"
-            class="project-card fade-in-up"
+            class="project-card starlore-spotlight fade-in-up"
             :style="{ animationDelay: `${0.1 + i * 0.08}s` }"
           >
             <div class="project-card-top">
@@ -182,7 +182,7 @@ const githubStats = [
           <h2 class="section-heading">开源贡献</h2>
         </div>
         <div class="opensource-content fade-in-up" style="animation-delay: 0.1s">
-          <div class="opensource-card">
+          <div class="opensource-card starlore-spotlight">
             <div class="opensource-header">
               <GitBranch :size="20" class="opensource-icon" />
               <h3>GitHub 活跃仓库</h3>

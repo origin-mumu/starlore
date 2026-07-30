@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.starlore.app.feature.settings.util.SettingsManager
 import com.starlore.app.feature.settings.util.SettingsViewModel
@@ -52,32 +52,59 @@ fun Modifier.appPageBackground(): Modifier = composed {
     if (!enabled) {
         background(solid)
     } else {
-        val base = if (dark) Color(0xFF12131B) else Color(0xFFF8F5F3)
+        val base = if (dark) Color(0xFF0A051F) else Color(0xFFEDF6FC)
         val colors = if (dark) {
-            listOf(Color(0xFF6C5078), Color(0xFF335F68), Color(0xFF675446), Color(0xFF3D4E72))
-        } else {
-            listOf(Color(0xFFFFB7AA), Color(0xFFF8DCA0), Color(0xFFAEDDCB), Color(0xFFAFC9F2))
-        }
-        val alpha = if (dark) .25f else .48f
-        drawBehind {
-            drawRect(base)
-            val radius = size.maxDimension * .72f
-            val centers = listOf(
-                Offset(size.width * .08f, size.height * .12f),
-                Offset(size.width * .92f, size.height * .28f),
-                Offset(size.width * .18f, size.height * .76f),
-                Offset(size.width * .88f, size.height * .92f)
+            listOf(
+                Color(0xFF16007B),
+                Color(0xFF2A48F3),
+                Color(0xFF35BFAB),
+                Color(0xFF51D0B9),
+                Color(0xFF8B5CF6),
+                Color(0xFF2A48F3)
             )
-            colors.zip(centers).forEach { (color, center) ->
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(color.copy(alpha = alpha), color.copy(alpha = 0f)),
-                        center = center,
-                        radius = radius
+        } else {
+            listOf(
+                Color(0x87F7DA39),
+                Color(0xFF8FDBE9),
+                Color(0xFFFFFEF8),
+                Color(0x87F7DA39),
+                Color(0xFF8FDBE9),
+                Color(0xFFFFFEF8)
+            )
+        }
+        val intensity = if (dark) .45f else .80f
+        drawWithCache {
+            // Cache the six large brushes until size or theme inputs change. Previously
+            // these gradients and their temporary lists were rebuilt on every scroll frame.
+            val radius = size.width * .92f
+            val centers = arrayOf(
+                Offset(size.width * .08f, size.height * .88f),
+                Offset(size.width * .78f, size.height * .94f),
+                Offset(size.width * .42f, size.height * 1.08f),
+                Offset(size.width * 1.02f, size.height * .82f),
+                Offset(size.width * .18f, size.height * 1.18f),
+                Offset(size.width * .64f, size.height * 1.24f)
+            )
+            val brushes = Array(colors.size) { index ->
+                val color = colors[index]
+                Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to color.copy(alpha = color.alpha * intensity),
+                        1f to color.copy(alpha = 0f)
                     ),
-                    radius = radius,
-                    center = center
+                    center = centers[index],
+                    radius = radius
                 )
+            }
+            onDrawBehind {
+                drawRect(base)
+                brushes.forEachIndexed { index, brush ->
+                    drawCircle(
+                        brush = brush,
+                        radius = radius,
+                        center = centers[index]
+                    )
+                }
             }
         }
     }

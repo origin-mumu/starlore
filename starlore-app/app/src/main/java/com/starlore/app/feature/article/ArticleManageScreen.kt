@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.kyant.shapes.Capsule
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -53,6 +55,7 @@ import com.starlore.app.ui.components.glasense.isScrolledPast
 import com.starlore.app.ui.components.glasense.DialogItemData
 import com.starlore.app.ui.components.glasense.DialogState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
+import com.starlore.app.ui.components.appScrollBreathingRoom
 import com.starlore.app.ui.components.packed.ConfigTextField
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
@@ -200,8 +203,12 @@ private fun EditorMetaBar(category: String, isPublic: Boolean, tagCount: Int, on
 private fun WritingTopBar(title: String, canPublish: Boolean, saving: Boolean, onClose: () -> Unit, onPublish: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().statusBarsPadding().height(68.dp)) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 12.dp)) {
-            CategoryHeaderButton(onClick = onClose) {
-                Icon(painterResource(R.drawable.ic_cross), "关闭", Modifier.size(20.dp), AppColors.content)
+            GlasenseNavigationButton(
+                modifier = Modifier.size(48.dp),
+                isActive = false,
+                onClick = onClose
+            ) {
+                Icon(painterResource(R.drawable.ic_cross), "关闭", Modifier.size(20.dp), AppColors.primary)
             }
         }
         Box(
@@ -367,7 +374,7 @@ fun CategoryManageScreen(
             error?.let { item { Text(it, color = AppColors.error, fontSize = 13.sp) } }
             // Keep a small scroll range even when the category list fits on screen,
             // so a vertical drag still has natural overscroll and spring-back feedback.
-            item(key = "scroll-breathing-room") { Spacer(Modifier.height(160.dp)) }
+            appScrollBreathingRoom(key = "category-scroll-breathing-room")
         }
         GlasenseDynamicSmallTitle(
             modifier = Modifier.align(Alignment.TopCenter),
@@ -418,30 +425,19 @@ fun CategoryManageScreen(
 @Composable
 private fun CategoryTopBar(title: String, subtitle: String, onBack: () -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().statusBarsPadding().height(72.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        CategoryHeaderButton(onClick = onBack) {
-            Icon(painterResource(R.drawable.ic_forward_nav), "返回", Modifier.size(21.dp), AppColors.content)
-        }
+        GlasenseBackButton(onClick = onBack, modifier = Modifier.size(48.dp))
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
             Text(subtitle, color = AppColors.contentVariant, fontSize = 11.sp)
         }
-        CategoryHeaderButton(onClick = onAdd, active = true) {
+        GlasenseNavigationButton(
+            modifier = Modifier.size(48.dp),
+            isActive = false,
+            onClick = onAdd
+        ) {
             Icon(painterResource(R.drawable.ic_add), "新建分类", Modifier.size(22.dp), AppColors.primary)
         }
     }
-}
-
-@Composable
-private fun CategoryHeaderButton(active: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(
-        Modifier.size(48.dp)
-            .shadow(8.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .06f), spotColor = Color.Black.copy(alpha = .08f))
-            .clip(CircleShape)
-            .background(if (active) AppColors.primary.copy(alpha = .12f) else AppColors.cardBackground.copy(alpha = .92f))
-            .clickable(onClick = onClick)
-            .glasenseHighlight(CircleShape),
-        contentAlignment = Alignment.Center
-    ) { content() }
 }
 
 @Composable
@@ -489,9 +485,7 @@ fun CategoryArticlesScreen(
             Modifier.fillMaxWidth().statusBarsPadding().height(68.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CategoryHeaderButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_forward_nav), "返回", Modifier.size(21.dp), AppColors.content)
-            }
+            GlasenseBackButton(onClick = onBack, modifier = Modifier.size(48.dp))
             Text(categoryName, Modifier.padding(start = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
@@ -547,20 +541,93 @@ fun CategoryArticlesScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun CategoryEditorDialog(item: CategoryItem?, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
     var name by remember(item) { mutableStateOf(item?.name.orEmpty()) }
     var description by remember(item) { mutableStateOf(item?.description.orEmpty()) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AppColors.elevatedPageBackground, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
-        Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(if (item == null) "新建星域" else "编辑星域", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            ConfigTextField(title = "名称", value = name, onValueChange = { name = it }, singleLine = true, backgroundColor = AppColors.elevatedCardBackground, decorateText = "例如：灵感随笔", modifier = Modifier.height(76.dp))
-            ConfigTextField(title = "描述", value = description, onValueChange = { description = it }, minLines = 3, maxLines = 4, backgroundColor = AppColors.elevatedCardBackground, decorateText = "这个星域收纳什么内容？", modifier = Modifier.height(120.dp))
-            GlasenseButtonAlt(
-                modifier = Modifier.fillMaxWidth().height(52.dp), enabled = name.isNotBlank(),
-                onClick = { onSave(name, description) }, colors = AppButtonColors.primary()
-            ) { Text("保存", fontWeight = FontWeight.Bold, color = if (name.isNotBlank()) AppColors.onPrimary else AppColors.contentVariant) }
-            Spacer(Modifier.height(4.dp))
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+                .imePadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 520.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(AppColors.elevatedPageBackground)
+                    .glasenseHighlight(RoundedCornerShape(30.dp))
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            if (item == null) "新建星域" else "编辑星域",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            "为同一主题的星记建立一个清晰归处",
+                            color = AppColors.contentVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                    GhostIconButton(R.drawable.ic_xmark_bold, "关闭", tint = AppColors.contentVariant, onClick = onDismiss)
+                }
+                ConfigTextField(
+                    title = "名称",
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    backgroundColor = AppColors.elevatedCardBackground,
+                    decorateText = "例如：灵感随笔",
+                    modifier = Modifier.height(72.dp)
+                )
+                ConfigTextField(
+                    title = "描述",
+                    value = description,
+                    onValueChange = { description = it },
+                    minLines = 2,
+                    maxLines = 3,
+                    backgroundColor = AppColors.elevatedCardBackground,
+                    decorateText = "这个星域主要收纳什么内容？",
+                    modifier = Modifier.height(96.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    GlasenseButtonAlt(
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        enabled = true,
+                        onClick = onDismiss,
+                        colors = AppButtonColors.secondary()
+                    ) {
+                        Text("取消", fontWeight = FontWeight.SemiBold)
+                    }
+                    GlasenseButtonAlt(
+                        modifier = Modifier.weight(1.4f).height(50.dp),
+                        enabled = name.isNotBlank(),
+                        onClick = { onSave(name.trim(), description.trim()) },
+                        colors = AppButtonColors.primary()
+                    ) {
+                        Text(
+                            if (item == null) "创建星域" else "保存修改",
+                            fontWeight = FontWeight.Bold,
+                            color = if (name.isNotBlank()) AppColors.onPrimary else AppColors.contentVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }

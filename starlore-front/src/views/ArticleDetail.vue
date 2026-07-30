@@ -38,7 +38,28 @@ const error = ref<string | null>(null)
 const tocItems = ref<TocItem[]>([])
 const activeTocId = ref<string | null>(null)
 const tocOpen = ref(true)
+const readingProgress = ref(0)
 let tocObserver: IntersectionObserver | null = null
+let progressFrame = 0
+
+const updateReadingProgress = () => {
+  progressFrame = 0
+  const content = document.querySelector<HTMLElement>('.typography')
+  if (!content) {
+    readingProgress.value = 0
+    return
+  }
+  const contentTop = content.getBoundingClientRect().top + window.scrollY
+  const readableDistance = Math.max(1, content.offsetHeight - window.innerHeight * 0.68)
+  readingProgress.value = Math.min(
+    1,
+    Math.max(0, (window.scrollY - contentTop + 96) / readableDistance),
+  )
+}
+
+const scheduleReadingProgress = () => {
+  if (!progressFrame) progressFrame = requestAnimationFrame(updateReadingProgress)
+}
 
 /** 从渲染后的 HTML 中提取标题并注入 ID，生成目录 */
 function buildToc() {
@@ -125,6 +146,8 @@ const highlightCode = () => {
   })
 }
 onMounted(async () => {
+  window.addEventListener('scroll', scheduleReadingProgress, { passive: true })
+  window.addEventListener('resize', scheduleReadingProgress, { passive: true })
   const id = Number(route.params.id)
 
   if (isNaN(id)) {
@@ -154,11 +177,15 @@ onMounted(async () => {
     isLoading.value = false
     highlightCode()
     buildToc()
+    nextTick(scheduleReadingProgress)
   }
 })
 
 onBeforeUnmount(() => {
   tocObserver?.disconnect()
+  window.removeEventListener('scroll', scheduleReadingProgress)
+  window.removeEventListener('resize', scheduleReadingProgress)
+  if (progressFrame) cancelAnimationFrame(progressFrame)
 })
 
 const formatDate = (dateString: string) => {
@@ -169,6 +196,16 @@ const formatDate = (dateString: string) => {
 
 <template>
   <div class="page-container">
+    <div
+      v-if="article && !isLoading"
+      class="reading-progress"
+      :style="{ transform: `scaleX(${readingProgress})` }"
+      role="progressbar"
+      aria-label="文章阅读进度"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      :aria-valuenow="Math.round(readingProgress * 100)"
+    ></div>
     <div v-if="isLoading" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>
@@ -251,6 +288,18 @@ const formatDate = (dateString: string) => {
 </template>
 
 <style scoped>
+.reading-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 120;
+  height: 3px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--accent), var(--accent-sky), var(--warm));
+  box-shadow: 0 0 12px color-mix(in oklch, var(--accent-sky) 44%, transparent);
+  pointer-events: none;
+  transition: transform 80ms linear;
+}
+
 .loading-container {
   display: flex;
   justify-content: center;
