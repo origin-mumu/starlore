@@ -43,11 +43,36 @@ export function uploadImage(file: File) {
     })
 }
 
-export function exportResumePdf(id: number) {
-    return request.get<never, Blob>(`/resume/${id}/export-pdf`, {
-        responseType: 'blob',
-        timeout: 60000,
-    })
+async function readBlobError(blob: Blob): Promise<string> {
+    try {
+        const payload = JSON.parse(await blob.text()) as {
+            detail?: string
+            message?: string
+            error?: string
+        }
+        return payload.detail || payload.message || payload.error || 'PDF 导出失败'
+    } catch {
+        return 'PDF 服务返回了无效响应'
+    }
+}
+
+export async function exportResumePdf(id: number): Promise<Blob> {
+    try {
+        const blob = await request.get<never, Blob>(`/resume/${id}/export-pdf`, {
+            responseType: 'blob',
+            timeout: 60000,
+        })
+        if (blob.type !== 'application/pdf') {
+            throw new Error(await readBlobError(blob))
+        }
+        return blob
+    } catch (error: unknown) {
+        const responseBlob = (error as { response?: { data?: unknown } }).response?.data
+        if (responseBlob instanceof Blob) {
+            throw new Error(await readBlobError(responseBlob))
+        }
+        throw error
+    }
 }
 
 

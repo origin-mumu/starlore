@@ -1,6 +1,6 @@
 """简历路由。"""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -225,6 +225,9 @@ async def export_pdf(
                 },
             )
     except httpx.ConnectError:
-        return {"error": f"PDF 服务不可用 ({pdf_service_url})，请确保 starlore-pdf 已启动"}
+        raise HTTPException(
+            status_code=502,
+            detail=f"PDF 服务不可用 ({pdf_service_url})，请确保 starlore-pdf 已启动",
+        )
     except Exception as e:
-        return {"error": f"PDF 生成失败: {e}"}
+        raise HTTPException(status_code=502, detail=f"PDF 生成失败: {e}")
