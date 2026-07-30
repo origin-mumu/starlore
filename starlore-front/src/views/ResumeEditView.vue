@@ -414,8 +414,8 @@ const spacingStyle = computed(() => ({
                   <!-- 头部信息 -->
                   <div class="rp-header clickable-section" @click="activeModule = 'basic'">
                     <h1 class="rp-name">{{ previewData.name || '姓名' }}</h1>
-                    <div class="rp-job-intent">
-                      求职意向：{{ previewData.jobTitle || '求职意向' }}
+                    <div v-if="previewData.jobTitle?.trim()" class="rp-job-intent">
+                      求职意向：{{ previewData.jobTitle }}
                     </div>
                     <div class="rp-contact">
                       {{ previewData.phone || '电话' }} | {{ previewData.email || '邮箱' }}
@@ -772,7 +772,9 @@ const spacingStyle = computed(() => ({
           </div>
           <div class="rp-header">
             <h1 class="rp-name">{{ previewData.name || '姓名' }}</h1>
-            <div class="rp-job-intent">求职意向：{{ previewData.jobTitle || '求职意向' }}</div>
+            <div v-if="previewData.jobTitle?.trim()" class="rp-job-intent">
+              求职意向：{{ previewData.jobTitle }}
+            </div>
             <div class="rp-contact">
               {{ previewData.phone || '电话' }} | {{ previewData.email || '邮箱' }}
             </div>

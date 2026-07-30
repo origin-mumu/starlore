@@ -81,7 +81,7 @@ app.post('/api/pdf/resume', async (req, res) => {
     const tplData = {
       title: data.title || '简历',
       name: data.name || '',
-      jobTitle: data.jobTitle || '',
+      jobTitle: String(data.jobTitle || '').trim(),
       phone: data.phone || '',
       email: data.email || '',
       photoUrl: data.photoUrl || '',
