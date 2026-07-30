@@ -412,7 +412,11 @@ const spacingStyle = computed(() => ({
                   </div>
 
                   <!-- 头部信息 -->
-                  <div class="rp-header clickable-section" @click="activeModule = 'basic'">
+                  <div
+                    class="rp-header clickable-section"
+                    :class="{ 'has-avatar': !!previewData.photoUrl }"
+                    @click="activeModule = 'basic'"
+                  >
                     <h1 class="rp-name">{{ previewData.name || '姓名' }}</h1>
                     <div v-if="previewData.jobTitle?.trim()" class="rp-job-intent">
                       求职意向：{{ previewData.jobTitle }}
@@ -770,7 +774,7 @@ const spacingStyle = computed(() => ({
           >
             <div v-if="!photoPreview" class="avatar-placeholder">&#128100;</div>
           </div>
-          <div class="rp-header">
+          <div class="rp-header" :class="{ 'has-avatar': !!photoPreview }">
             <h1 class="rp-name">{{ previewData.name || '姓名' }}</h1>
             <div v-if="previewData.jobTitle?.trim()" class="rp-job-intent">
               求职意向：{{ previewData.jobTitle }}
@@ -1084,6 +1088,9 @@ const spacingStyle = computed(() => ({
 .rp-header {
   text-align: center;
   margin-bottom: 16px;
+}
+.rp-header.has-avatar {
+  min-height: 110px;
 }
 .rp-name {
   font-size: 26px;
