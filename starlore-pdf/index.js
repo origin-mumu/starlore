@@ -132,9 +132,10 @@ app.post('/api/pdf/resume', async (req, res) => {
       })
       console.log('[PDF] actual rendered dimensions:', JSON.stringify(dims, null, 2))
 
+      const pdfHeight = Math.max(1, Math.ceil(dims?.scrollHeight || 1123))
       const pdfBuffer = await page.pdf({
         width: '794px',
-        height: '1123px',
+        height: `${pdfHeight}px`,
         printBackground: true,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
       })

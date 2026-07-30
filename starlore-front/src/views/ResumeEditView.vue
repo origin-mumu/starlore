@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getResume,
@@ -62,25 +62,15 @@ const content = reactive<ResumeContent>({
 
 const photoPreview = ref('')
 
-// Keep this identical to starlore-pdf/templates/classic.html.
+// Initial preview height before the content measurer has completed.
 const A4_PX_H = 1123
-// Client and server Chromium can differ slightly in CJK font metrics. A short
-// tail at the boundary is layout noise rather than a meaningful second page.
-const PAGE_TAIL_TOLERANCE = 96
 
 // 测量用容器ref
 const contentMeasurer = ref<HTMLElement>()
 const totalContentHeight = ref(0)
 
-const pageCount = computed(() => {
-  const pages = Math.max(1, Math.ceil(totalContentHeight.value / A4_PX_H))
-  // 最后一页溢出不足50px时忽略（仅为残留margin/padding），避免出现几乎空白的页面
-  if (pages > 1) {
-    const lastPageContent = totalContentHeight.value - (pages - 1) * A4_PX_H
-    if (lastPageContent <= PAGE_TAIL_TOLERANCE) return pages - 1
-  }
-  return pages
-})
+const pageCount = computed(() => 1)
+const previewPageHeight = computed(() => totalContentHeight.value || A4_PX_H)
 const currentPage = ref(1)
 
 // 测量内容总高度
@@ -88,6 +78,16 @@ const measureContent = () => {
   if (!contentMeasurer.value) return
   totalContentHeight.value = contentMeasurer.value.scrollHeight
 }
+
+let contentResizeObserver: ResizeObserver | undefined
+const observeContentHeight = () => {
+  if (!contentMeasurer.value) return
+  contentResizeObserver?.disconnect()
+  contentResizeObserver = new ResizeObserver(measureContent)
+  contentResizeObserver.observe(contentMeasurer.value)
+}
+
+onBeforeUnmount(() => contentResizeObserver?.disconnect())
 
 onMounted(async () => {
   if (!hasAccess.value) {
@@ -98,6 +98,7 @@ onMounted(async () => {
     loading.value = false
     await nextTick()
     measureContent()
+    observeContentHeight()
     return
   }
   try {
@@ -142,6 +143,7 @@ onMounted(async () => {
   }
   await nextTick()
   measureContent()
+  observeContentHeight()
 })
 
 const handleSave = async () => {
@@ -389,10 +391,15 @@ const spacingStyle = computed(() => ({
 
             <!-- 分页滚动容器 -->
             <div class="pages-container" @scroll="onPageScroll">
-              <div v-for="(_, idx) in pageCount" :key="idx" class="page-frame">
+              <div
+                v-for="(_, idx) in pageCount"
+                :key="idx"
+                class="page-frame"
+                :style="{ height: `${previewPageHeight}px` }"
+              >
                 <div
                   class="resume-page"
-                  :style="{ ...spacingStyle, transform: `translateY(-${idx * A4_PX_H}px)` }"
+                  :style="spacingStyle"
                 >
                   <!-- 头像右上角 -->
                   <div
@@ -967,7 +974,7 @@ const spacingStyle = computed(() => ({
 /* 简历页面内容 */
 .resume-page {
   width: 794px;
-  min-height: 1123px;
+  min-height: 0;
   padding: 28px 45px 28px 30px;
   font-family:
     Inter,
@@ -1091,6 +1098,9 @@ const spacingStyle = computed(() => ({
 }
 .rp-header.has-avatar {
   min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .rp-name {
   font-size: 26px;

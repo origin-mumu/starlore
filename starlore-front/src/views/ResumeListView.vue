@@ -207,7 +207,7 @@ const handleCopy = async (item: ResumeData) => {
               </div>
               <div class="card-body">
                 <p v-if="item.name">姓名：{{ item.name }}</p>
-                <p v-if="item.jobTitle">求职意向：{{ item.jobTitle }}</p>
+                <p v-if="item.jobTitle?.trim()">求职意向：{{ item.jobTitle }}</p>
                 <p class="card-time">更新于 {{ item.updatedAt?.slice(0, 10) }}</p>
               </div>
               <div class="card-actions">
@@ -297,6 +297,8 @@ const handleCopy = async (item: ResumeData) => {
   gap: 20px;
 }
 .resume-card {
+  display: flex;
+  flex-direction: column;
   background: var(--glass-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -305,6 +307,9 @@ const handleCopy = async (item: ResumeData) => {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   transition: all 0.25s;
+}
+.card-body {
+  flex: 1;
 }
 .resume-card:hover {
   box-shadow: var(--shadow-card-hover);
