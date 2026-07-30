@@ -11,7 +11,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -26,35 +25,6 @@ public class KnowledgeDocumentController {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeDocumentChunkMapper knowledgeDocumentChunkMapper;
     private final FileParseService fileParseService;
-
-    @PostMapping("/parse-file")
-    public ResponseEntity<?> parseFile(@RequestParam("file") MultipartFile file) {
-        try {
-            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "uploaded_file.txt";
-            String ext = filename.contains(".") ? filename.substring(filename.lastIndexOf(".") + 1).toLowerCase() : "txt";
-            String extractedText = fileParseService.extractText(file);
-
-            if (extractedText == null || extractedText.trim().isEmpty()) {
-                extractedText = "【文件内容解析说明】文件《" + filename + "》已成功接收。";
-            }
-
-            int estimatedTokens = fileParseService.estimateTokens(extractedText);
-
-            Map<String, Object> res = new HashMap<>();
-            res.put("success", true);
-            res.put("fileName", filename);
-            res.put("fileType", ext);
-            res.put("fileSize", file.getSize());
-            res.put("extractedText", extractedText);
-            res.put("estimatedTokens", estimatedTokens);
-            return ResponseEntity.ok(res);
-        } catch (Exception e) {
-            Map<String, Object> errorRes = new HashMap<>();
-            errorRes.put("success", false);
-            errorRes.put("message", "文件解析失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorRes);
-        }
-    }
 
     @GetMapping("/documents")
     public ResponseEntity<?> listDocuments(HttpServletRequest request) {
