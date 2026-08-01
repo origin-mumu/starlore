@@ -162,7 +162,7 @@ const handleManageCategories = () => {
     </div>
     <div class="content-container">
       <div class="content-box">
-        <div class="title">博客首页</div>
+        <div class="title">知识库首页</div>
         <div class="dashboard-content">
           <!-- 统计卡片 -->
           <div class="stats-cards">

@@ -108,7 +108,7 @@ async def get_categories_impl(db: AsyncSession, user_id: int) -> str:
 
 
 async def get_blog_stats_impl(db: AsyncSession, user_id: int) -> str:
-    """获取博客统计。"""
+    """获取知识库统计。"""
     from app.services import article_service
     stats = await article_service.get_blog_stats(db, user_id)
 
@@ -141,6 +141,36 @@ async def get_recent_articles_impl(db: AsyncSession, user_id: int, limit: int = 
         for a in result.scalars().all()
     ]
     return json.dumps(articles, ensure_ascii=False)
+
+
+async def get_articles_missing_metadata_impl(
+    db: AsyncSession, user_id: int, limit: int = 100
+) -> str:
+    """Return articles whose description or tags need to be completed."""
+    limit = max(1, min(limit, 100))
+    result = await db.execute(
+        select(Article).where(
+            Article.user_id == user_id,
+            or_(
+                Article.description.is_(None),
+                func.trim(Article.description) == "",
+                Article.tags.is_(None),
+                func.json_length(Article.tags) == 0,
+            ),
+        ).order_by(Article.createdAt.desc()).limit(limit)
+    )
+    return json.dumps([
+        {
+            "id": article.id,
+            "title": article.title,
+            "category": article.category,
+            "description": article.description,
+            "tags": article.tags or [],
+            "content_preview": (article.content or "")[:3000],
+            "status": article.status,
+        }
+        for article in result.scalars().all()
+    ], ensure_ascii=False)
 
 
 async def write_article_impl(

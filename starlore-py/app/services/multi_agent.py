@@ -22,7 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from app.services.blog_tools import (
@@ -31,6 +31,7 @@ from app.services.blog_tools import (
     get_categories_impl,
     get_blog_stats_impl,
     get_recent_articles_impl,
+    get_articles_missing_metadata_impl,
     write_article_impl,
     update_article_impl,
     delete_article_impl,
@@ -92,18 +93,19 @@ class MultiAgentState:
 
 # ---------- Prompt 模板 ----------
 
-PLANNER_PROMPT = """你是 Starlore 博客系统的任务规划专家（Planner）。
+PLANNER_PROMPT = """你是 Starlore 知识库系统的任务规划专家（Planner）。
 
 ## 职责
 分析用户的请求，将其拆解为一系列可执行的子任务。每个子任务应该足够具体，
 以便执行者（Executor）能够独立完成。
 
 ## 可用工具
-- searchArticles: 搜索博客文章（语义搜索 + 关键词搜索）
+- searchArticles: 搜索知识库文章（语义搜索 + 关键词搜索）
 - getArticleDetail: 获取文章详情
 - getCategories: 获取所有分类
-- getBlogStats: 获取博客统计
+- getBlogStats: 获取知识库统计
 - getRecentArticles: 获取最新文章
+- getArticlesMissingMetadata: 获取摘要或标签为空的文章（补全文章元数据时优先使用）
 - writeArticle: 创建文章
 - updateArticle: 更新文章
 - deleteArticle: 删除文章
@@ -138,7 +140,7 @@ PLANNER_PROMPT = """你是 Starlore 博客系统的任务规划专家（Planner�
 3. 明确标识子任务之间的依赖关系（dependencies）。
 4. 尽可能将无关任务设为可并行（空的 dependencies）。"""
 
-EXECUTOR_PROMPT = """你是 Starlore 博客系统的智能执行专家（Executor）。
+EXECUTOR_PROMPT = """你是 Starlore 知识库系统的智能执行专家（Executor）。
 
 ## 职责
 根据 Planner 拆解的子任务，结合上下文数据，执行具体操作并生成结果。
@@ -154,7 +156,7 @@ EXECUTOR_PROMPT = """你是 Starlore 博客系统的智能执行专家（Executo
 3. 如果工具调用失败，尝试替代方案
 4. 保持输出简洁，不要重复子任务描述"""
 
-REVIEWER_PROMPT = """你是 Starlore 博客系统的审查专家（Reviewer）。
+REVIEWER_PROMPT = """你是 Starlore 知识库系统的审查专家（Reviewer）。
 
 ## 职责
 审查执行结果的质量、完整性和准确性。给出明确的审查决策。
@@ -190,6 +192,7 @@ async def _execute_tool(tool_name: str, db, user_id: int, **kwargs) -> str:
         "getCategories": lambda: get_categories_impl(db, user_id),
         "getBlogStats": lambda: get_blog_stats_impl(db, user_id),
         "getRecentArticles": lambda: get_recent_articles_impl(db, user_id, kwargs.get("limit", 5)),
+        "getArticlesMissingMetadata": lambda: get_articles_missing_metadata_impl(db, user_id, kwargs.get("limit", 100)),
         "writeArticle": lambda: write_article_impl(db, user_id, kwargs.get("title", ""), kwargs.get("content", ""), kwargs.get("category", "随笔"), kwargs.get("tags", "[]"), kwargs.get("description", ""), kwargs.get("status", "published")),
         "updateArticle": lambda: update_article_impl(db, user_id, kwargs.get("article_id", 0), kwargs.get("title"), kwargs.get("content"), kwargs.get("category"), kwargs.get("tags"), kwargs.get("description"), kwargs.get("status")),
         "deleteArticle": lambda: delete_article_impl(db, user_id, kwargs.get("article_id", 0)),
@@ -202,6 +205,43 @@ async def _execute_tool(tool_name: str, db, user_id: int, **kwargs) -> str:
     if fn:
         return await fn()
     return json.dumps({"error": f"未知工具: {tool_name}"}, ensure_ascii=False)
+
+
+def _executor_tool_specs() -> list[dict]:
+    """OpenAI-compatible schemas for tools the executor may call autonomously."""
+    def spec(name: str, description: str, properties: dict, required: list[str] | None = None) -> dict:
+        parameters = {"type": "object", "properties": properties}
+        if required:
+            parameters["required"] = required
+        return {"type": "function", "function": {
+            "name": name, "description": description, "parameters": parameters,
+        }}
+
+    string = lambda description="": {"type": "string", "description": description}
+    integer = lambda description="": {"type": "integer", "description": description}
+    return [
+        spec("searchArticles", "搜索文章", {
+            "keyword": string(), "category": string(), "tag": string(),
+        }),
+        spec("getArticlesMissingMetadata", "列出摘要或标签为空的文章", {
+            "limit": integer("最多返回 100 篇"),
+        }),
+        spec("getArticleDetail", "按 ID 获取完整文章", {
+            "article_id": integer(),
+        }, ["article_id"]),
+        spec("getRecentArticles", "获取最近文章", {"limit": integer()}),
+        spec("getCategories", "获取所有分类", {}),
+        spec("getAllTags", "获取现有标签", {}),
+        spec("getArticlesByCategory", "按分类获取文章", {
+            "category": string(),
+        }, ["category"]),
+        spec("updateArticle", "更新文章，只传需要修改的字段", {
+            "article_id": integer(),
+            "title": string(), "content": string(), "category": string(),
+            "tags": string("JSON 数组字符串，例如 [\"Python\",\"后端\"]"),
+            "description": string("文章摘要"), "status": string(),
+        }, ["article_id"]),
+    ]
 
 
 # ---------- 节点实现 ----------
@@ -335,64 +375,48 @@ async def _execute_subtask(
         "node": f"subtask-{subtask.id}"
     })
 
-    tool_result_str = ""
-    # 尝试自动调用建议的工具
-    tool_name = subtask.tool_hint
-    if not tool_name:
-        if "searchArticles" in subtask.description or "搜索" in subtask.description or "查找" in subtask.description:
-            tool_name = "searchArticles"
-        elif "getCategories" in subtask.description or "分类" in subtask.description:
-            tool_name = "getCategories"
-
-    if tool_name:
-        try:
-            # 提取关键字
-            kw = state.user_query.replace("帮我找", "").replace("帮我搜", "").replace("查找", "").replace("文章", "").replace("相关", "").strip()
-            if not kw:
-                kw = "后端"
-            raw_res = await _execute_tool(tool_name, state.db, state.user_id, keyword=kw)
-            tool_result_str = f"\n\n## 工具 [{tool_name}] 真实执行结果:\n{raw_res}"
-
-            # 解析文章上下文并推送到前端作为 RAG 依据
-            try:
-                items = json.loads(raw_res)
-                if isinstance(items, list) and items and isinstance(items[0], dict) and "id" in items[0]:
-                    articles_event = [{"articleId": item["id"], "title": item.get("title", "")} for item in items]
-                    state.rag_articles = articles_event
-                    await _emit(state, {
-                        "type": "rag_context",
-                        "articles": articles_event,
-                        "retrieval_mode": "vector",
-                    })
-            except Exception:
-                pass
-        except Exception as e:
-            logger.warning("Tool execution error: %s", e)
-
     # 构建上下文
     context = f"## 当前子任务\nID: {subtask.id}\n描述: {subtask.description}"
     if subtask.tool_hint:
         context += f"\n建议工具: {subtask.tool_hint}"
-    if tool_result_str:
-        context += tool_result_str
     if subtask.dependencies:
         context += "\n\n## 前置任务结果"
         for dep_id in subtask.dependencies:
             dep_result = state.execution_results.get(dep_id)
             if dep_result:
-                context += f"\n任务 {dep_id}: {dep_result[:500]}"
+                context += f"\n任务 {dep_id}: {dep_result[:12000]}"
     context += f"\n\n## 用户原始请求\n{state.user_query}"
 
-    system_msg = EXECUTOR_PROMPT + few_shot
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=context)]
+    system_msg = EXECUTOR_PROMPT + few_shot + """
 
-    response = await llm.ainvoke(messages)
-    output = response.content or ""
-    _track_tokens(state, response)
+必须通过工具执行查询或更新，不得伪造结果。工具参数必须来自用户请求或前置任务结果。
+补全文章摘要和标签时，先调用 getArticlesMissingMetadata；保留已有字段，只更新缺失字段。
+处理多篇文章时，应逐篇调用 updateArticle，并在最终结果中列出成功和失败数量。
+"""
+    tool_specs = _executor_tool_specs()
+    messages = [SystemMessage(content=system_msg), HumanMessage(content=context)]
+    tool_llm = llm.bind_tools(tool_specs)
+    output = ""
+    for _ in range(30):
+        response = await tool_llm.ainvoke(messages)
+        _track_tokens(state, response)
+        messages.append(response)
+        if not getattr(response, "tool_calls", None):
+            output = response.content or ""
+            break
+        for call in response.tool_calls:
+            tool_name = call.get("name", "")
+            args = call.get("args", {}) or {}
+            try:
+                raw_res = await _execute_tool(tool_name, state.db, state.user_id, **args)
+            except Exception as exc:
+                raw_res = json.dumps({"error": str(exc)}, ensure_ascii=False)
+            state.tool_call_counts[tool_name] = state.tool_call_counts.get(tool_name, 0) + 1
+            messages.append(ToolMessage(content=raw_res, tool_call_id=call["id"]))
+    else:
+        output = "ERROR: 工具调用次数超过安全上限"
 
     state.execution_results[subtask.id] = output
-    state.tool_call_counts[f"subtask-{subtask.id}"] = state.tool_call_counts.get(f"subtask-{subtask.id}", 0) + 1
-
     await _emit(state, {"type": "subtask_result", "subtask_id": subtask.id, "result": output[:200]})
 
 
@@ -468,7 +492,7 @@ async def synthesizer_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgen
     # 流式输出最终回答
     full_content = ""
     messages = [
-        SystemMessage(content="你是 Starlore 博客助手。请根据以下执行结果，生成一个完整、友好的最终回答。"),
+        SystemMessage(content="你是 Starlore 知识库助手。请根据以下执行结果，生成一个完整、友好的最终回答。"),
         HumanMessage(content=state.final_answer or "没有执行结果"),
     ]
 

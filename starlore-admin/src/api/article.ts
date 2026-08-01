@@ -40,7 +40,7 @@ export function deleteArticleService(id : number) {
   return request.delete(`/articles/${id}`)
 }
 
-// 获取博客统计信息
+// 获取知识库统计信息
 export function getBlogStatsService() {
   return request.get('/articles/stats/summary')
 }

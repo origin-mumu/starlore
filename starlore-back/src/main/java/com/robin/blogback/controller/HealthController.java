@@ -15,7 +15,7 @@ public class HealthController {
     public Map<String, Object> health() {
         return Map.of(
                 "success", true,
-                "message", "博客后端服务运行正常",
+                "message", "知识库后端服务运行正常",
                 "timestamp", Instant.now().toString()
         );
     }

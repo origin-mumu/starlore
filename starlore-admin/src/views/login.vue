@@ -40,7 +40,7 @@
       </form>
 
       <div class="login-footer">
-        <p>请使用博客账号登录</p>
+        <p>请使用知识库账号登录</p>
       </div>
     </div>
   </div>

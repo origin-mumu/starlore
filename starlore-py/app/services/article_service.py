@@ -222,7 +222,7 @@ async def get_article_by_id(db: AsyncSession, user_id: int, article_id: int) -> 
 
 
 async def get_blog_stats(db: AsyncSession, user_id: int, is_admin: bool = False) -> dict:
-    """获取博客统计信息。"""
+    """获取知识库统计信息。"""
     # 基础过滤条件
     article_filter = [Article.status == "published"]
     category_filter = []

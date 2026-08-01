@@ -11,6 +11,6 @@ router = APIRouter(prefix="/api", tags=["health"])
 async def health():
     return {
         "success": True,
-        "message": "博客后端服务运行正常",
+        "message": "知识库后端服务运行正常",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

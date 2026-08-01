@@ -400,7 +400,7 @@ function onQrMouseUp() {
 const quickReplies = [
   '最近有什么新文章？',
   '帮我总结一下分类',
-  '写一篇技术博客大纲',
+  '写一篇技术文章大纲',
   '推荐几个学习方向',
   '帮我查一下后端相关文章',
   '介绍一下 Starlore 项目',
@@ -828,7 +828,7 @@ const toolLabelMap: Record<string, string> = {
   searchArticles: '正在搜索星记...',
   getArticleDetail: '正在获取星记详情...',
   getCategories: '正在获取星域列表...',
-  getBlogStats: '正在获取博客统计...',
+  getBlogStats: '正在获取知识库统计...',
   getRecentArticles: '正在获取最新星记...',
   writeArticle: '正在创建星记...',
   updateArticle: '正在更新星记...',

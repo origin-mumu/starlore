@@ -75,7 +75,7 @@ public class BlogTools {
                 .trim();
     }
 
-    @Tool(description = "搜索博客文章。优先使用语义搜索理解用户意图，找到相关文章；如果语义搜索无结果则回退到关键词搜索。可按分类和标签筛选。")
+    @Tool(description = "搜索知识库文章。优先使用语义搜索理解用户意图，找到相关文章；如果语义搜索无结果则回退到关键词搜索。可按分类和标签筛选。")
     public String searchArticles(
             @ToolParam(description = "搜索关键词或语义描述") String keyword,
             @ToolParam(description = "分类名称", required = false) String category,
@@ -194,7 +194,7 @@ public class BlogTools {
         }
     }
 
-    @Tool(description = "获取所有博客分类及其文章数量。")
+    @Tool(description = "获取所有知识库分类及其文章数量。")
     public String getCategories() {
         log.info("[Agent Tool] getCategories - 查询所有分类");
         SseContextHolder.sendToolStart("getCategories");
@@ -220,9 +220,9 @@ public class BlogTools {
         }
     }
 
-    @Tool(description = "获取博客统计数据：文章总数、分类总数、总浏览量等。")
+    @Tool(description = "获取知识库统计数据：文章总数、分类总数、总浏览量等。")
     public String getBlogStats() {
-        log.info("[Agent Tool] getBlogStats - 查询博客统计");
+        log.info("[Agent Tool] getBlogStats - 查询知识库统计");
         SseContextHolder.sendToolStart("getBlogStats");
         try {
             Integer userId = UserContext.getUserId();
@@ -273,7 +273,7 @@ public class BlogTools {
         }
     }
 
-    @Tool(description = "获取最新的N篇博客文章摘要。")
+    @Tool(description = "获取最新的N篇知识库文章摘要。")
     public String getRecentArticles(@ToolParam(description = "返回数量，默认5", required = false) Integer limit) {
         log.info("[Agent Tool] getRecentArticles - limit: {}", limit);
         SseContextHolder.sendToolStart("getRecentArticles");
@@ -498,7 +498,7 @@ public class BlogTools {
         }
     }
 
-    @Tool(description = "创建新的博客分类。")
+    @Tool(description = "创建新的知识库分类。")
     public String createCategory(
             @ToolParam(description = "分类名称") String name,
             @ToolParam(description = "分类描述", required = false) String description,

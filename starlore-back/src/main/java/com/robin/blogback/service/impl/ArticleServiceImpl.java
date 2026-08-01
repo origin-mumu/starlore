@@ -130,7 +130,7 @@ public class ArticleServiceImpl implements ArticleService {
         return getBlogStats(userId, false);
     }
 
-    /** 获取博客统计，isAdmin=true 时查看全站数据 */
+    /** 获取知识库统计，isAdmin=true 时查看全站数据 */
     public BlogStatsResponse getBlogStats(Integer userId, boolean isAdmin) {
         LambdaQueryWrapper<Article> articleWrapper = new LambdaQueryWrapper<Article>()
                 .eq(Article::getStatus, "published");

@@ -243,7 +243,7 @@ const toolLabelMap: Record<string, string> = {
   searchArticles: '正在搜索星记...',
   getArticleDetail: '正在获取星记详情...',
   getCategories: '正在获取星域列表...',
-  getBlogStats: '正在获取博客统计...',
+  getBlogStats: '正在获取知识库统计...',
   getRecentArticles: '正在获取最新星记...',
   writeArticle: '正在创建星记...',
   updateArticle: '正在更新星记...',

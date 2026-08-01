@@ -50,7 +50,7 @@ def _create_tools(db, user_id):
 
     @tool
     async def search_articles(keyword: str = "", category: str = "", tag: str = "") -> str:
-        """搜索博客文章。可以按关键词、分类或标签搜索。"""
+        """搜索知识库文章。可以按关键词、分类或标签搜索。"""
         return await search_articles_impl(db, user_id, keyword or None, category or None, tag or None)
 
     @tool
@@ -60,12 +60,12 @@ def _create_tools(db, user_id):
 
     @tool
     async def get_categories() -> str:
-        """获取所有博客分类列表。"""
+        """获取所有知识库分类列表。"""
         return await get_categories_impl(db, user_id)
 
     @tool
     async def get_blog_stats() -> str:
-        """获取博客统计数据，包括文章数、分类数、浏览量等。"""
+        """获取知识库统计数据，包括文章数、分类数、浏览量等。"""
         return await get_blog_stats_impl(db, user_id)
 
     @tool

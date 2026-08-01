@@ -300,7 +300,7 @@ onMounted(async () => {
     data.value = stats
     articles.value = stats?.popularArticles ?? []
   } catch (err) {
-    console.error('获取博客统计失败:', err)
+    console.error('获取知识库统计失败:', err)
     articles.value = []
   }
 })
