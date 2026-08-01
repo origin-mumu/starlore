@@ -86,6 +86,8 @@ class MultiAgentState:
     tokens_out: int = 0
     node_timings: dict[str, float] = field(default_factory=dict)
     tool_call_counts: dict[str, int] = field(default_factory=dict)
+    updated_article_ids: list[int] = field(default_factory=list)
+    tool_execution_errors: list[str] = field(default_factory=list)
 
     # 事件回调（用于 SSE 流式输出）
     event_callback: Any = None
@@ -412,6 +414,22 @@ async def _execute_subtask(
             except Exception as exc:
                 raw_res = json.dumps({"error": str(exc)}, ensure_ascii=False)
             state.tool_call_counts[tool_name] = state.tool_call_counts.get(tool_name, 0) + 1
+            try:
+                parsed_result = json.loads(raw_res)
+                if isinstance(parsed_result, dict) and parsed_result.get("error"):
+                    state.tool_execution_errors.append(
+                        f"{tool_name}: {parsed_result['error']}"
+                    )
+                elif (
+                    isinstance(parsed_result, dict)
+                    and tool_name == "updateArticle"
+                    and parsed_result.get("success")
+                ):
+                    article_id = parsed_result.get("id") or args.get("article_id")
+                    if article_id and article_id not in state.updated_article_ids:
+                        state.updated_article_ids.append(article_id)
+            except (TypeError, ValueError):
+                pass
             messages.append(ToolMessage(content=raw_res, tool_call_id=call["id"]))
     else:
         output = "ERROR: 工具调用次数超过安全上限"
@@ -456,6 +474,17 @@ async def reviewer_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgentSt
         state.review_decision = "PASS"
         state.review_feedback = ""
 
+    planned_update = any(
+        st.tool_hint == "updateArticle" or "updateArticle" in st.description
+        for st in state.subtasks
+    )
+    if planned_update and not state.updated_article_ids:
+        state.review_decision = "FAIL"
+        state.review_feedback = "未检测到任何成功的 updateArticle 工具调用，不能声称数据已更新。"
+    elif state.tool_execution_errors:
+        state.review_decision = "FAIL"
+        state.review_feedback = "工具执行失败：" + "；".join(state.tool_execution_errors)
+
     state.node_timings["reviewer"] = (time.time() - start) * 1000
 
     # FAIL 或重试耗尽的 REVISE -> 收集 Bad Case
@@ -492,8 +521,8 @@ async def synthesizer_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgen
     # 流式输出最终回答
     full_content = ""
     messages = [
-        SystemMessage(content="你是 Starlore 知识库助手。请根据以下执行结果，生成一个完整、友好的最终回答。"),
-        HumanMessage(content=state.final_answer or "没有执行结果"),
+        SystemMessage(content="你是 Starlore 知识库助手。请只根据已确认的真实工具结果生成最终回答；审查失败时必须明确说明失败，禁止声称已经更新成功。"),
+        HumanMessage(content=(state.final_answer or "没有执行结果") + f"\n\n审查结论：{state.review_decision}\n审查意见：{state.review_feedback}"),
     ]
 
     async for chunk in llm.astream(messages):

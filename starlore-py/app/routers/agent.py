@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import async_session_factory, get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import SimpleResponse
@@ -45,8 +45,16 @@ async def agent_chat(
             break
 
     async def event_stream():
-        async for event in run_agent(db, user.id, llm, messages, character_prompt):
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        async with async_session_factory() as workflow_db:
+            try:
+                async for event in run_agent(
+                    workflow_db, user.id, llm, messages, character_prompt
+                ):
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                await workflow_db.commit()
+            except Exception:
+                await workflow_db.rollback()
+                raise
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

@@ -251,13 +251,20 @@ async def update_article_impl(
 
     article.updatedAt = datetime.now()
     await db.flush()
+    await db.refresh(article)
 
     try:
         await article_embedding_service.index_article(db, article)
     except Exception as e:
         logger.warning("RAG index failed: %s", e)
 
-    return json.dumps({"success": True, "message": "文章更新成功"}, ensure_ascii=False)
+    return json.dumps({
+        "success": True,
+        "id": article.id,
+        "description": article.description,
+        "tags": article.tags or [],
+        "message": "文章更新成功",
+    }, ensure_ascii=False)
 
 
 async def delete_article_impl(db: AsyncSession, user_id: int, article_id: int) -> str:

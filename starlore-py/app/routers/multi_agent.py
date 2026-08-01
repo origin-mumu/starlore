@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import async_session_factory, get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.services import ai_stream_service
@@ -57,15 +57,36 @@ async def multi_agent_sse(
             await q.put(f"data: {json.dumps(event, ensure_ascii=False)}\n\n")
 
         async def run_workflow():
-            try:
-                await run_multi_agent(
-                    db, user.id, llm, messages, character_prompt, event_callback=callback
-                )
-            except Exception as e:
-                logger.error("Multi-agent workflow error: %s", e, exc_info=True)
-                await callback({"type": "error", "error": str(e)})
-            finally:
-                await q.put("data: [DONE]\n\n")
+            # FastAPI 0.115 finalizes yield dependencies before a streaming body
+            # runs. Use a workflow-owned session so writes are committed after
+            # the background task has actually finished.
+            async with async_session_factory() as workflow_db:
+                pending_done: dict | None = None
+
+                async def workflow_callback(event: dict):
+                    nonlocal pending_done
+                    if event.get("type") == "done":
+                        pending_done = event
+                        return
+                    await callback(event)
+
+                try:
+                    await run_multi_agent(
+                        workflow_db,
+                        user.id,
+                        llm,
+                        messages,
+                        character_prompt,
+                        event_callback=workflow_callback,
+                    )
+                    await workflow_db.commit()
+                    await callback(pending_done or {"type": "done"})
+                except Exception as e:
+                    await workflow_db.rollback()
+                    logger.error("Multi-agent workflow error: %s", e, exc_info=True)
+                    await callback({"type": "error", "error": str(e)})
+                finally:
+                    await q.put("data: [DONE]\n\n")
 
         asyncio.create_task(run_workflow())
 
