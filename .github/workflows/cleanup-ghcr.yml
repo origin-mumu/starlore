@@ -1,0 +1,43 @@
+name: Cleanup GHCR Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cleanup-ghcr.yml"
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - starlore/starlore-front
+          - starlore/starlore-back
+          - starlore/starlore-py
+          - starlore/starlore-pdf
+
+    steps:
+      - name: Delete old untagged versions (pass 1)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: "true"
+
+      # The action deletes at most 100 versions per invocation. A second pass
+      # clears the current front-end backlog while keeping the same retention.
+      - name: Delete old untagged versions (pass 2)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: "true"
