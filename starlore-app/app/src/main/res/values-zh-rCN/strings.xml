@@ -26,8 +26,6 @@
     </plurals>
     <string name="appearance">外观</string>
     <string name="background_style">背景样式</string>
-    <string name="macaron_background">晴空柔光背景</string>
-    <string name="macaron_background_description">使用与 Starlore 网页端一致的浅蓝画布与柔和雾光。</string>
     <string name="data_storage">数据与存储</string>
     <string name="general">通用</string>
     <string name="credits">致谢</string>
@@ -117,8 +115,6 @@
     <string name="response">回应</string>
     <string name="craft_your_unique_style_with_a_few_adorable_tweaks">" 添加几处修饰，打造你的独特风格。"</string>
     <string name="color">色彩</string>
-    <string name="custom_primary_color">自定义主题色</string>
-    <string name="use_dynamic_color_scheme">使用动态配色</string>
     <string name="lite_mode">轻量模式</string>
     <string name="design">设计</string>
     <string name="clear">清除</string>
@@ -203,7 +199,6 @@
     <string name="cresto_can_do">Starlore 特性</string>
     <string name="ascending">升序</string>
     <string name="descending">降序</string>
-    <string name="when_use_dynamic_color_scheme_is_enabled_custom_primary_color_is_automatically_turned_off">启用“使用动态配色”后，“自定义主题色”将自动禁用。</string>
     <string name="enabling_liquid_glass_can_significantly_impact_performance">启用“Liquid Glass”可能会显著影响性能。</string>
     <string name="enabling_lite_mode_will_disable_some_blur_effects">启用“轻量模式”将关闭部分模糊效果。</string>
     <string name="select_all">全选</string>

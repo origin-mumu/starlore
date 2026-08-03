@@ -32,6 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -45,6 +48,7 @@ import com.starlore.app.data.api.ArticleSummary
 import com.starlore.app.feature.article.ArticlesUiState
 import com.starlore.app.feature.article.ArticlesViewModel
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppSemanticColors
 import com.starlore.app.theme.AppPageColor
 import com.starlore.app.theme.appPageBackground
 import com.starlore.app.ui.components.glasense.glasenseHighlight
@@ -84,6 +88,13 @@ fun HomeScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "✦ Starlore",
+                    color = AppSemanticColors.brand,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(22.dp))
                 Text(
                     text = greeting(),
                     color = AppColors.contentVariant,
@@ -141,6 +152,7 @@ fun HomeScreen(
                     icon = R.drawable.ic_square_and_pencil,
                     label = "写一篇星记",
                     hint = "记录正在发生的想法",
+                    accent = AppSemanticColors.creation,
                     onClick = onCreateArticle
                 )
                 QuickAction(
@@ -148,6 +160,7 @@ fun HomeScreen(
                     icon = R.drawable.ic_nav_document_filled,
                     label = "全部星记",
                     hint = "浏览与整理知识",
+                    accent = AppSemanticColors.knowledge,
                     onClick = onOpenArticles
                 )
             }
@@ -191,7 +204,7 @@ fun HomeScreen(
                         Column(
                             modifier = Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(AppColors.cardBackground.copy(alpha = .58f))
+                                .background(AppColors.cardBackground.copy(alpha = .94f))
                                 .glasenseHighlight(RoundedCornerShape(24.dp))
                         ) {
                             recent.forEachIndexed { index, article ->
@@ -226,37 +239,92 @@ fun HomeScreen(
 
 @Composable
 private fun AiEntry(onClick: () -> Unit) {
-    Row(
+    val accent = AppSemanticColors.ai
+    Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(AppColors.cardBackground.copy(alpha = .58f))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFFF4F7FF),
+                        Color(0xFFEAF1FF),
+                        Color(0xFFF1EEFF)
+                    )
+                )
+            )
             .glasenseHighlight(RoundedCornerShape(28.dp))
             .clickable(onClick = onClick)
-            .padding(18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+            .height(176.dp)
+            .padding(20.dp)
     ) {
         Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(AppColors.primary),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(168.dp)
+                .blur(18.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            Color(0xA8F8FAFF),
+                            Color(0x708CB5FF),
+                            Color(0x287068EE),
+                            Color.Transparent
+                        )
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_nav_sparkle_filled),
                 contentDescription = null,
-                tint = AppColors.onPrimary,
-                modifier = Modifier.size(24.dp)
+                tint = accent.copy(alpha = .7f),
+                modifier = Modifier.size(30.dp)
             )
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("问问 Starlore AI", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("梳理灵感、解读文章，或继续一次对话", color = AppColors.contentVariant, fontSize = 12.sp)
+
+        Column(
+            modifier = Modifier.fillMaxWidth(.68f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).background(accent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_nav_sparkle_filled),
+                        null,
+                        Modifier.size(22.dp),
+                        Color(0xFFF8FAFF)
+                    )
+                }
+                Text("问问 Starlore AI", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Text(
+                "快速提问、解读文章、总结知识，激发新的灵感",
+                color = AppColors.contentVariant,
+                fontSize = 12.sp,
+                maxLines = 2
+            )
+            Row(
+                modifier = Modifier.clip(CircleShape)
+                    .background(Color(0xB8F8FAFF))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("立即对话", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Icon(
+                    painterResource(R.drawable.ic_chevron_forward_compact),
+                    null,
+                    Modifier.size(15.dp),
+                    accent
+                )
+            }
         }
-        Icon(
-            painter = painterResource(R.drawable.ic_chevron_forward_compact),
-            contentDescription = null,
-            tint = AppColors.primary,
-            modifier = Modifier.size(18.dp)
-        )
     }
 }
 
@@ -266,18 +334,41 @@ private fun QuickAction(
     icon: Int,
     label: String,
     hint: String,
+    accent: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit
 ) {
     Column(
         modifier = modifier.clip(RoundedCornerShape(22.dp))
-            .background(AppColors.cardBackground.copy(alpha = .54f))
+            .background(AppColors.cardBackground.copy(alpha = .94f))
             .glasenseHighlight(RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(painterResource(icon), null, Modifier.size(22.dp), tint = AppColors.primary)
-        Spacer(Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                    .background(accent.copy(alpha = .12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(painterResource(icon), null, Modifier.size(22.dp), tint = accent)
+            }
+            Box(
+                Modifier.size(30.dp).clip(CircleShape).background(accent.copy(alpha = .08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_chevron_forward_compact),
+                    null,
+                    Modifier.size(16.dp),
+                    accent
+                )
+            }
+        }
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         Text(hint, color = AppColors.contentVariant, fontSize = 11.sp, maxLines = 2)
     }
@@ -291,7 +382,7 @@ private fun RecentArticle(article: ArticleSummary, onClick: (Int) -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(article.category ?: "未分类", color = AppColors.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(article.category ?: "未分类", color = AppSemanticColors.knowledge, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text(article.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             article.description?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = AppColors.contentVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -305,7 +396,7 @@ private fun RecentArticle(article: ArticleSummary, onClick: (Int) -> Unit) {
 private fun EmptyRecent(onCreateArticle: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-            .background(AppColors.cardBackground.copy(alpha = .5f)).padding(24.dp),
+            .background(AppColors.cardBackground.copy(alpha = .94f)).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -313,7 +404,7 @@ private fun EmptyRecent(onCreateArticle: () -> Unit) {
         Text("先写下第一篇，让首页成为继续思考的起点", color = AppColors.contentVariant, fontSize = 12.sp)
         Text(
             "开始写作",
-            color = AppColors.primary,
+            color = AppSemanticColors.creation,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.clip(CircleShape).clickable(onClick = onCreateArticle).padding(12.dp)
         )

@@ -131,8 +131,8 @@ fun ArticlesScreen(
                         .height(52.dp),
                     shape = RoundedCornerShape(26.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = AppColors.cardBackground.copy(alpha = 0.5f),
-                        unfocusedContainerColor = AppColors.cardBackground.copy(alpha = 0.3f),
+                        focusedContainerColor = AppColors.cardBackground.copy(alpha = 0.96f),
+                        unfocusedContainerColor = AppColors.cardBackground.copy(alpha = 0.88f),
                         focusedBorderColor = AppColors.primary,
                         unfocusedBorderColor = AppColors.scrimMedium,
                         cursorColor = AppColors.primary
@@ -314,7 +314,7 @@ fun CategoryChip(
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSelected) AppColors.primary else AppColors.cardBackground.copy(alpha = 0.5f))
+            .background(if (isSelected) AppColors.primary else AppColors.cardBackground.copy(alpha = 0.9f))
             .clickable { onClick() }
             .then(
                 if (!isSelected) Modifier.glasenseHighlight(CircleShape) else Modifier
@@ -341,12 +341,12 @@ fun ArticleFeedCard(
         Modifier.liquidGlass(
             backdrop = backdrop,
             cornerRadius = AppSpecs.cardCorner,
-            surfaceColor = AppColors.cardBackground.copy(alpha = .2f),
+            surfaceColor = AppColors.cardBackground.copy(alpha = .78f),
             blurRadius = 8.dp,
             lensRadius = 18.dp
         )
     } else {
-        Modifier.background(AppColors.cardBackground.copy(alpha = 0.5f)).glasenseHighlight(AppSpecs.cardShape)
+        Modifier.background(AppColors.cardBackground.copy(alpha = 0.94f)).glasenseHighlight(AppSpecs.cardShape)
     }
     Box(
         modifier = Modifier

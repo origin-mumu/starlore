@@ -129,21 +129,12 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
 
 
     // State variables for the various appearance settings, managed by the ViewModel
-    var isCustomPrimaryColor by settingsViewModel.isCustomPrimaryColorEnabled
-    var isUseDynamicColorScheme by settingsViewModel.isUseDynamicColor
     var isLiteMode by settingsViewModel.isLiteMode
     var isLiquidGlass by settingsViewModel.isLiquidGlass
-    var isMacaronBackground by settingsViewModel.isMacaronBackground
     val currentMode by settingsViewModel.colorMode
-    val currentThemePrimaryColor by settingsViewModel.themePrimaryColor
     val currentAppIcon by settingsViewModel.appIcon
     val systemInDarkTheme = isSystemInDarkTheme()
     val appIconEntries = AppIconManager.AppIcon.entries
-
-    var showColorPicker by remember { mutableStateOf(false) }
-    var pendingThemePrimaryColor by remember { mutableIntStateOf(currentThemePrimaryColor) }
-    var latestColorPickerTriggerBounds by remember { mutableStateOf<Rect?>(null) }
-    var popupAnchorBounds by remember { mutableStateOf(Rect.Zero) }
 
     val overscrollFactory = rememberOffsetOverscrollFactory()
 
@@ -189,55 +180,6 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
                 currentMode = currentMode,
                 systemInDarkTheme = systemInDarkTheme
             )
-            // Item container for color-related settings
-            Section(
-                header = { stringResource(R.string.color) },
-                footer = { stringResource(R.string.when_use_dynamic_color_scheme_is_enabled_custom_primary_color_is_automatically_turned_off) }) {
-                CustomSwitchRow(
-                    trailing = {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .onGloballyPositioned {
-                                    latestColorPickerTriggerBounds = it.boundsInWindow()
-                                }
-                                .drawBehind {
-                                    drawCircle(
-                                        color = scrim,
-                                        style = Stroke(width = stroke),
-                                        radius = (size.minDimension - stroke) / 2
-                                    )
-                                    drawCircle(
-                                        color = Color(currentThemePrimaryColor),
-                                        radius = (size.minDimension - stroke * 4) / 2
-                                    )
-                                }
-                                .clickable(
-                                    enabled = !isUseDynamicColorScheme,
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = DimIndication(shape = CircleShape)
-                                ) {
-                                    // Snapshot clicked trigger bounds to anchor popup animation/placement.
-                                    popupAnchorBounds =
-                                        latestColorPickerTriggerBounds ?: Rect.Zero
-                                    pendingThemePrimaryColor = currentThemePrimaryColor
-                                    showColorPicker = !showColorPicker
-                                }
-                        )
-                    },
-                    checked = isCustomPrimaryColor,
-                    onCheckedChange = { settingsViewModel.onCustomPrimaryColorChanged(it) },
-                    enabled = !isUseDynamicColorScheme
-                )
-                {
-                    Text(stringResource(R.string.custom_primary_color))
-                }
-                CustomSwitchRow(
-                    checked = isUseDynamicColorScheme,
-                    onCheckedChange = { settingsViewModel.onUseDynamicColorChanged(it) }) {
-                    Text(stringResource(R.string.use_dynamic_color_scheme))
-                }
-            }
             if (supportsRuntimeShaderEffect()) {
                 Section(
                     header = { stringResource(R.string.design) },
@@ -253,17 +195,6 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
                         onCheckedChange = { settingsViewModel.onLiquidGlassChanged(it) }) {
                         Text(stringResource(R.string.liquid_glass))
                     }
-                }
-            }
-            Section(
-                header = { stringResource(R.string.background_style) },
-                footer = { stringResource(R.string.macaron_background_description) }
-            ) {
-                CustomSwitchRow(
-                    checked = isMacaronBackground,
-                    onCheckedChange = { settingsViewModel.onMacaronBackgroundChanged(it) }
-                ) {
-                    Text(stringResource(R.string.macaron_background))
                 }
             }
             NoPaddingSection(header = { stringResource(R.string.app_icon) }) {
@@ -312,98 +243,6 @@ fun AppearanceScreen(settingsViewModel: SettingsViewModel = viewModel()) {
                 .size(48.dp)
                 .align(Alignment.TopStart)
         )
-        GlasensePopup(
-            popupState = PopupState(
-                isVisible = showColorPicker,
-                anchorBounds = popupAnchorBounds
-            ),
-            onDismiss = {
-                pendingThemePrimaryColor = currentThemePrimaryColor
-                showColorPicker = false
-            },
-            width = LocalWindowInfo.current.containerDpSize.width - 24.dp,
-            popupMargin = 12.dp,
-            anchorGap = 12.dp,
-            direction = PopupDirection.Up
-        ) {
-            GlasenseModalTopBar(
-                leading = {
-                    Action(
-                        icon = painterResource(id = R.drawable.ic_cross),
-                        contentDescription = stringResource(R.string.cancel),
-                        onClick = {
-                            pendingThemePrimaryColor = currentThemePrimaryColor
-                            showColorPicker = false
-                        }
-                    )
-                },
-                title = stringResource(R.string.custom_primary_color),
-                trailing = {
-                    Action(
-                        icon = painterResource(id = R.drawable.ic_checkmark),
-                        contentDescription = stringResource(R.string.done),
-                        onClick = {
-                            if (pendingThemePrimaryColor != currentThemePrimaryColor) {
-                                settingsViewModel.onThemePrimaryColorChanged(
-                                    pendingThemePrimaryColor
-                                )
-                            }
-                            showColorPicker = false
-                        },
-                        colors = AppButtonColors.primary()
-                            .copy(containerColor = Color(pendingThemePrimaryColor)),
-                        highlight = true
-                    )
-                }
-            )
-            VGap()
-            val hapticController = LocalHapticFeedback.current
-
-            val colorList = remember {
-                listOf(
-                    Rose500, Red500, Orange500, Amber500,
-                    Yellow500, Lime500, Green500, Emerald500,
-                    Teal500, Cyan500, Sky500, Blue500,
-                    Indigo500, Violet500, Purple500, Fuchsia500,
-                    Pink500,
-                )
-            }
-
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 32.dp),
-                contentPadding = PaddingValues(0.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                itemsIndexed(
-                    items = colorList,
-                    key = { index, color -> "${index}_${color.toArgb()}" }) { _, color ->
-                    val isSelected = color.toArgb() == pendingThemePrimaryColor
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = DimIndication()
-                            ) {
-                                hapticController.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                pendingThemePrimaryColor = color.toArgb()
-                            }
-                            .background(color = color)
-                            .drawBehind {
-                                if (isSelected) {
-                                    drawCircle(
-                                        color = Color.White.copy(alpha = .6f),
-                                        radius = size.minDimension / 4
-                                    )
-                                }
-                            }
-                    )
-                }
-            }
-        }
     }
 }
 

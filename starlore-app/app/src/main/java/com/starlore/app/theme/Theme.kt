@@ -52,27 +52,27 @@ fun Modifier.appPageBackground(): Modifier = composed {
     if (!enabled) {
         background(solid)
     } else {
-        val base = if (dark) Color(0xFF0A051F) else Color(0xFFEDF6FC)
+        val base = if (dark) Color(0xFF0B1020) else Color(0xFFF9FAFD)
         val colors = if (dark) {
             listOf(
-                Color(0xFF16007B),
-                Color(0xFF2A48F3),
-                Color(0xFF35BFAB),
-                Color(0xFF51D0B9),
-                Color(0xFF8B5CF6),
-                Color(0xFF2A48F3)
+                Color(0xFF243C9C),
+                Color(0xFF5846B8),
+                Color(0xFF234F77),
+                Color(0xFF3C2F82),
+                Color(0xFF315E91),
+                Color(0xFF493795)
             )
         } else {
             listOf(
-                Color(0x87F7DA39),
-                Color(0xFF8FDBE9),
-                Color(0xFFFFFEF8),
-                Color(0x87F7DA39),
-                Color(0xFF8FDBE9),
-                Color(0xFFFFFEF8)
+                Color(0x307AA7FF),
+                Color(0x286D8EFF),
+                Color(0x247FD6FF),
+                Color(0x20B9A7FF),
+                Color(0x247D6BFF),
+                Color(0x60FCFDFF)
             )
         }
-        val intensity = if (dark) .45f else .80f
+        val intensity = if (dark) .26f else .18f
         drawWithCache {
             // Cache the six large brushes until size or theme inputs change. Previously
             // these gradients and their temporary lists were rebuilt on every scroll frame.
@@ -130,23 +130,23 @@ fun GlasenseTheme(
         GlasenseDarkPalette
     } else {
         GlasenseColors(
-            background = Color.White,
-            activeTrack = Color(0xFF333333),
+            background = Color(0xFFFAFBFF),
+            activeTrack = Color(0xFF4F6EF7),
             inactiveTrack = Color(0xFF787880).copy(.25f),
             activeThumb = Color.White,
             inactiveThumb = Color.White,
-            pageBackground = Color(0xFFF3F4F6), // clean light gray background
-            cardBackground = Color.White,
-            elevatedPageBackground = Color(0xFFF3F4F6),
-            elevatedCardBackground = Color.White,
+            pageBackground = Color(0xFFF9FAFD),
+            cardBackground = Color(0xFFFEFEFF),
+            elevatedPageBackground = Color(0xFFF4F6FA),
+            elevatedCardBackground = Color(0xFFFEFEFF),
             scrimLight = Color.Black.copy(alpha = 0.025f),
             scrimNormal = Color.Black.copy(alpha = 0.05f),
             scrimMedium = Color.Black.copy(alpha = 0.1f),
             scrimBold = Color.Black.copy(alpha = 0.2f),
-            primary = Color(0xFF333333),
-            onPrimary = Color.White,
-            content = Color.Black,
-            contentVariant = Color.Black.copy(.5f),
+            primary = Color(0xFF4F6EF7),
+            onPrimary = Color(0xFFF8FAFF),
+            content = Color(0xFF0E1B3A),
+            contentVariant = Color(0xFF53617A),
             highlightText = Color(0xFFFFD60A),
             error = Color(0xFFFF453A),
             onError = Color.White,
@@ -154,25 +154,19 @@ fun GlasenseTheme(
         )
     }
 
-    val isCustomPrimaryColor = settingsViewModel.isCustomPrimaryColorEnabled.value
-    val customPrimaryColorArgb = settingsViewModel.themePrimaryColor.intValue
-
-    val themePrimary = if (isCustomPrimaryColor) {
-        Color(customPrimaryColorArgb)
-    } else {
-        when (resolvedTheme) {
-            StarloreTheme.DEFAULT -> Color(0xFFE85D2A)
-            StarloreTheme.WHITE -> Color(0xFF333333)
-            StarloreTheme.DARK -> Color(0xFF7B9AFF)
-            StarloreTheme.GREEN -> Color(0xFF4A8C5C)
-            StarloreTheme.BLUE -> Color(0xFF3B7DD8)
-            StarloreTheme.PINK -> Color(0xFFD4638F)
-        }
-    }
+    val themePrimary = if (isDark) Color(0xFF8DA2FF) else Color(0xFF4F6EF7)
 
     val glasenseColors = baseGlasenseColors.copy(
+        background = if (isDark) Color(0xFF0B1020) else baseGlasenseColors.background,
+        pageBackground = if (isDark) Color(0xFF0B1020) else baseGlasenseColors.pageBackground,
+        cardBackground = if (isDark) Color(0xFF151C31) else baseGlasenseColors.cardBackground,
+        elevatedPageBackground = if (isDark) Color(0xFF11182B) else baseGlasenseColors.elevatedPageBackground,
+        elevatedCardBackground = if (isDark) Color(0xFF202A46) else baseGlasenseColors.elevatedCardBackground,
+        content = if (isDark) Color(0xFFF1F4FF) else baseGlasenseColors.content,
+        contentVariant = if (isDark) Color(0xFFB5BED3) else baseGlasenseColors.contentVariant,
         primary = themePrimary,
-        activeTrack = themePrimary
+        activeTrack = themePrimary,
+        onPrimary = if (isDark) Color(0xFF10162A) else Color(0xFFF8FAFF)
     )
 
     val glasenseSpecs = GlasenseSpecsVariant

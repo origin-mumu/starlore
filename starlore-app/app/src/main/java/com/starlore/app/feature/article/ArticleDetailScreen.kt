@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -29,10 +31,13 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import com.starlore.app.R
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppSemanticColors
 import com.starlore.app.theme.appPageBackground
 import com.starlore.glasense.core.component.Icon
 import com.starlore.glasense.core.component.Text
@@ -53,12 +58,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.shapes.Capsule
 import com.starlore.app.ui.components.glasense.GlasenseMenu
 import com.starlore.app.ui.components.glasense.GlasenseBackButton
 import com.starlore.app.ui.components.glasense.GlasenseNavigationButton
 import com.starlore.app.ui.components.glasense.MenuItemData
 import com.starlore.app.ui.components.glasense.MenuState
 import com.starlore.app.ui.components.glasense.glasenseHighlight
+import com.starlore.app.ui.components.liquid.liquidGlassCapsule
 import com.starlore.app.data.api.ArticleDetail
 import androidx.compose.ui.draw.clip
 
@@ -98,9 +105,17 @@ fun ArticleDetailScreen(
 
     val scrollState = rememberScrollState()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val topBarBgAlpha by animateFloatAsState(
-        targetValue = if (scrollState.value > 0) 0.92f else 0f,
-        animationSpec = tween(300)
+    val articleTitle = (detailState as? ArticleDetailUiState.Success)?.article?.title.orEmpty()
+    val showCompactTitle = scrollState.value > 100 && articleTitle.isNotBlank()
+    val compactTitleAlpha by animateFloatAsState(
+        targetValue = if (showCompactTitle) 1f else 0f,
+        animationSpec = tween(durationMillis = if (showCompactTitle) 220 else 160),
+        label = "article-compact-title-alpha"
+    )
+    val compactTitleScale by animateFloatAsState(
+        targetValue = if (showCompactTitle) 1f else 0.9f,
+        animationSpec = tween(durationMillis = if (showCompactTitle) 220 else 160),
+        label = "article-compact-title-scale"
     )
 
     val pageBgColor = AppColors.pageBackground
@@ -120,7 +135,7 @@ fun ArticleDetailScreen(
             when (val state = detailState) {
             is ArticleDetailUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AppColors.primary)
+                    CircularProgressIndicator(color = AppSemanticColors.knowledge)
                 }
             }
             is ArticleDetailUiState.Success -> {
@@ -141,13 +156,13 @@ fun ArticleDetailScreen(
                         // Category Tag
                         Box(
                             modifier = Modifier
-                                .background(AppColors.primary.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                .background(AppSemanticColors.knowledge.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = article.category ?: "默认星域",
                                 fontSize = 12.sp,
-                                color = AppColors.primary,
+                                color = AppSemanticColors.knowledge,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -196,7 +211,7 @@ fun ArticleDetailScreen(
                                         Text(
                                             text = "#$tag",
                                             fontSize = 11.sp,
-                                            color = AppColors.primary
+                                            color = AppSemanticColors.knowledge
                                         )
                                     }
                                 }
@@ -244,6 +259,45 @@ fun ArticleDetailScreen(
                     .size(48.dp)
             )
 
+            // Reveal a compact title only after the large in-content title scrolls away.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 80.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .graphicsLayer {
+                        alpha = compactTitleAlpha
+                        scaleX = compactTitleScale
+                        scaleY = compactTitleScale
+                    }
+                    .dropShadow(
+                        Capsule(),
+                        androidx.compose.ui.graphics.shadow.Shadow(
+                            radius = 12.dp,
+                            color = Color.Black.copy(alpha = 0.16f),
+                            spread = 0.dp,
+                            offset = DpOffset(0.dp, 4.dp)
+                        )
+                    )
+                    .liquidGlassCapsule(
+                        backdrop = backdrop,
+                        surfaceColor = AppColors.cardBackground.copy(alpha = .22f)
+                    )
+                    .padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = articleTitle,
+                    color = AppColors.content,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
+
             // More button on the right
             GlasenseNavigationButton(
                 modifier = Modifier
@@ -288,7 +342,7 @@ fun ArticleDetailScreen(
                     painter = painterResource(R.drawable.ic_ellipsis),
                     contentDescription = "More",
                     modifier = Modifier.size(20.dp),
-                    tint = AppColors.primary
+                    tint = AppSemanticColors.knowledge
                 )
             }
         }
@@ -356,7 +410,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         text = markdownInline(trimmed.substring(2)),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.primary
+                        color = AppSemanticColors.knowledge
                     )
                 }
                 trimmed.startsWith("## ") -> {
@@ -364,7 +418,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         text = markdownInline(trimmed.substring(3)),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = AppColors.primary
+                        color = AppSemanticColors.knowledge
                     )
                 }
                 trimmed.startsWith("### ") -> {
@@ -379,7 +433,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Text("•", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.primary)
+                        Text("•", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppSemanticColors.knowledge)
                         Text(text = markdownInline(trimmed.substring(2)), fontSize = 15.sp, lineHeight = 22.sp)
                     }
                 }
@@ -395,7 +449,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Text("$marker.", fontWeight = FontWeight.Bold, color = AppColors.primary)
+                        Text("$marker.", fontWeight = FontWeight.Bold, color = AppSemanticColors.knowledge)
                         Text(
                             text = markdownInline(trimmed.substringAfter(' ')),
                             fontSize = 15.sp,

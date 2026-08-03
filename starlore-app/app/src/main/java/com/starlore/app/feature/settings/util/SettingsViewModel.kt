@@ -10,12 +10,8 @@ import com.starlore.app.data.api.UpdateProfileRequest
 class SettingsViewModel : ViewModel() {
 
     val colorMode = SettingsManager.colorModeState
-    val isCustomPrimaryColorEnabled = SettingsManager.isCustomPrimaryColorEnabledState
-    val isUseDynamicColor = SettingsManager.isUseDynamicColorState
     val isLiteMode = SettingsManager.isLiteModeState
     val isLiquidGlass = SettingsManager.isLiquidGlassState
-    val isMacaronBackground = SettingsManager.isMacaronBackgroundState
-    val themePrimaryColor = SettingsManager.themePrimaryColorState
     val isDueTodayMarker = SettingsManager.isDueTodayMarkerState
     val isOverdueMarker = SettingsManager.isOverdueMarkerState
     val isCompletionSoundEnabled = SettingsManager.isCompletionSoundEnabledState
@@ -27,17 +23,6 @@ class SettingsViewModel : ViewModel() {
     val isCheckUpdatesOnStartup = SettingsManager.isCheckUpdatesOnStartupState
     val appIcon = SettingsManager.appIconState
 
-    fun onCustomPrimaryColorChanged(isEnabled: Boolean) {
-        SettingsManager.isCustomPrimaryColorEnabled = isEnabled
-    }
-
-    fun onUseDynamicColorChanged(isEnabled: Boolean) {
-        SettingsManager.isUseDynamicColor = isEnabled
-        if (isEnabled) {
-            SettingsManager.isCustomPrimaryColorEnabled = false
-        }
-    }
-
     fun onLiteModeChanged(isEnabled: Boolean) {
         SettingsManager.isLiteMode = isEnabled
     }
@@ -46,16 +31,8 @@ class SettingsViewModel : ViewModel() {
         SettingsManager.isLiquidGlass = isEnabled
     }
 
-    fun onMacaronBackgroundChanged(isEnabled: Boolean) {
-        SettingsManager.isMacaronBackground = isEnabled
-    }
-
     fun colorMode(mode: Int) {
         SettingsManager.colorMode = mode
-    }
-
-    fun onThemePrimaryColorChanged(colorArgb: Int) {
-        SettingsManager.themePrimaryColor = colorArgb
     }
 
     fun onDueTodayMarkerChanged(isEnabled: Boolean) {

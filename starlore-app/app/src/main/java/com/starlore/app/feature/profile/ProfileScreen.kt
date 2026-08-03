@@ -43,7 +43,6 @@ import com.starlore.glasense.core.component.Text
 import com.starlore.glasense.theme.tokens.Blue500
 import com.starlore.glasense.theme.tokens.Pink400
 import com.starlore.glasense.theme.tokens.Purple500
-import com.starlore.glasense.theme.tokens.Slate500
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 
@@ -115,7 +114,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(AppSpecs.cardShape)
-                    .background(AppColors.cardBackground.copy(alpha = 0.5f))
+                    .background(AppColors.cardBackground.copy(alpha = 0.92f))
                     .glasenseHighlight(AppSpecs.cardShape)
                     .clickable {
                         context.startActivity(
@@ -203,7 +202,7 @@ fun ProfileScreen(
             }
 
             // AI Section
-            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.5f)) {
+            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.92f)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ConfigEntryItem(
                         brush = Brush.sweepGradient(
@@ -227,26 +226,15 @@ fun ProfileScreen(
             }
 
             // Main Settings Group
-            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.5f)) {
+            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.92f)) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     ConfigEntryItem(
                         color = harmonize(Blue500),
                         icon = painterResource(com.starlore.app.R.drawable.ic_twotone_image),
-                        title = "外观",
-                        onClick = {
-                            context.startActivity(
-                                SettingsActivity.createIntent(context, SettingsDestination.APPEARANCE)
-                            )
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    ConfigEntryItem(
-                        color = harmonize(Slate500),
-                        icon = painterResource(com.starlore.app.R.drawable.ic_twotone_gear),
                         title = "通用设置",
                         onClick = {
                             context.startActivity(
-                                SettingsActivity.createIntent(context, SettingsDestination.GENERAL)
+                                SettingsActivity.createIntent(context, SettingsDestination.APPEARANCE)
                             )
                         }
                     )
@@ -254,7 +242,7 @@ fun ProfileScreen(
             }
 
             // About Section
-            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.5f)) {
+            ConfigContainer(backgroundColor = hierarchicalSurfaceColor.copy(alpha = 0.92f)) {
                 AboutEntryItem(
                     icon = painterResource(com.starlore.app.R.drawable.app_icon_default),
                     onClick = {

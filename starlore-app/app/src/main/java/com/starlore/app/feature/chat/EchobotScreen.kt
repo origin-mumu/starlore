@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -55,6 +56,7 @@ import com.starlore.app.data.api.AiSessionRow
 import com.starlore.app.data.api.CharacterCard
 import com.starlore.app.feature.article.MarkdownText
 import com.starlore.app.theme.AppColors
+import com.starlore.app.theme.AppSemanticColors
 import com.starlore.app.theme.AppPageColor
 import com.starlore.app.theme.appPageBackground
 import com.starlore.app.ui.components.glasense.GlasenseBackButton
@@ -94,6 +96,8 @@ fun EchobotScreen(
     var characterAnchorBounds by remember { mutableStateOf(Rect.Zero) }
 
     val listState = rememberLazyListState()
+    val isListDragged by listState.interactionSource.collectIsDraggedAsState()
+    var shouldAutoFollow by remember { mutableStateOf(true) }
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     val latestMessageLength = messages.lastOrNull()?.let {
@@ -106,10 +110,28 @@ fun EchobotScreen(
         }
     }
 
-    // Follow both new messages and incremental SSE updates.
-    LaunchedEffect(messages.size, latestMessageLength) {
-        if (messages.isNotEmpty()) {
+    // Stop fighting the user's gesture when they drag away from the newest message.
+    LaunchedEffect(isListDragged) {
+        if (isListDragged) {
+            snapshotFlow { listState.canScrollForward }
+                .collect { canScrollTowardLatest ->
+                    shouldAutoFollow = !canScrollTowardLatest
+                }
+        }
+    }
+
+    // Follow new messages and incremental SSE updates only while the user remains at the end.
+    LaunchedEffect(messages.size, latestMessageLength, shouldAutoFollow) {
+        if (shouldAutoFollow && messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    // Sending a new prompt is an explicit request to return to the live conversation.
+    LaunchedEffect(isSending) {
+        if (isSending) {
+            shouldAutoFollow = true
+            if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
         }
     }
 
@@ -238,7 +260,7 @@ fun EchobotScreen(
         viewModel.characterCards.forEach { card ->
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(if (card.key == selectedCharacterKey) AppColors.primary.copy(alpha = .12f) else Color.Transparent)
+                    .background(if (card.key == selectedCharacterKey) AppSemanticColors.ai.copy(alpha = .12f) else Color.Transparent)
                     .clickable {
                         viewModel.selectCharacter(card.key)
                         showCharacters = false
@@ -250,7 +272,7 @@ fun EchobotScreen(
                     painterResource(if (card.key == selectedCharacterKey) R.drawable.ic_checkmark_circle else R.drawable.ic_wand_and_rays),
                     null,
                     Modifier.size(18.dp),
-                    if (card.key == selectedCharacterKey) AppColors.primary else AppColors.contentVariant
+                    if (card.key == selectedCharacterKey) AppSemanticColors.ai else AppColors.contentVariant
                 )
                 Column(Modifier.weight(1f)) {
                     Text(card.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -301,7 +323,7 @@ private fun ChannelHeader(
                 painterResource(R.drawable.ic_ellipsis),
                 "会话与更多",
                 Modifier.size(20.dp),
-                AppColors.primary
+                AppSemanticColors.ai
             )
         }
     }
@@ -340,12 +362,12 @@ private fun EmptyChannel(
                 ).forEach { prompt ->
                     Row(
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                            .background(AppColors.primary.copy(alpha = .08f))
+                            .background(AppSemanticColors.ai.copy(alpha = .08f))
                             .clickable { onPrompt(prompt) }.padding(13.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(prompt, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Icon(painterResource(R.drawable.ic_chevron_forward_compact), null, Modifier.size(16.dp), AppColors.primary)
+                        Icon(painterResource(R.drawable.ic_chevron_forward_compact), null, Modifier.size(16.dp), AppSemanticColors.ai)
                     }
                 }
             }
@@ -400,7 +422,7 @@ private fun ChannelComposer(
                     modifier = Modifier.fillMaxSize().onGloballyPositioned { onCharacterAnchorChanged(it.boundsInWindow()) },
                     surfaceColor = AppColors.cardBackground.copy(alpha = .2f)
                 ) {
-                Icon(painterResource(R.drawable.ic_wand_and_rays), "选择助手", Modifier.size(22.dp), AppColors.primary)
+                Icon(painterResource(R.drawable.ic_wand_and_rays), "选择助手", Modifier.size(22.dp), AppSemanticColors.ai)
                 }
             }
             Row(
@@ -419,7 +441,7 @@ private fun ChannelComposer(
                     modifier = Modifier.weight(1f).padding(vertical = 10.dp).focusRequester(focusRequester),
                     enabled = enabled,
                     textStyle = LocalTextStyle.current.copy(color = AppColors.content, fontSize = 15.sp),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(AppColors.primary),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(AppSemanticColors.ai),
                     maxLines = 4,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { if (canSend) onSend() }),
@@ -430,7 +452,7 @@ private fun ChannelComposer(
                 )
                 Box(
                     Modifier.size(42.dp).clip(CircleShape)
-                        .background(if (canSend) AppColors.primary else AppColors.scrimNormal)
+                        .background(if (canSend) AppSemanticColors.ai else AppColors.scrimNormal)
                         .clickable(enabled = canSend, onClick = onSend),
                     contentAlignment = Alignment.Center
                 ) {
@@ -800,7 +822,7 @@ fun MessageBubble(message: AiMessageRow, isLoading: Boolean = false) {
             Box(
                 modifier = Modifier.widthIn(max = 320.dp)
                     .clip(RoundedCornerShape(22.dp, 22.dp, 6.dp, 22.dp))
-                    .background(AppColors.primary).padding(horizontal = 16.dp, vertical = 13.dp)
+                    .background(AppSemanticColors.ai).padding(horizontal = 16.dp, vertical = 13.dp)
                     .animateContentSize(animationSpec = tween(200))
             ) {
                 Text(text = message.content, color = AppColors.onPrimary, fontSize = 15.sp, lineHeight = 22.sp)

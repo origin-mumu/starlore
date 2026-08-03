@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +63,8 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
@@ -91,18 +94,27 @@ fun LiquidBottomTabs(
     LaunchedEffect(selectedTabIndex) {
         currentIndex = selectedTabIndex
         if (position.value != selectedTabIndex.toFloat()) {
+            val targetPosition = selectedTabIndex.toFloat()
+            val releaseThreshold = ((tabsCount - 1).coerceAtLeast(1) * 0.025f)
             coroutineScope {
                 launch { press.animateTo(1f, spring(1f, 1000f, .001f)) }
                 launch { scaleX.animateTo(70f / 52f, spring(.6f, 250f, .001f)) }
                 launch { scaleY.animateTo(70f / 52f, spring(.7f, 250f, .001f)) }
                 launch {
                     position.animateTo(
-                        selectedTabIndex.toFloat(),
+                        targetPosition,
                         spring(1f, 1000f, 0.001f)
                     )
                 }
-            }
-            coroutineScope {
+
+                // Match the original component's interaction: start releasing as soon as
+                // the indicator is visually close to its destination. Waiting for every
+                // spring to settle made the enlarged indicator appear to pause for ~1s.
+                if (abs(position.value - targetPosition) >= releaseThreshold) {
+                    snapshotFlow { position.value }
+                        .filter { abs(it - targetPosition) < releaseThreshold }
+                        .first()
+                }
                 launch { press.animateTo(0f, spring(1f, 1000f, .001f)) }
                 launch { scaleX.animateTo(1f, spring(.6f, 250f, .001f)) }
                 launch { scaleY.animateTo(1f, spring(.7f, 250f, .001f)) }
@@ -256,8 +268,8 @@ fun LiquidBottomTabs(
                         this.scaleY *= 1f - (velocity * .25f).fastCoerceIn(-.2f, .2f)
                     },
                     onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = .1f), alpha = 1f - press.value)
-                        drawRect(Color.Black.copy(alpha = .03f * press.value))
+                        drawRect(accentColor.copy(alpha = .14f), alpha = 1f - press.value)
+                        drawRect(accentColor.copy(alpha = .06f * press.value))
                     }
                 )
                 .height(52.dp)

@@ -2,8 +2,6 @@ package com.starlore.app.feature.settings.util
 
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.toArgb
-import com.starlore.glasense.theme.tokens.Blue500
 import com.tencent.mmkv.MMKV
 import com.starlore.app.security.SecureTokenStore
 
@@ -17,8 +15,6 @@ object SettingsManager {
     private val mmkv = MMKV.defaultMMKV()
 
     // Define constant keys for storing and retrieving settings to avoid typos.
-    private const val KEY_CUSTOM_PRIMARY_COLOR_ENABLED = "custom_primary_color_enabled"
-    private const val KEY_USE_DYNAMIC_COLOR = "use_dynamic_color_enabled"
     private const val KEY_LITE_MODE = "lite_mode_enabled"
     private const val KEY_LIQUID_GLASS = "liquid_glass_enabled"
     private const val KEY_MACARON_BACKGROUND = "macaron_background_enabled"
@@ -26,7 +22,6 @@ object SettingsManager {
     private const val KEY_IS_FIRST_RUN = "is_first_run"
     private const val KEY_SORT_OPTION = "sort_option"
     private const val KEY_SORT_ORDER = "sort_order"
-    private const val KEY_THEME_PRIMARY_COLOR = "theme_primary_color"
     private const val KEY_DUE_TODAY_MARKER = "due_today_marker_enabled"
     private const val KEY_OVERDUE_MARKER = "overdue_marker_enabled"
     private const val KEY_COMPLETION_SOUND = "completion_sound_enabled"
@@ -45,16 +40,11 @@ object SettingsManager {
     private const val DEFAULT_AI_MODEL = "glm-4-flash"
     private const val KEY_APP_ICON = "app_icon"
 
-    private val defaultThemePrimaryColor = Blue500.toArgb()
-
     const val MODE_LIGHT = 0
     const val MODE_DARK = 1
     const val MODE_SYSTEM = 2
 
     val colorModeState = mutableIntStateOf(mmkv.decodeInt(KEY_COLOR_MODE, MODE_LIGHT))
-    val isCustomPrimaryColorEnabledState =
-        mutableStateOf(mmkv.decodeBool(KEY_CUSTOM_PRIMARY_COLOR_ENABLED, true))
-    val isUseDynamicColorState = mutableStateOf(mmkv.decodeBool(KEY_USE_DYNAMIC_COLOR, false))
     val isLiteModeState = mutableStateOf(mmkv.decodeBool(KEY_LITE_MODE, false))
     val isLiquidGlassState = mutableStateOf(mmkv.decodeBool(KEY_LIQUID_GLASS, true))
     val isMacaronBackgroundState = mutableStateOf(mmkv.decodeBool(KEY_MACARON_BACKGROUND, true))
@@ -62,8 +52,6 @@ object SettingsManager {
         mutableIntStateOf(mmkv.decodeInt(KEY_SORT_OPTION, SortOption.DEFAULT.ordinal))
     val sortOrderState =
         mutableIntStateOf(mmkv.decodeInt(KEY_SORT_ORDER, SortOrder.DESCENDING.ordinal))
-    val themePrimaryColorState =
-        mutableIntStateOf(mmkv.decodeInt(KEY_THEME_PRIMARY_COLOR, defaultThemePrimaryColor))
     val isDueTodayMarkerState = mutableStateOf(mmkv.decodeBool(KEY_DUE_TODAY_MARKER, true))
     val isOverdueMarkerState = mutableStateOf(mmkv.decodeBool(KEY_OVERDUE_MARKER, true))
     val isCompletionSoundEnabledState = mutableStateOf(mmkv.decodeBool(KEY_COMPLETION_SOUND, true))
@@ -97,20 +85,6 @@ object SettingsManager {
                 }
             } ?: AppIconManager.AppIcon.DEFAULT
     )
-
-    var isCustomPrimaryColorEnabled: Boolean
-        get() = mmkv.decodeBool(KEY_CUSTOM_PRIMARY_COLOR_ENABLED, true)
-        set(value) {
-            mmkv.encode(KEY_CUSTOM_PRIMARY_COLOR_ENABLED, value)
-            isCustomPrimaryColorEnabledState.value = value
-        }
-
-    var isUseDynamicColor: Boolean
-        get() = mmkv.decodeBool(KEY_USE_DYNAMIC_COLOR, false)
-        set(value) {
-            mmkv.encode(KEY_USE_DYNAMIC_COLOR, value)
-            isUseDynamicColorState.value = value
-        }
 
     var isLiteMode: Boolean
         get() = mmkv.decodeBool(KEY_LITE_MODE, false)
@@ -157,13 +131,6 @@ object SettingsManager {
         set(value) {
             mmkv.encode(KEY_SORT_ORDER, value.ordinal)
             sortOrderState.intValue = value.ordinal
-        }
-
-    var themePrimaryColor: Int
-        get() = mmkv.decodeInt(KEY_THEME_PRIMARY_COLOR, defaultThemePrimaryColor)
-        set(value) {
-            mmkv.encode(KEY_THEME_PRIMARY_COLOR, value)
-            themePrimaryColorState.intValue = value
         }
 
     var isDueTodayMarker: Boolean
