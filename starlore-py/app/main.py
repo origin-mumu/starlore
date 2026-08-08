@@ -24,6 +24,7 @@ from app.routers import (
     public,
     public_ai,
     resume,
+    sync,
     upload,
 )
 
@@ -71,6 +72,7 @@ app.include_router(resume.router)
 app.include_router(projects.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
+app.include_router(sync.router)
 
 
 if __name__ == "__main__":
