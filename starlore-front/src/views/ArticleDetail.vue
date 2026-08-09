@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { getArticleByIdService, getPublicArticleByIdService } from '@/api/article'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
@@ -41,6 +41,12 @@ const tocOpen = ref(true)
 const readingProgress = ref(0)
 let tocObserver: IntersectionObserver | null = null
 let progressFrame = 0
+let enhancementTimer = 0
+let highlightIdleCallback = 0
+
+const renderedArticleContent = computed(() =>
+  renderArticleContent(article.value?.content || '星记内容为空'),
+)
 
 const updateReadingProgress = () => {
   progressFrame = 0
@@ -108,7 +114,7 @@ function scrollToHeading(id: string) {
 
 const highlightCode = () => {
   nextTick(() => {
-    document.querySelectorAll('pre code').forEach(block => {
+    document.querySelectorAll('.typography pre code').forEach(block => {
       hljs.highlightElement(block as HTMLElement)
 
       const pre = block.parentElement
@@ -145,6 +151,24 @@ const highlightCode = () => {
     })
   })
 }
+
+const scheduleArticleEnhancements = () => {
+  nextTick(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    enhancementTimer = window.setTimeout(() => {
+      buildToc()
+      nextTick(scheduleReadingProgress)
+
+      const runHighlight = () => highlightCode()
+      if ('requestIdleCallback' in window) {
+        highlightIdleCallback = window.requestIdleCallback(runHighlight, { timeout: 800 })
+      } else {
+        runHighlight()
+      }
+    }, reducedMotion ? 0 : 260)
+  })
+}
+
 onMounted(async () => {
   window.addEventListener('scroll', scheduleReadingProgress, { passive: true })
   window.addEventListener('resize', scheduleReadingProgress, { passive: true })
@@ -175,9 +199,7 @@ onMounted(async () => {
     error.value = '获取星记失败，请稍后重试'
   } finally {
     isLoading.value = false
-    highlightCode()
-    buildToc()
-    nextTick(scheduleReadingProgress)
+    scheduleArticleEnhancements()
   }
 })
 
@@ -186,6 +208,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', scheduleReadingProgress)
   window.removeEventListener('resize', scheduleReadingProgress)
   if (progressFrame) cancelAnimationFrame(progressFrame)
+  if (enhancementTimer) clearTimeout(enhancementTimer)
+  if (highlightIdleCallback && 'cancelIdleCallback' in window) {
+    window.cancelIdleCallback(highlightIdleCallback)
+  }
 })
 
 const formatDate = (dateString: string) => {
@@ -246,7 +272,7 @@ const formatDate = (dateString: string) => {
             <main class="main-content">
               <div class="detail-card-enter">
                 <div class="typography">
-                  <div v-html="renderArticleContent(article?.content || '星记内容为空')"></div>
+                  <div v-html="renderedArticleContent"></div>
                 </div>
                 <div class="back-action">
                   <button @click="$router.back()" class="btn-primary">返回星记列表</button>
@@ -376,6 +402,16 @@ const formatDate = (dateString: string) => {
 .article-header {
   max-width: 760px;
   margin: 0 auto;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: detailHeaderIn 240ms var(--ease-out-quart) forwards;
+}
+
+@keyframes detailHeaderIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .meta-badge {
@@ -561,17 +597,7 @@ const formatDate = (dateString: string) => {
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  opacity: 0;
-  transform: translateY(14px);
-  animation: detailCardIn 560ms ease forwards;
-  animation-delay: 80ms;
-}
-
-@keyframes detailCardIn {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  contain: paint;
 }
 
 .typography {

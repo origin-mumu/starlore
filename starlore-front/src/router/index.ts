@@ -2,6 +2,17 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { clearAuthToken, getAuthToken } from '@/utils/authToken'
 
+let articleDetailPromise: ReturnType<typeof importArticleDetail> | undefined
+
+function importArticleDetail() {
+  return import('../views/ArticleDetail.vue')
+}
+
+export function preloadArticleDetail() {
+  articleDetailPromise ??= importArticleDetail()
+  return articleDetailPromise
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -47,7 +58,7 @@ const router = createRouter({
     {
       path: '/articles/:id',
       name: 'articleDetail',
-      component: () => import('../views/ArticleDetail.vue'),
+      component: preloadArticleDetail,
       meta: {
         title: '文章详情 - Starlore',
         requiresAuth: false,
@@ -141,8 +152,8 @@ const router = createRouter({
       }
     }
   ],
-  scrollBehavior() {
-    return { top: 0, behavior: 'smooth' }
+  scrollBehavior(_to, _from, savedPosition) {
+    return savedPosition || { top: 0 }
   }
 })
 

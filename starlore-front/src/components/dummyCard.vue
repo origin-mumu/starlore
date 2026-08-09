@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import router from '@/router'
+import router, { preloadArticleDetail } from '@/router'
 import { Article } from '@/type/Article'
 import { useUserStore } from '@/stores/user'
 import { Lock, Unlock } from '@lucide/vue'
@@ -16,7 +16,12 @@ const formatDate = (dateString: string) => {
 <template>
   <div
     class="article-card starlore-spotlight"
+    role="link"
+    tabindex="0"
+    @pointerenter="preloadArticleDetail"
+    @focus="preloadArticleDetail"
     @click="router.push({ name: 'articleDetail', params: { id: props.id } })"
+    @keydown.enter="router.push({ name: 'articleDetail', params: { id: props.id } })"
   >
     <!-- 封面图 -->
     <div v-if="props.cover_image" class="card-cover">
