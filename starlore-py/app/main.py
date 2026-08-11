@@ -19,6 +19,7 @@ from app.routers import (
     categories,
     chunks,
     health,
+    knowledge_memory,
     multi_agent,
     projects,
     public,
@@ -62,6 +63,7 @@ app.include_router(chunks.router)
 app.include_router(articles.router)
 app.include_router(categories.router)
 app.include_router(bookmarks.router)
+app.include_router(knowledge_memory.router)
 app.include_router(ai.router)
 app.include_router(agent.router)
 app.include_router(multi_agent.router)

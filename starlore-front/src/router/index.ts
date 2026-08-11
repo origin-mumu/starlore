@@ -86,6 +86,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/knowledge-memory',
+      name: 'knowledgeMemory',
+      component: () => import('../views/KnowledgeMemoryView.vue'),
+      meta: {
+        title: '知识记忆 - Starlore',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),

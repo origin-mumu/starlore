@@ -15,6 +15,7 @@ const navItems = computed(() => {
     items.push({ name: '关于我', path: '/about' })
   }
   items.push({ name: '星记', path: '/articles' })
+  items.push({ name: '记忆', path: '/knowledge-memory' })
   items.push(
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
@@ -51,7 +52,7 @@ const moreOpen = ref(false)
 const mobileMainTabs = [
   { name: '首页', path: '/' },
   { name: '星记', path: '/articles' },
-  { name: '探索', path: '/vr' },
+  { name: '记忆', path: '/knowledge-memory' },
   { name: 'AI', path: '/echobot' },
 ]
 
@@ -60,6 +61,7 @@ const mobileMoreItems = computed(() => {
     { name: '关于我', path: '/about' },
     { name: '灵感', path: '/diverge' },
     { name: '星域', path: '/categories' },
+    { name: '探索', path: '/vr' },
   ]
   return all
 })
