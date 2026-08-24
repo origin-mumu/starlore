@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import { gsap } from 'gsap'
 import { useRouter } from 'vue-router'
 import StellarDotsBand from '@/components/StellarDotsBand.vue'
+import EmotionBall from '@/components/EmotionBall.vue'
 import { getBlogStatsService } from '@/api/article'
 import { Article } from '@/type/Article'
 import { useUserStore } from '@/stores/user'
@@ -354,23 +355,27 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Reference-inspired geometric object -->
+          <!-- Interactive Emotion Ball Hero Visual -->
           <div
             ref="guestVisual"
             class="hero-visual-container fade-in-up"
             style="animation-delay: 0.25s"
-            @mousemove="moveGuestOrb"
-            @mouseleave="resetGuestOrb"
           >
-            <div ref="guestOrb" class="reference-orb editorial-process" aria-hidden="true">
-              <span class="editorial-index">01—03</span>
-              <span class="editorial-word editorial-word--solid">记录</span>
-              <span class="editorial-word editorial-word--outline">连接</span>
-              <span class="editorial-word editorial-word--soft">再发现</span>
-              <span class="editorial-star">✦</span>
-              <span class="reference-orb-ring editorial-arc"></span>
+            <div class="hero-emotion-ball-wrapper">
+              <div class="hero-ball-aura" aria-hidden="true"></div>
+              <EmotionBall
+                :size="330"
+                shape="blob"
+                emotion="02"
+                :show-rings="true"
+                :show-style-toggle="true"
+                label="Starlore AI Companion"
+              />
+              <div class="hero-ball-caption">
+                <span class="hero-ball-tag">✦ STARLORE AI COMPANION</span>
+                <span class="hero-ball-sub">CAPTURE · CONNECT · REDISCOVER</span>
+              </div>
             </div>
-            <span class="reference-orb-caption">CAPTURE · CONNECT · REDISCOVER</span>
           </div>
         </div>
       </section>
@@ -744,27 +749,30 @@ onUnmounted(() => {
               </h1>
               <p>搜索、续写，或从一条旧知识重新出发。</p>
             </div>
-            <div class="knowledge-constellation" aria-hidden="true">
-              <svg viewBox="0 0 260 250" role="presentation">
-                <ellipse class="constellation-path orbit-one" cx="130" cy="124" rx="98" ry="43" transform="rotate(-18 130 124)" />
-                <ellipse class="constellation-path orbit-two" cx="130" cy="124" rx="84" ry="62" transform="rotate(38 130 124)" />
-                <path class="constellation-path constellation-path-faint orbit-trail" d="M53 80 C91 31 178 32 216 82 C242 116 229 174 183 205" />
+            <div class="knowledge-constellation knowledge-constellation--interactive" aria-label="知识星系">
+              <div class="constellation-bg-svg" aria-hidden="true">
+                <svg viewBox="0 0 260 250" role="presentation">
+                  <ellipse class="constellation-path orbit-one" cx="130" cy="124" rx="98" ry="43" transform="rotate(-18 130 124)" />
+                  <ellipse class="constellation-path orbit-two" cx="130" cy="124" rx="84" ry="62" transform="rotate(38 130 124)" />
+                  <path class="constellation-path constellation-path-faint orbit-trail" d="M53 80 C91 31 178 32 216 82 C242 116 229 174 183 205" />
 
-                <circle class="constellation-halo halo-outer" cx="130" cy="124" r="39" />
-                <circle class="constellation-halo halo-inner" cx="130" cy="124" r="25" />
-                <circle class="constellation-node node-core" cx="130" cy="124" r="14" />
-                <path class="constellation-spark" d="M130 114 L133 121 L140 124 L133 127 L130 134 L127 127 L120 124 L127 121 Z" />
+                  <circle class="constellation-halo halo-outer" cx="130" cy="124" r="48" />
+                  <circle class="constellation-halo halo-inner" cx="130" cy="124" r="32" />
 
-                <circle class="constellation-node node-accent" cx="73" cy="61" r="7" />
-                <circle class="constellation-node node-sky" cx="211" cy="84" r="6" />
-                <circle class="constellation-node node-warm" cx="214" cy="159" r="5" />
-                <circle class="constellation-node node-small" cx="49" cy="155" r="4" />
-                <circle class="constellation-node node-small" cx="104" cy="196" r="4" />
-                <circle class="constellation-node node-muted" cx="184" cy="207" r="3" />
-                <circle class="constellation-star-dot" cx="36" cy="91" r="2" />
-                <circle class="constellation-star-dot" cx="224" cy="53" r="2.5" />
-                <circle class="constellation-star-dot" cx="231" cy="188" r="1.8" />
-              </svg>
+                  <circle class="constellation-node node-accent" cx="73" cy="61" r="7" />
+                  <circle class="constellation-node node-sky" cx="211" cy="84" r="6" />
+                  <circle class="constellation-node node-warm" cx="214" cy="159" r="5" />
+                  <circle class="constellation-node node-small" cx="49" cy="155" r="4" />
+                  <circle class="constellation-node node-small" cx="104" cy="196" r="4" />
+                  <circle class="constellation-node node-muted" cx="184" cy="207" r="3" />
+                  <circle class="constellation-star-dot" cx="36" cy="91" r="2" />
+                  <circle class="constellation-star-dot" cx="224" cy="53" r="2.5" />
+                  <circle class="constellation-star-dot" cx="231" cy="188" r="1.8" />
+                </svg>
+              </div>
+              <div class="constellation-ball-core">
+                <EmotionBall :size="124" shape="blob" emotion="02" :show-rings="false" />
+              </div>
               <span>KNOWLEDGE MAP</span>
             </div>
           </div>
@@ -960,6 +968,50 @@ onUnmounted(() => {
   padding-bottom: 34px;
   overflow: visible;
   perspective: 900px;
+}
+
+.hero-emotion-ball-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.hero-ball-aura {
+  position: absolute;
+  inset: -10%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(232, 93, 42, 0.08), transparent 60%),
+    radial-gradient(circle at 35% 35%, rgba(130, 155, 209, 0.16), transparent 50%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-ball-caption {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  z-index: 2;
+}
+
+.hero-ball-tag {
+  color: var(--ink-soft);
+  font: 700 0.68rem/1 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  opacity: 0.85;
+}
+
+.hero-ball-sub {
+  color: var(--ink-muted);
+  font: 600 0.58rem/1 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.18em;
 }
 
 .reference-orb {
@@ -2350,6 +2402,15 @@ onUnmounted(() => {
   justify-self: center;
   color: var(--ink);
   transform: translateY(76px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.constellation-bg-svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .knowledge-constellation svg {
@@ -2358,13 +2419,25 @@ onUnmounted(() => {
   overflow: visible;
 }
 
+.constellation-ball-core {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  margin: 62px 0 64px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .knowledge-constellation > span {
   display: block;
-  margin-top: -4px;
+  margin-top: -8px;
   color: var(--ink-muted);
   font: 650 0.58rem/1 'Inter', system-ui, sans-serif;
   letter-spacing: 0.14em;
   text-align: center;
+  z-index: 3;
 }
 
 .constellation-path {

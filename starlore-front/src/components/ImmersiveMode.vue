@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+import EmotionBall from '@/components/EmotionBall.vue'
 import {
   buildMultiAgentSseUrl,
   evaluateRag,
@@ -10,6 +11,7 @@ import {
   getAiModels,
   getAgentConfig,
   updateAgentConfig,
+  submitMessageFeedback,
   type CharacterCard,
   type McpToolInfo,
   type RagEvaluationResult,
@@ -54,9 +56,12 @@ const feedbackComment = ref('')
 async function handleLike(msg: any) {
   msg.userFeedback = msg.userFeedback === 'LIKE' ? null : 'LIKE'
   const targetId = msg.id || 9999
+  if (msg.userFeedback === 'LIKE') {
+    setEmotion('19')
+  }
   try {
     await submitMessageFeedback(targetId, {
-      sessionId: props.sessionId || 0,
+      sessionId: props.currentSessionId || 0,
       rating: 'LIKE'
     })
   } catch {}
@@ -69,13 +74,14 @@ function openDislikeModal(msg: any) {
   feedbackType.value = 'NOT_RELEVANT'
   feedbackComment.value = ''
   feedbackModalOpen.value = true
+  setEmotion('12')
 }
 
 async function submitDislikeFeedback() {
   const targetId = feedbackTargetMessageId.value
   try {
     await submitMessageFeedback(targetId || 9999, {
-      sessionId: props.sessionId || 0,
+      sessionId: props.currentSessionId || 0,
       rating: 'DISLIKE',
       feedbackType: feedbackType.value,
       comment: feedbackComment.value
@@ -100,12 +106,14 @@ type AgentTrace = {
 }
 
 type ChatMsg = {
+  id?: number
   role: 'user' | 'assistant'
   content: string
   reasoningContent?: string
   imageUrl?: string
   agentTrace?: AgentTrace
   attachmentName?: string
+  userFeedback?: 'LIKE' | 'DISLIKE' | null
 }
 
 type Session = {
@@ -138,6 +146,15 @@ const emit = defineEmits<{
   deleteSession: [id: number]
   refreshQuota: []
 }>()
+
+/* ─── AI 吉祥物小球 (EmotionBall) 表情状态 ─── */
+const emotionBallRef = ref<any>(null)
+const currentEmotion = ref('02')
+
+function setEmotion(emoId: string) {
+  currentEmotion.value = emoId
+  emotionBallRef.value?.setEmotion?.(emoId)
+}
 
 /* ─── 状态 ─── */
 type Mode = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -740,6 +757,7 @@ function useQuickReply(text: string) {
 function pickCharacter(key: string) {
   emit('update:selectedCharacterKey', key)
   charPickerOpen.value = false
+  setEmotion('03')
 }
 
 function onImageUpload(e: Event) {
@@ -848,6 +866,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   if (props.isSending || isLocalSending.value) return
   isLocalSending.value = true
   hasReceivedContent.value = false
+  setEmotion('31') // 接收任务点头确认
 
   const imageBase64 = pendingImage.value
   const hasImage = !!imageBase64
@@ -921,9 +940,9 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           clearInterval(interval)
           props.messages[aiIdx].content = reply
           isLocalSending.value = false
-          setMode('speaking')
-          setTimeout(() => setMode('idle'), 1500)
-          emit('refreshQuota') // 触发父组件刷新限额
+          setEmotion('33') // 任务完成撒花庆祝
+          setTimeout(() => setMode('idle'), 2200)
+          emit('refreshQuota')
         } else {
           const chunk = reply.substring(currentLen, currentLen + 2)
           props.messages[aiIdx].content += chunk
@@ -934,7 +953,8 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
     } catch (e: any) {
       toolStatus.value = null
       isLocalSending.value = false
-      setMode('idle')
+      setEmotion('34')
+      setTimeout(() => setMode('idle'), 1500)
       const errorMsg =
         e?.response?.status === 429
           ? '今日访客体验额度（20次）已用尽，登录后即可体验更多哦！'
@@ -1033,6 +1053,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           const data = JSON.parse(trimmed.slice(5).trim())
           if (data.error) {
             props.messages[aiIdx].content = `错误：${data.error}`
+            setEmotion('34')
             reader.cancel()
             break
           }
@@ -1049,6 +1070,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           }
           if (data.tool_start) {
             toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
+            setEmotion('40')
           }
           if (data.type === 'rag_context') {
             const trace = props.messages[aiIdx].agentTrace
@@ -1059,10 +1081,12 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
               )
               trace.ragRetrievalMode = data.retrieval_mode === 'keyword' ? 'keyword' : 'vector'
             }
+            setEmotion('37')
           }
           // ── 多 Agent 事件处理 ──
           if (data.type === 'plan_start') {
             toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
+            setEmotion('30')
           }
           if (data.type === 'plan') {
             const trace = props.messages[aiIdx].agentTrace
@@ -1088,6 +1112,7 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
           if (data.type === 'subtask_start') {
             const node = data.node || ''
             toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
+            setEmotion('40')
           }
           if (data.type === 'subtask_running') {
             const trace = props.messages[aiIdx].agentTrace
@@ -1126,8 +1151,10 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
             }
             if (data.decision === 'PASS') {
               toolStatus.value = 'Reviewer 审查通过，正在生成最终回答...'
+              setEmotion('19')
             } else if (data.decision === 'REVISE') {
               toolStatus.value = `Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
+              setEmotion('11')
             } else {
               toolStatus.value = 'Reviewer 审查未通过，生成最终回答...'
             }
@@ -1172,9 +1199,8 @@ async function handleVoiceSend(text: string, attachmentName?: string) {
   pendingApiText = ''
   isLocalSending.value = false
   toolStatus.value = null
-  // 回复完成后短暂停留 speaking 动画再回 idle
-  setMode('speaking')
-  setTimeout(() => setMode('idle'), 1500)
+  setEmotion('33') // 任务完成庆祝
+  setTimeout(() => setMode('idle'), 2200)
 }
 
 function setMode(mode: Mode) {
@@ -1183,12 +1209,16 @@ function setMode(mode: Mode) {
   if (mode === 'idle') {
     statusText.value = 'System Ready'
     isRecording.value = false
+    setEmotion('02')
   } else if (mode === 'listening') {
     statusText.value = 'Listening...'
+    setEmotion('35')
   } else if (mode === 'thinking') {
     statusText.value = 'Processing'
+    setEmotion('30')
   } else if (mode === 'speaking') {
     statusText.value = 'Transmitting'
+    setEmotion('39')
   }
 }
 
@@ -1256,171 +1286,10 @@ function fmt(s: string): string {
 }
 
 /* ═══════════════════════════════════════════
-   3D 粒子球 + 背景星星
+   声波动画与语音电平控制
    ═══════════════════════════════════════════ */
-const SPHERE_RADIUS = 180
-const PARTICLE_COUNT = 800
-// The app already has a soft nebula background. Keep the immersive surface
-// consistent instead of adding a second, noisy full-screen star field.
-const BG_STAR_COUNT = 0
-
 let animId = 0
-let width = 0
-let height = 0
-let rotX = 0
-let rotY = 0
-let isDragging = false
-let lastMX = 0
-let lastMY = 0
-let targetSpeed = 1
-let curSpeed = 1
 let audioLevel = 0
-
-/* ─── 主题感知颜色 ─── */
-function getThemeColor(varName: string, fallback: string): string {
-  const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
-  return val || fallback
-}
-
-// 根据主题亮度判断是否为深色主题
-function isDarkTheme(): boolean {
-  const canvas = getThemeColor('--canvas', '#FFFCF7')
-  // 简单判断：解析 hex 颜色的亮度
-  const hex = canvas.replace('#', '')
-  if (hex.length >= 6) {
-    const r = parseInt(hex.substring(0, 2), 16)
-    const g = parseInt(hex.substring(2, 4), 16)
-    const b = parseInt(hex.substring(4, 6), 16)
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128
-  }
-  return true
-}
-
-function getParticleColors() {
-  const dark = isDarkTheme()
-  return {
-    // 信号粒子：使用主题强调色
-    signal: getThemeColor('--accent', dark ? '#ff4d4d' : '#E85D2A'),
-    // 核心粒子：白色
-    core: '#ffffff',
-    // 空洞粒子：白色
-    void: '#ffffff',
-    // 背景星星
-    star: dark ? '#ffffff' : getThemeColor('--ink-muted', '#8A7A6A'),
-    // 模式颜色
-    idle: getThemeColor('--accent', '#E85D2A'),
-    listening: getThemeColor('--accent', '#a78bfa'),
-    thinking: getThemeColor('--accent', '#a78bfa'),
-    speaking: getThemeColor('--accent', '#a78bfa'),
-  }
-}
-
-let themeColors = getParticleColors()
-
-const modeColorMap = reactive<Record<Mode, string>>({
-  idle: themeColors.idle,
-  listening: themeColors.listening,
-  thinking: themeColors.thinking,
-  speaking: themeColors.speaking,
-})
-
-// 监听主题变化
-const themeObserver = new MutationObserver(() => {
-  themeColors = getParticleColors()
-  modeColorMap.idle = themeColors.idle
-  modeColorMap.listening = themeColors.listening
-  modeColorMap.thinking = themeColors.thinking
-  modeColorMap.speaking = themeColors.speaking
-})
-
-interface Star {
-  x: number
-  y: number
-  size: number
-  speed: number
-  twinkle: number
-  phase: number
-}
-let bgStars: Star[] = []
-
-class OrbP {
-  bx: number
-  by: number
-  bz: number
-  x = 0
-  y = 0
-  z = 0
-  type: 'signal' | 'core' | 'void'
-  color: string
-  size: number
-
-  constructor() {
-    const u = Math.random(),
-      v = Math.random()
-    const r = Math.pow(Math.random(), 1 / 3) * SPHERE_RADIUS
-    const th = 2 * Math.PI * u,
-      ph = Math.acos(2 * v - 1)
-    this.bx = r * Math.sin(ph) * Math.cos(th)
-    this.by = r * Math.sin(ph) * Math.sin(th)
-    this.bz = r * Math.cos(ph)
-    const rnd = Math.random()
-    if (rnd < 0.4) {
-      this.type = 'signal'
-      this.color = themeColors.signal
-    } else if (rnd < 0.8) {
-      this.type = 'core'
-      this.color = themeColors.core
-    } else {
-      this.type = 'void'
-      this.color = themeColors.void
-    }
-    this.size = Math.random() * 1.5 + 0.5
-  }
-
-  update(time: number, rx: number, ry: number, mode: Mode) {
-    if (this.type === 'signal') this.color = modeColorMap[mode] || '#ff4d4d'
-    const wave =
-      Math.sin(time * 0.002 + (this.bx + this.by + this.bz) * 0.01) * (15 + audioLevel * 50)
-    const ru = Math.sqrt(this.bx ** 2 + this.by ** 2 + this.bz ** 2) + 0.001
-    const sc = mode === 'thinking' ? 0.9 : 1
-    const rf = (ru * sc + wave) / ru
-    let tx = this.bx * rf,
-      ty = this.by * rf,
-      tz = this.bz * rf
-    const cx = Math.cos(rx),
-      sx = Math.sin(rx)
-    const cy = Math.cos(ry),
-      sy = Math.sin(ry)
-    const y1 = ty * cx - tz * sx,
-      z1 = ty * sx + tz * cx
-    this.x = tx * cy + z1 * sy
-    this.y = y1
-    this.z = -tx * sy + z1 * cy
-  }
-
-  draw(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
-    const p = 600 / (600 - Math.max(-300, Math.min(this.z, 590)))
-    const dx = this.x * p + cx,
-      dy = this.y * p + cy,
-      ds = Math.max(0, this.size * p)
-    if (this.type === 'void') {
-      // 空洞粒子：填充半透明
-      ctx.fillStyle = this.color
-      ctx.globalAlpha = Math.max(0.05, (p - 0.4) * 0.3)
-      ctx.beginPath()
-      ctx.arc(dx, dy, ds, 0, Math.PI * 2)
-      ctx.fill()
-    } else {
-      ctx.fillStyle = this.color
-      ctx.globalAlpha = Math.max(0.1, p - 0.4)
-      ctx.beginPath()
-      ctx.arc(dx, dy, ds, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-}
-
-let orbParticles: OrbP[] = []
 
 /* ═══════════════════════════════════════════
    声波渲染
@@ -1702,25 +1571,32 @@ function shouldShowMessage(msg: ChatMsg) {
 
 <template>
   <div class="immersive-overlay">
-    <canvas
-      ref="mainCanvasRef"
-      class="main-canvas"
-      @mousedown="onDown"
-      @mousemove="onMove"
-      @mouseup="onUp"
-      @mouseleave="onUp"
-      @touchstart.prevent="onDown"
-      @touchmove.prevent="onMove"
-      @touchend="onUp"
-    ></canvas>
-
-    <div class="mic-wrapper">
-      <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
-        <canvas ref="waveCanvasRef" class="wave-canvas"></canvas>
-        <div class="interaction-hint" :class="{ hidden: !showHint }">[ 点击以语音交流 ]</div>
+    <!-- 左侧吉祥物与语音交互舞台 -->
+    <div class="imm-visual-stage">
+      <div class="imm-mascot-container">
+        <div class="imm-mascot-aura" aria-hidden="true"></div>
+        <EmotionBall
+          ref="emotionBallRef"
+          :size="300"
+          shape="blob"
+          :emotion="currentEmotion"
+          :show-rings="true"
+          :show-style-toggle="true"
+          label="Starlore AI 智能小球"
+        />
+        <div class="imm-mascot-caption">
+          <span class="imm-mascot-badge">✦ STARLORE AI COMPANION</span>
+        </div>
       </div>
-      <div class="status-text" :class="currentMode">{{ statusText }}</div>
-      <div v-if="interimText" class="interim-text">{{ interimText }}</div>
+
+      <div class="mic-wrapper">
+        <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
+          <canvas ref="waveCanvasRef" class="wave-canvas"></canvas>
+          <div class="interaction-hint" :class="{ hidden: !showHint }">[ 点击以语音交流 ]</div>
+        </div>
+        <div class="status-text" :class="currentMode">{{ statusText }}</div>
+        <div v-if="interimText" class="interim-text">{{ interimText }}</div>
+      </div>
     </div>
 
     <div class="chat-panel">
@@ -2446,15 +2322,12 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 .mic-wrapper {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
+  margin-top: 10px;
   z-index: 30;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .wave-container {
@@ -2543,27 +2416,101 @@ function shouldShowMessage(msg: ChatMsg) {
   }
 }
 
+/* ── 左侧视觉舞台 ── */
+.imm-visual-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(100vw - min(620px, 48vw));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.imm-mascot-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: -30px;
+}
+
+.imm-mascot-aura {
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent-rgb, 232, 93, 42), 0.15) 0%, transparent 70%);
+  filter: blur(28px);
+  pointer-events: none;
+  animation: aura-pulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes aura-pulse {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  100% { transform: scale(1.12); opacity: 0.85; }
+}
+
+.imm-mascot-caption {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.imm-mascot-badge {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  background: var(--surface-translucent, rgba(255, 255, 255, 0.15));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  padding: 4px 14px;
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
 .chat-panel {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 480px;
-  padding: 40px 24px 32px 24px;
+  width: min(620px, 48vw);
+  min-width: 460px;
+  padding: 40px 28px 32px 28px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   z-index: 20;
   pointer-events: none;
-  background: linear-gradient(to right, transparent 0%, var(--canvas) 60%, var(--canvas) 100%);
+  background: linear-gradient(to right, transparent 0%, var(--canvas) 45%, var(--canvas) 100%);
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 6%,
-    black 92%,
+    black 4%,
+    black 94%,
     transparent 100%
   );
-  mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 92%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 94%, transparent 100%);
+}
+
+@media (max-width: 900px) {
+  .imm-visual-stage {
+    display: none;
+  }
+  .chat-panel {
+    width: 100%;
+    min-width: 0;
+    padding: 24px 16px;
+    background: var(--canvas);
+  }
 }
 
 .chat-header {

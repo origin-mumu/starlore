@@ -81,9 +81,4 @@ starlore-py/
 - `POST /api/ai/sse` — AI 流式对话
 - ... 以及所有其他端点
 
-## 与 Java 版的差异
 
-1. **无 Spring AI**: 直接用 httpx 调用 OpenAI 兼容 API，更灵活
-2. **RAG 向量存储**: 使用 JSON 文件 + numpy 替代 Spring AI SimpleVectorStore
-3. **异步全链路**: 所有数据库和 HTTP 调用均为异步
-4. **自动 API 文档**: FastAPI 自动生成 OpenAPI/Swagger 文档

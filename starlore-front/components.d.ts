@@ -17,6 +17,7 @@ declare module 'vue' {
     CosmicBackdrop: typeof import('./src/components/CosmicBackdrop.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
+    EmotionBall: typeof import('./src/components/EmotionBall.vue')['default']
     FloatingParticles: typeof import('./src/components/FloatingParticles.vue')['default']
     GeoNexusGlobe: typeof import('./src/components/GeoNexusGlobe.vue')['default']
     ImmersiveMode: typeof import('./src/components/ImmersiveMode.vue')['default']
