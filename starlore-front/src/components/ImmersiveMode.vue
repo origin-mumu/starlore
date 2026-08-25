@@ -2217,33 +2217,7 @@ function shouldShowMessage(msg: ChatMsg) {
                 </span>
               </article>
             </div>
-          
-    <!-- 反馈模态框 -->
-    <div v-if="feedbackModalOpen" class="imm-feedback-backdrop" @click.self="feedbackModalOpen = false">
-      <div class="imm-feedback-modal">
-        <div class="imm-feedback-header">
-          <h3>反馈回答质量</h3>
-          <button class="imm-close-btn" @click="feedbackModalOpen = false"><X :size="16" /></button>
-        </div>
-        <div class="imm-feedback-body">
-          <label class="imm-form-label">请选择主要问题类型：</label>
-          <div class="imm-radio-group">
-            <label><input type="radio" v-model="feedbackType" value="NOT_RELEVANT" /> 知识库未检索到正确资料</label>
-            <label><input type="radio" v-model="feedbackType" value="HALLUCINATION" /> 包含大模型凭空幻觉内容</label>
-            <label><input type="radio" v-model="feedbackType" value="WRONG_FACT" /> 事实或语法描述有误</label>
-            <label><input type="radio" v-model="feedbackType" value="OTHER" /> 其他意见</label>
-          </div>
-          <label class="imm-form-label">补充说明 (选填)：</label>
-          <textarea v-model="feedbackComment" placeholder="请输入具体意见或修正建议..." class="imm-feedback-input"></textarea>
-        </div>
-        <div class="imm-feedback-footer">
-          <button class="imm-btn-cancel" @click="feedbackModalOpen = false">取消</button>
-          <button class="imm-btn-submit" @click="submitDislikeFeedback">提交评价</button>
-        </div>
-      </div>
-    </div>
-
-</template>
+          </template>
         </section>
 
         <section class="imm-cap-section" aria-labelledby="rag-index-title">
@@ -2322,7 +2296,7 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 .mic-wrapper {
-  margin-top: 10px;
+  margin-top: 14px;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -2331,8 +2305,8 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 .wave-container {
-  width: 360px;
-  height: 160px;
+  width: 280px;
+  height: 72px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -2354,8 +2328,8 @@ function shouldShowMessage(msg: ChatMsg) {
 
 .interaction-hint {
   position: absolute;
-  bottom: 10px;
-  font-size: 12px;
+  bottom: 2px;
+  font-size: 11px;
   letter-spacing: 2px;
   color: var(--ink-muted);
   pointer-events: none;
@@ -2416,11 +2390,11 @@ function shouldShowMessage(msg: ChatMsg) {
   }
 }
 
-/* ── 左侧视觉舞台 ── */
+/* ── 左侧视觉舞台 (从 top: 72px 开始，避让顶部导航栏，在可用区域完美居中) ── */
 .imm-visual-stage {
   position: absolute;
   left: 0;
-  top: 0;
+  top: 72px;
   bottom: 0;
   width: calc(100vw - min(620px, 48vw));
   display: flex;
@@ -2430,6 +2404,8 @@ function shouldShowMessage(msg: ChatMsg) {
   z-index: 10;
   pointer-events: auto;
   user-select: none;
+  box-sizing: border-box;
+  padding: 0 32px 24px;
 }
 
 .imm-mascot-container {
@@ -2438,7 +2414,7 @@ function shouldShowMessage(msg: ChatMsg) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-top: -30px;
+  margin-top: 0;
 }
 
 .imm-mascot-aura {
@@ -2477,6 +2453,7 @@ function shouldShowMessage(msg: ChatMsg) {
   box-shadow: var(--shadow-sm);
 }
 
+/* ── 右侧会话面板 (顶部留足 76px 留白，彻底避让顶部导航栏) ── */
 .chat-panel {
   position: absolute;
   right: 0;
@@ -2484,7 +2461,7 @@ function shouldShowMessage(msg: ChatMsg) {
   bottom: 0;
   width: min(620px, 48vw);
   min-width: 460px;
-  padding: 40px 28px 32px 28px;
+  padding: 76px 28px 24px 28px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2494,11 +2471,11 @@ function shouldShowMessage(msg: ChatMsg) {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 4%,
+    black 6%,
     black 94%,
     transparent 100%
   );
-  mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 94%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 94%, transparent 100%);
 }
 
 @media (max-width: 900px) {
@@ -2508,7 +2485,7 @@ function shouldShowMessage(msg: ChatMsg) {
   .chat-panel {
     width: 100%;
     min-width: 0;
-    padding: 24px 16px;
+    padding: 76px 16px 24px 16px;
     background: var(--canvas);
   }
 }
