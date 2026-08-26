@@ -94,84 +94,34 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <div class="top-actions">
-        <!-- 分类筛选 (Category Dropdown) -->
-        <div class="chunk-category-dropdown">
-          <button
-            type="button"
-            class="chunk-category-trigger"
-            @click.stop="chunkCategoryOpen = !chunkCategoryOpen; chunkArticleOpen = false"
-          >
-            <span>{{ chunkCategory || '全部星域' }}</span>
-            <ChevronDown
-              :size="14"
-              class="arrow-icon"
-              :class="{ 'is-open': chunkCategoryOpen }"
-              aria-hidden="true"
-            />
-          </button>
-          <Transition name="dropdown-fade">
-            <div v-if="chunkCategoryOpen" class="chunk-category-options">
-              <button
-                type="button"
-                class="chunk-category-option"
-                :class="{ active: chunkCategory === '' }"
-                @click="emit('selectCategory', '')"
-              >
-                全部星域
-              </button>
-              <button
-                v-for="cat in chunkCategories"
-                :key="cat"
-                type="button"
-                class="chunk-category-option"
-                :class="{ active: chunkCategory === cat }"
-                @click="emit('selectCategory', cat)"
-              >
-                {{ cat }}
-              </button>
-            </div>
-          </Transition>
-        </div>
+        <!-- 分类筛选 (Category Select) -->
+        <el-select
+          :model-value="chunkCategory || ''"
+          placeholder="全部星域"
+          size="default"
+          style="width: 140px"
+          @update:model-value="(val: any) => emit('selectCategory', String(val ?? ''))"
+        >
+          <el-option label="全部星域" value="" />
+          <el-option v-for="cat in chunkCategories" :key="cat" :label="cat" :value="cat" />
+        </el-select>
 
-        <!-- 文章筛选 (Article Dropdown) -->
-        <div class="chunk-category-dropdown">
-          <button
-            type="button"
-            class="chunk-category-trigger"
-            @click.stop="chunkArticleOpen = !chunkArticleOpen; chunkCategoryOpen = false"
-          >
-            <span class="article-trigger-text">{{ selectedArticleTitle || '全部文章' }}</span>
-            <ChevronDown
-              :size="14"
-              class="arrow-icon"
-              :class="{ 'is-open': chunkArticleOpen }"
-              aria-hidden="true"
-            />
-          </button>
-          <Transition name="dropdown-fade">
-            <div v-if="chunkArticleOpen" class="chunk-category-options article-options-menu">
-              <button
-                type="button"
-                class="chunk-category-option"
-                :class="{ active: !chunkArticleId }"
-                @click="emit('selectArticle', null)"
-              >
-                全部文章
-              </button>
-              <button
-                v-for="art in availableChunkArticles"
-                :key="art.id"
-                type="button"
-                class="chunk-category-option"
-                :class="{ active: chunkArticleId === art.id }"
-                :title="art.title"
-                @click="emit('selectArticle', art.id)"
-              >
-                {{ art.title }}
-              </button>
-            </div>
-          </Transition>
-        </div>
+        <!-- 文章筛选 (Article Select) -->
+        <el-select
+          :model-value="chunkArticleId ?? ''"
+          placeholder="全部文章"
+          size="default"
+          style="width: 180px"
+          @update:model-value="(val: any) => emit('selectArticle', val === '' || val === null ? null : Number(val))"
+        >
+          <el-option label="全部文章" :value="''" />
+          <el-option
+            v-for="art in availableChunkArticles"
+            :key="art.id"
+            :label="art.title"
+            :value="art.id"
+          />
+        </el-select>
 
         <div class="search-box">
           <Search :size="14" class="search-icon" />
@@ -318,78 +268,86 @@ onBeforeUnmount(() => {
   transform: rotate(180deg);
 }
 
-.chunk-category-options {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 140px;
-  max-height: 200px;
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: 40;
-  padding: 4px;
+.top-actions {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.article-options-menu {
-  min-width: 220px;
-}
-
-.chunk-category-option {
-  text-align: left;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: none;
-  font-size: 12px;
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chunk-category-option:hover {
-  background: var(--hover-bg);
-}
-.chunk-category-option.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--surface-secondary, rgba(0, 0, 0, 0.02));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 5px 10px;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 38px;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.search-box:focus-within {
+  background: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+[data-theme="dark"] .search-box {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .search-box:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.search-box .search-icon {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
 .search-box input {
   border: none;
   background: transparent;
   outline: none;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
+  width: 170px;
+  font-family: inherit;
+}
+
+.search-box input::placeholder {
+  color: var(--ink-muted);
 }
 
 .btn-primary {
   background: var(--ink);
   color: var(--canvas);
   border: none;
-  border-radius: var(--radius-md);
-  padding: 6px 14px;
-  font-size: 12px;
+  border-radius: 12px;
+  padding: 0 18px;
+  height: 38px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.btn-primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .chunk-cards-grid {
