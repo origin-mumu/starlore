@@ -2210,19 +2210,24 @@ onMounted(loadPage)
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in oklch, var(--ink) 32%, transparent);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
 }
 
 .picker-dialog {
   display: flex;
   width: min(720px, 100%);
-  max-height: min(760px, calc(100vh - 48px));
+  max-height: min(780px, calc(100vh - 48px));
   flex-direction: column;
   overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-xl);
-  background: #f7f7f7;
-  box-shadow: 0 28px 80px color-mix(in oklch, var(--ink) 22%, transparent);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: modalCardPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .picker-dialog-header {
@@ -2230,17 +2235,19 @@ onMounted(loadPage)
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 25px 26px 18px;
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .picker-dialog-header h2 {
   color: var(--ink);
-  font-size: 1.3rem;
-  letter-spacing: -0.03em;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .picker-dialog-header p {
-  margin-top: 6px;
+  margin-top: 4px;
   color: var(--ink-muted);
   font-size: 0.82rem;
   line-height: 1.55;
@@ -2248,20 +2255,21 @@ onMounted(loadPage)
 
 .dialog-close {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   flex: none;
   place-items: center;
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   border-radius: 50%;
   color: var(--ink-muted);
-  transition: border-color 160ms, background 160ms, color 160ms;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dialog-close:hover {
-  border-color: var(--border-interactive);
-  background: var(--surface-hover);
+  background: rgba(0, 0, 0, 0.08);
   color: var(--ink);
+  transform: rotate(90deg);
 }
 
 .dialog-close:disabled {

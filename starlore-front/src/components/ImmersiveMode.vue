@@ -2,7 +2,11 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import EmotionBall from '@/components/EmotionBall.vue'
+import VoiceWaveStage from './immersive/VoiceWaveStage.vue'
+import CharacterCardPicker from './immersive/CharacterCardPicker.vue'
+import AgentTraceStepper, { type AgentTrace } from './immersive/AgentTraceStepper.vue'
+import AgentConfigDrawer from './immersive/AgentConfigDrawer.vue'
+import RagFeedbackModal from './immersive/RagFeedbackModal.vue'
 import {
   buildMultiAgentSseUrl,
   evaluateRag,
@@ -21,23 +25,15 @@ import { useUserStore } from '@/stores/user'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getAuthToken } from '@/utils/authToken'
 import {
-  Bot,
   ThumbsUp,
   ThumbsDown,
   BookOpen,
   Sliders,
-  ChevronDown,
-  ExternalLink,
-  MessageSquare,
   Image,
   FileText,
   Send,
   Trash2,
   X,
-  ClipboardList,
-  CheckCircle,
-  RotateCcw,
-  XCircle,
   Paperclip,
   Activity,
   RefreshCw,
@@ -45,65 +41,6 @@ import {
 } from '@lucide/vue'
 
 const userStore = useUserStore()
-
-/* ─── 用户反馈点赞点踩 ─── */
-const feedbackModalOpen = ref(false)
-const feedbackTargetMessageId = ref<number | null>(null)
-const feedbackRating = ref<'LIKE' | 'DISLIKE'>('LIKE')
-const feedbackType = ref('NOT_RELEVANT')
-const feedbackComment = ref('')
-
-async function handleLike(msg: any) {
-  msg.userFeedback = msg.userFeedback === 'LIKE' ? null : 'LIKE'
-  const targetId = msg.id || 9999
-  if (msg.userFeedback === 'LIKE') {
-    setEmotion('19')
-  }
-  try {
-    await submitMessageFeedback(targetId, {
-      sessionId: props.currentSessionId || 0,
-      rating: 'LIKE'
-    })
-  } catch {}
-}
-
-function openDislikeModal(msg: any) {
-  msg.userFeedback = 'DISLIKE'
-  feedbackTargetMessageId.value = msg.id || 9999
-  feedbackRating.value = 'DISLIKE'
-  feedbackType.value = 'NOT_RELEVANT'
-  feedbackComment.value = ''
-  feedbackModalOpen.value = true
-  setEmotion('12')
-}
-
-async function submitDislikeFeedback() {
-  const targetId = feedbackTargetMessageId.value
-  try {
-    await submitMessageFeedback(targetId || 9999, {
-      sessionId: props.currentSessionId || 0,
-      rating: 'DISLIKE',
-      feedbackType: feedbackType.value,
-      comment: feedbackComment.value
-    })
-  } catch {}
-  feedbackModalOpen.value = false
-}
-
-
-type AgentTrace = {
-  planSummary: string
-  subtasks: { id: number; desc: string; status: 'pending' | 'running' | 'done' }[]
-  reviewDecision: string
-  reviewFeedback: string
-  retryCount: number
-  metrics: { tokensIn: number; tokensOut: number; latencyMs: number } | null
-  ragContexts?: { articleId: number; title: string }[]
-  ragRetrievalMode?: 'vector' | 'keyword'
-  ragEvaluation?: RagEvaluationResult
-  ragEvaluationStatus?: 'pending' | 'complete' | 'failed'
-  ragEvaluationError?: string
-}
 
 type ChatMsg = {
   id?: number
@@ -147,28 +84,63 @@ const emit = defineEmits<{
   refreshQuota: []
 }>()
 
-/* ─── AI 吉祥物小球 (EmotionBall) 表情状态 ─── */
-const emotionBallRef = ref<any>(null)
+/* ─── 子组件 Ref 与 交互状态 ─── */
+const voiceStageRef = ref<InstanceType<typeof VoiceWaveStage> | null>(null)
 const currentEmotion = ref('02')
 
 function setEmotion(emoId: string) {
   currentEmotion.value = emoId
-  emotionBallRef.value?.setEmotion?.(emoId)
 }
 
 /* ─── 状态 ─── */
 type Mode = 'idle' | 'listening' | 'thinking' | 'speaking'
 const currentMode = ref<Mode>('idle')
-const statusText = ref('System Ready')
-const isRecording = ref(false)
+const statusText = ref('SYSTEM READY')
 const showHint = ref(true)
 const isLocalSending = ref(false)
 const interimText = ref('')
 
+/* ─── 用户反馈点赞点踩 ─── */
+const feedbackModalOpen = ref(false)
+const feedbackTargetMessageId = ref<number | null>(null)
+
+async function handleLike(msg: any) {
+  msg.userFeedback = msg.userFeedback === 'LIKE' ? null : 'LIKE'
+  const targetId = msg.id || 9999
+  if (msg.userFeedback === 'LIKE') {
+    setEmotion('19')
+  }
+  try {
+    await submitMessageFeedback(targetId, {
+      sessionId: props.currentSessionId || 0,
+      rating: 'LIKE'
+    })
+  } catch {}
+}
+
+function openDislikeModal(msg: any) {
+  msg.userFeedback = 'DISLIKE'
+  feedbackTargetMessageId.value = msg.id || 9999
+  feedbackModalOpen.value = true
+  setEmotion('12')
+}
+
+async function handleFeedbackSubmit(data: { type: string; comment: string }) {
+  const targetId = feedbackTargetMessageId.value
+  try {
+    await submitMessageFeedback(targetId || 9999, {
+      sessionId: props.currentSessionId || 0,
+      rating: 'DISLIKE',
+      feedbackType: data.type,
+      comment: data.comment
+    })
+  } catch {}
+  feedbackModalOpen.value = false
+}
+
 /* ─── 文字输入 ─── */
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const charPickerOpen = ref(false)
 
 watch(inputText, () => {
   nextTick(() => {
@@ -181,9 +153,9 @@ watch(inputText, () => {
 
 /* ─── 会话列表 ─── */
 const activeTab = ref<'chat' | 'sessions' | 'capabilities' | 'config'>('chat')
+const showDeleteConfirm = ref<number | null>(null)
 
 /* ─── Agent 检索调参 ─── */
-const agentConfigLoading = ref(false)
 const agentConfigSavedHint = ref('')
 const agentConfigForm = reactive({
   modelName: 'deepseek-chat',
@@ -198,31 +170,8 @@ const availableModels = ref<{ id: string; name: string; configured?: boolean }[]
   { id: 'mimo', name: '小米 MiMo' }
 ])
 
-const modelSelectOpen = ref(false)
-
-const closeModelDropdown = (e: MouseEvent) => {
-  const target = e.target as HTMLElement
-  if (!target.closest('.custom-select')) {
-    modelSelectOpen.value = false
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('click', closeModelDropdown)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('click', closeModelDropdown)
-})
-
-const currentModelLabel = computed(() => {
-  const found = availableModels.value.find(m => m.id === agentConfigForm.modelName)
-  return found ? `${found.name} (${found.id})` : 'DeepSeek V4 Flash (deepseek-v4-flash)'
-})
-
 async function openAgentConfig() {
   activeTab.value = 'config'
-  agentConfigLoading.value = true
   agentConfigSavedHint.value = ''
   try {
     const modelRes = await getAiModels()
@@ -243,7 +192,6 @@ async function openAgentConfig() {
       agentConfigForm.enableRerank = res.data.enableRerank ?? 1
     }
   } catch {}
-  agentConfigLoading.value = false
 }
 
 async function saveAgentConfig() {
@@ -256,11 +204,6 @@ async function saveAgentConfig() {
   }
 }
 
-/* ─── Citation Citation Popover Hover 状态 ─── */
-const hoveredCitation = ref<{ title: string; score?: number; content?: string } | null>(null)
-
-const showDeleteConfirm = ref<number | null>(null)
-
 /* ─── Agent 能力检查 ─── */
 const mcpTools = ref<McpToolInfo[]>([])
 const mcpServers = ref<string[]>([])
@@ -268,11 +211,6 @@ const mcpLoading = ref(false)
 const mcpError = ref('')
 const reindexLoading = ref(false)
 const reindexMessage = ref('')
-const ragOpenIndex = ref<number | null>(null)
-const ragLoading = ref(false)
-const ragError = ref('')
-const ragGroundTruth = ref('')
-const ragEvaluation = ref<RagEvaluationResult | null>(null)
 
 async function loadMcpCapabilities() {
   if (!userStore.token || mcpLoading.value) return
@@ -314,56 +252,6 @@ function getMcpServerName(server: string) {
 
 function getMcpServerToolCount(server: string) {
   return mcpTools.value.filter(tool => tool.server === server).length
-}
-
-function findQaPair(assistantIndex: number) {
-  const assistant = props.messages[assistantIndex]
-  if (!assistant || assistant.role !== 'assistant' || !assistant.content.trim()) return null
-  for (let userIndex = assistantIndex - 1; userIndex >= 0; userIndex--) {
-    const user = props.messages[userIndex]
-    if (user.role === 'user' && user.content.trim()) {
-      return { question: user.content, answer: assistant.content }
-    }
-  }
-  return null
-}
-
-function toggleRagEvaluation(index: number) {
-  if (ragOpenIndex.value === index) {
-    ragOpenIndex.value = null
-    return
-  }
-  ragOpenIndex.value = index
-  ragError.value = ''
-  ragGroundTruth.value = ''
-  ragEvaluation.value = null
-}
-
-async function evaluateAnswer(index: number) {
-  if (ragLoading.value) return
-  const pair = findQaPair(index)
-  if (!pair) {
-    ragError.value = '没有找到这条回答对应的问题'
-    return
-  }
-  ragLoading.value = true
-  ragError.value = ''
-  ragEvaluation.value = null
-  try {
-    ragEvaluation.value = await evaluateRag({
-      ...pair,
-      groundTruth: ragGroundTruth.value.trim() || undefined,
-      topK: 5,
-    })
-  } catch (error: any) {
-    const message = error?.response?.data?.message || error?.message || ''
-    ragError.value =
-      message === '服务器内部错误'
-        ? '这轮对话没有检索到相关知识库文章，无法评分。请先询问一个与你文章内容相关的问题。'
-        : message || '质量检测失败，请稍后重试'
-  } finally {
-    ragLoading.value = false
-  }
 }
 
 function scorePercent(score: number) {
@@ -428,20 +316,20 @@ const quickReplies = [
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isParsingFile = ref(false)
-const pendingImage = ref<string | null>(null) // base64
+const pendingImage = ref<string | null>(null)
 const pendingImagePreview = ref<string | null>(null)
 const pendingAttachment = ref<{ name: string; text: string } | null>(null)
 
 function removeAttachment() {
   pendingAttachment.value = null
 }
+function removeImage() {
+  pendingImage.value = null
+  pendingImagePreview.value = null
+}
 
-/* ─── 显示用消息列表（同步父组件） ─── */
+const isRecording = ref(false)
 const chatScrollRef = ref<HTMLElement | null>(null)
-
-/* ─── Canvas refs ─── */
-const mainCanvasRef = ref<HTMLCanvasElement | null>(null)
-const waveCanvasRef = ref<HTMLCanvasElement | null>(null)
 
 /* ─── 语音识别（MediaRecorder + MiMo ASR + 静音自动停止）─── */
 const speechSupported = ref(false)
@@ -450,296 +338,477 @@ let audioChunks: Blob[] = []
 let silenceTimer: ReturnType<typeof setTimeout> | null = null
 let audioCtx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
-let recordingMimeType = 'audio/webm'
-let abortCtrl: AbortController | null = null
-
-const SILENCE_THRESHOLD = 0.008
-const SILENCE_TIMEOUT_MS = 700
+let micStream: MediaStream | null = null
 
 function initSpeech() {
-  speechSupported.value = !!navigator.mediaDevices?.getUserMedia
+  speechSupported.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 }
 
-async function toggleVoice() {
-  if (currentMode.value === 'thinking' || currentMode.value === 'speaking') return
-  if (!speechSupported.value) return
-
-  if (!isRecording.value) {
-    abortCtrl?.abort()
-    isRecording.value = true
-    setMode('listening')
-    await startRecording()
+function toggleVoice() {
+  if (isRecording.value) {
+    stopRecording(true)
   } else {
-    stopRecording()
+    startRecording()
   }
 }
 
 async function startRecording() {
-  audioChunks = []
+  if (isLocalSending.value || props.isSending) return
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioCtx = new AudioContext()
-    const source = audioCtx.createMediaStreamSource(stream)
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
     analyser = audioCtx.createAnalyser()
     analyser.fftSize = 256
-    analyser.smoothingTimeConstant = 0.3
+    const source = audioCtx.createMediaStreamSource(micStream)
     source.connect(analyser)
 
-    recordingMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : 'audio/webm'
-
-    mediaRecorder = new MediaRecorder(stream, { mimeType: recordingMimeType })
+    mediaRecorder = new MediaRecorder(micStream)
     audioChunks = []
-
-    mediaRecorder.ondataavailable = (e: BlobEvent) => {
+    mediaRecorder.ondataavailable = e => {
       if (e.data.size > 0) audioChunks.push(e.data)
     }
-
-    mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop())
-      if (audioCtx) {
-        audioCtx.close()
-        audioCtx = null
+    mediaRecorder.onstop = () => {
+      if (audioChunks.length > 0) {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+        sendAudioToAsr(audioBlob)
       }
+    }
+    mediaRecorder.start(200)
+    isRecording.value = true
+    currentMode.value = 'listening'
+    statusText.value = 'Listening...'
+    interimText.value = ''
+    showHint.value = false
+    setEmotion('16')
+    detectSilence()
+  } catch (err) {
+    console.error('录音权限获取失败:', err)
+    statusText.value = 'Mic Error'
+    setTimeout(() => {
+      statusText.value = 'System Ready'
+      currentMode.value = 'idle'
+    }, 2000)
+  }
+}
+
+function detectSilence() {
+  if (!analyser || !isRecording.value) return
+  const data = new Uint8Array(analyser.frequencyBinCount)
+  const check = () => {
+    if (!isRecording.value || !analyser) return
+    analyser.getByteFrequencyData(data)
+    const sum = data.reduce((a, b) => a + b, 0)
+    const avg = sum / data.length
+    if (avg < 10) {
+      if (!silenceTimer) {
+        silenceTimer = setTimeout(() => {
+          if (isRecording.value) stopRecording(true)
+        }, 2200)
+      }
+    } else {
       if (silenceTimer) {
         clearTimeout(silenceTimer)
         silenceTimer = null
       }
-      analyser = null
-
-      if (audioChunks.length === 0) {
-        setMode('idle')
-        return
-      }
-      const audioBlob = new Blob(audioChunks, { type: recordingMimeType })
-      await transcribeAndSend(audioBlob)
     }
-
-    mediaRecorder.onerror = () => {
-      setMode('idle')
-    }
-
-    mediaRecorder.start(100)
-    checkSilence()
-  } catch {
-    interimText.value = '麦克风权限被拒绝'
-    setMode('idle')
+    requestAnimationFrame(check)
   }
+  requestAnimationFrame(check)
 }
 
-function checkSilence() {
-  if (!analyser || !isRecording.value || !mediaRecorder || mediaRecorder.state !== 'recording')
-    return
-
-  const data = new Uint8Array(analyser.fftSize)
-  analyser.getByteTimeDomainData(data)
-  let sumSq = 0
-  for (let i = 0; i < data.length; i++) {
-    const n = (data[i] - 128) / 128
-    sumSq += n * n
-  }
-  const rms = Math.sqrt(sumSq / data.length)
-
-  if (rms < SILENCE_THRESHOLD) {
-    if (!silenceTimer) {
-      silenceTimer = setTimeout(() => stopRecording(), SILENCE_TIMEOUT_MS)
-    }
-  } else {
-    if (silenceTimer) {
-      clearTimeout(silenceTimer)
-      silenceTimer = null
-    }
-  }
-  setTimeout(checkSilence, 100)
-}
-
-function stopRecording() {
+function stopRecording(send: boolean) {
+  if (!isRecording.value) return
+  isRecording.value = false
   if (silenceTimer) {
     clearTimeout(silenceTimer)
     silenceTimer = null
   }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    if (!send) audioChunks = []
     mediaRecorder.stop()
   }
-  isRecording.value = false
-}
-
-/** WebM → WAV 转换 */
-async function convertToWav(audioBlob: Blob): Promise<Blob> {
-  const ctx = new AudioContext()
-  try {
-    const buf = await ctx.decodeAudioData(await audioBlob.arrayBuffer())
-    const ch = buf.getChannelData(0)
-    const sr = buf.sampleRate,
-      nc = 1,
-      bps = 16
-    const br = (sr * nc * bps) / 8,
-      ba = (nc * bps) / 8
-    const dl = ch.length * ba
-    const ab = new ArrayBuffer(44 + dl)
-    const v = new DataView(ab)
-    writeStr(v, 0, 'RIFF')
-    v.setUint32(4, 36 + dl, true)
-    writeStr(v, 8, 'WAVE')
-    writeStr(v, 12, 'fmt ')
-    v.setUint32(16, 16, true)
-    v.setUint16(20, 1, true)
-    v.setUint16(22, nc, true)
-    v.setUint32(24, sr, true)
-    v.setUint32(28, br, true)
-    v.setUint16(32, ba, true)
-    v.setUint16(34, bps, true)
-    writeStr(v, 36, 'data')
-    v.setUint32(40, dl, true)
-    let off = 44
-    for (let i = 0; i < ch.length; i++) {
-      const s = Math.max(-1, Math.min(1, ch[i]))
-      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-      off += 2
-    }
-    return new Blob([ab], { type: 'audio/wav' })
-  } finally {
-    ctx.close()
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop())
+    micStream = null
+  }
+  if (!send) {
+    currentMode.value = 'idle'
+    statusText.value = 'System Ready'
+    showHint.value = true
+    setEmotion('02')
+  } else {
+    currentMode.value = 'thinking'
+    statusText.value = 'Transcribing...'
   }
 }
 
-function writeStr(v: DataView, o: number, s: string) {
-  for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i))
-}
-
-function arrayBufToB64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let bin = ''
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
-  return btoa(bin)
-}
-
-/** 转录 + 发送给 AI 对话 */
-async function transcribeAndSend(audioBlob: Blob) {
-  if (!userStore.isLoggedIn) {
-    // 模拟语音转录进度并预设查询
-    setMode('thinking')
-    interimText.value = '正在模拟转录中...'
+async function sendAudioToAsr(blob: Blob) {
+  try {
+    const formData = new FormData()
+    formData.append('audio', blob, 'audio.webm')
+    const token = getAuthToken()
+    const res = await fetch('/api/ai/asr', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+    const json = await res.json()
+    if (json.text && json.text.trim()) {
+      interimText.value = json.text
+      handleSend(json.text)
+    } else {
+      statusText.value = 'No Speech Detected'
+      currentMode.value = 'idle'
+      setEmotion('08')
+      setTimeout(() => {
+        statusText.value = 'System Ready'
+        showHint.value = true
+        setEmotion('02')
+      }, 2000)
+    }
+  } catch (err) {
+    console.error('ASR 请求失败:', err)
+    statusText.value = 'ASR Error'
+    currentMode.value = 'idle'
     setTimeout(() => {
-      interimText.value = ''
-      handleVoiceSend('介绍一下星域分类')
-    }, 1200)
+      statusText.value = 'System Ready'
+      showHint.value = true
+    }, 2000)
+  }
+}
+
+/* ─── SSE 流式响应处理 ─── */
+let abortCtrl: AbortController | null = null
+const toolStatus = ref('')
+
+const toolLabelMap: Record<string, string> = {
+  get_articles: '正在读取知识库文章列表...',
+  get_article: '正在获取文章详细内容...',
+  search_articles: '正在通过关键词搜索知识库...',
+  semantic_search: '正在执行向量语义检索与相关度匹配...',
+  get_categories: '正在加载分类列表...',
+  web_search: '正在联网检索最新资料...',
+  generate_creative_mindmap: '正在生成思维发散导图...',
+}
+
+const agentNodeLabelMap: Record<string, string> = {
+  planner: '任务规划中：分析意图并拆解子任务...',
+  executor: '执行阶段：并行调用外部工具与数据检索...',
+  reviewer: '审查阶段：核验输出质量与事实一致性...',
+}
+
+async function handleSend(userText: string) {
+  const content = userText.trim()
+  if (!content && !pendingAttachment.value && !pendingImage.value) return
+  if (isLocalSending.value || props.isSending) return
+
+  let finalContent = content
+  if (pendingAttachment.value) {
+    finalContent = `[附件: ${pendingAttachment.value.name}]\n${pendingAttachment.value.text}\n\n${content}`
+  }
+
+  const userMsg: ChatMsg = {
+    role: 'user',
+    content: finalContent,
+    imageUrl: pendingImagePreview.value || undefined,
+    attachmentName: pendingAttachment.value?.name || undefined,
+  }
+  props.messages.push(userMsg)
+
+  const currentAttachName = pendingAttachment.value?.name
+  const currentImgPreview = pendingImagePreview.value
+  const currentImgBase64 = pendingImage.value
+  inputText.value = ''
+  pendingAttachment.value = null
+  pendingImage.value = null
+  pendingImagePreview.value = null
+  if (textareaRef.value) textareaRef.value.style.height = 'auto'
+
+  isLocalSending.value = true
+  currentMode.value = 'thinking'
+  statusText.value = 'Thinking...'
+  showHint.value = false
+  toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
+  const assistantMsg: ChatMsg = {
+    role: 'assistant',
+    content: '',
+    reasoningContent: '',
+    agentTrace: {
+      planSummary: '正在分析您的请求，拆解为可执行的子任务...',
+      subtasks: [],
+      reviewDecision: '',
+      reviewFeedback: '',
+      retryCount: 0,
+      metrics: null,
+    },
+  }
+  props.messages.push(assistantMsg)
+
+  const isGuest = !userStore.token
+  if (isGuest) {
+    try {
+      const history = props.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+      const res = await guestChat(finalContent, history, props.selectedCharacterKey)
+      assistantMsg.content = res.content
+      isLocalSending.value = false
+      currentMode.value = 'speaking'
+      statusText.value = 'Speaking...'
+      setEmotion('19')
+      emit('send', finalContent, res.content)
+      emit('refreshQuota')
+      speakText(res.content)
+    } catch (err: any) {
+      assistantMsg.content = err?.message || '请求失败，请稍后重试'
+      isLocalSending.value = false
+      currentMode.value = 'idle'
+      statusText.value = 'System Ready'
+      showHint.value = true
+      setEmotion('04')
+    }
     return
   }
 
+  abortCtrl = new AbortController()
   try {
-    const wav = await convertToWav(audioBlob)
-    const b64 = arrayBufToB64(await wav.arrayBuffer())
-    const dataUri = `data:audio/wav;base64,${b64}`
-    const token = getAuthToken()
+    const history = props.messages
+      .slice(0, -2)
+      .filter(m => m.content && m.content.trim())
+      .map(m => ({ role: m.role, content: m.content }))
 
-    const res = await fetch('/api/ai/transcribe/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ audio: dataUri }),
-    })
-
-    if (!res.ok) {
-      setMode('idle')
-      return
+    const requestBody = {
+      messages: [...history, { role: 'user', content: finalContent }],
+      characterKey: props.selectedCharacterKey,
+      model: agentConfigForm.modelName,
+      imageUrl: currentImgBase64 || undefined,
+      sessionId: props.currentSessionId || 0,
     }
 
-    const reader = res.body!.getReader()
+    const token = getAuthToken()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`/api/ai/multi-agent-sse?model=${encodeURIComponent(agentConfigForm.modelName)}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: abortCtrl.signal,
+    })
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('No readable stream')
+
     const decoder = new TextDecoder()
-    let buf = ''
+    let buffer = ''
     let fullText = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n')
-      buf = lines.pop() || ''
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
       for (const line of lines) {
-        const t = line.trim()
-        if (!t || !t.startsWith('data:')) continue
+        if (!line.startsWith('data:')) continue
+        const raw = line.slice(5).trim()
+        if (!raw || raw === '[DONE]') continue
+
         try {
-          const d = JSON.parse(t.slice(5).trim())
-          if (d.error) {
-            setMode('idle')
-            return
+          const parsed = JSON.parse(raw)
+          if (parsed.type === 'plan_start') {
+            toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
+            setEmotion('14')
+            scrollChat()
+          } else if (parsed.type === 'plan') {
+            assistantMsg.agentTrace = {
+              planSummary: parsed.summary || '任务拆解完成',
+              subtasks: (parsed.subtasks || []).map((st: any, idx: number) => {
+                const text = typeof st === 'object' ? (st.description || st.toolHint || JSON.stringify(st)) : String(st)
+                return {
+                  id: (typeof st === 'object' && st.id) ? st.id : idx + 1,
+                  desc: text,
+                  status: 'pending',
+                }
+              }),
+              reviewDecision: '',
+              reviewFeedback: '',
+              retryCount: 0,
+              metrics: null,
+            }
+            toolStatus.value = `任务拆解完成: 共 ${assistantMsg.agentTrace.subtasks.length} 个子任务，开始执行...`
+            setEmotion('06')
+            scrollChat()
+          } else if (parsed.type === 'subtask_running') {
+            if (assistantMsg.agentTrace) {
+              const st = assistantMsg.agentTrace.subtasks.find(s => s.id === parsed.subtask_id)
+              if (st) st.status = 'running'
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                subtasks: [...assistantMsg.agentTrace.subtasks],
+              }
+              toolStatus.value = `正在执行子任务 ${parsed.subtask_id}: ${st?.desc || ''}`
+            }
+            setEmotion('14')
+            scrollChat()
+          } else if (parsed.type === 'subtask_result') {
+            if (assistantMsg.agentTrace) {
+              const st = assistantMsg.agentTrace.subtasks.find(s => s.id === parsed.subtask_id)
+              if (st) st.status = 'done'
+              const doneCount = assistantMsg.agentTrace.subtasks.filter(s => s.status === 'done').length
+              const total = assistantMsg.agentTrace.subtasks.length
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                subtasks: [...assistantMsg.agentTrace.subtasks],
+              }
+              toolStatus.value = doneCount < total
+                ? `子任务 ${doneCount}/${total} 完成，继续执行...`
+                : `全部子任务执行完毕，进入审查阶段...`
+            }
+            scrollChat()
+          } else if (parsed.type === 'tool_start') {
+            const label = toolLabelMap[parsed.tool] || `正在调用 ${parsed.tool}...`
+            toolStatus.value = label
+            setEmotion('14')
+            scrollChat()
+          } else if (parsed.type === 'tool_end') {
+            toolStatus.value = ''
+            scrollChat()
+          } else if (parsed.type === 'review') {
+            if (assistantMsg.agentTrace) {
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                reviewDecision: parsed.decision || '',
+                reviewFeedback: parsed.feedback || '',
+              }
+            }
+            if (parsed.decision === 'FAIL') {
+              toolStatus.value = `审核未通过: ${parsed.feedback || ''}，正在重新规划...`
+              setEmotion('08')
+            } else if (parsed.decision === 'REVISE') {
+              toolStatus.value = `正在修正补充: ${parsed.feedback || ''}`
+              setEmotion('14')
+            } else {
+              toolStatus.value = '审查通过，正在生成最终回答...'
+              setEmotion('06')
+            }
+            scrollChat()
+          } else if (parsed.type === 'retry') {
+            if (assistantMsg.agentTrace) {
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                retryCount: parsed.count || 0,
+              }
+            }
+            toolStatus.value = `正在进行第 ${parsed.count} 次重试...`
+            setEmotion('08')
+            scrollChat()
+          } else if (parsed.type === 'metrics') {
+            if (assistantMsg.agentTrace) {
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                metrics: {
+                  tokensIn: parsed.total_tokens_in || parsed.tokensIn || 0,
+                  tokensOut: parsed.total_tokens_out || parsed.tokensOut || 0,
+                  latencyMs: parsed.total_latency_ms || parsed.latencyMs || 0,
+                },
+              }
+            }
+            scrollChat()
+          } else if (parsed.type === 'rag_context' || parsed.type === 'rag_contexts') {
+            if (assistantMsg.agentTrace) {
+              assistantMsg.agentTrace = {
+                ...assistantMsg.agentTrace,
+                ragContexts: parsed.articles || parsed.contexts || [],
+                ragRetrievalMode: parsed.retrieval_mode || parsed.mode || 'vector',
+              }
+            }
+            scrollChat()
+          } else if (parsed.type === 'content' || parsed.type === 'token' || parsed.content) {
+            const chunk = parsed.content || ''
+            fullText += chunk
+            assistantMsg.content = fullText
+            toolStatus.value = ''
+            scrollChat()
+          } else if (parsed.type === 'reasoning' || parsed.reasoning_content) {
+            const chunk = parsed.content || parsed.reasoning_content || ''
+            assistantMsg.reasoningContent = (assistantMsg.reasoningContent || '') + chunk
+            scrollChat()
+          } else if (parsed.type === 'error' || parsed.error) {
+            assistantMsg.content = `[错误] ${parsed.message || parsed.error || '生成失败'}`
+            setEmotion('04')
+            scrollChat()
           }
-          if (d.text) {
-            fullText = d.text
-            interimText.value = fullText
+        } catch {
+          if (raw) {
+            fullText += raw
+            assistantMsg.content = fullText
+            scrollChat()
           }
-          if (d.done) break
-        } catch {}
+        }
       }
     }
 
-    if (fullText) {
-      interimText.value = ''
-      handleVoiceSend(fullText)
-    } else {
-      setMode('idle')
+    toolStatus.value = ''
+    isLocalSending.value = false
+    currentMode.value = 'speaking'
+    statusText.value = 'Speaking...'
+    setEmotion('19')
+    emit('send', finalContent, fullText, assistantMsg.agentTrace ? JSON.stringify(assistantMsg.agentTrace) : undefined)
+    emit('refreshQuota')
+    if (assistantMsg.agentTrace && assistantMsg.agentTrace.ragContexts?.length) {
+      void runAutomaticRagEvaluation(assistantMsg.agentTrace, finalContent, fullText)
     }
-  } catch {
-    setMode('idle')
+    speakText(fullText)
+  } catch (err: any) {
+    if (err.name !== 'AbortError') {
+      console.error('SSE 流式错误:', err)
+      assistantMsg.content = assistantMsg.content || '请求异常中断，请重试'
+      setEmotion('04')
+    }
+    toolStatus.value = ''
+    isLocalSending.value = false
+    currentMode.value = 'idle'
+    statusText.value = 'System Ready'
+    showHint.value = true
   }
 }
 
-// 用于 API 发送的完整消息（含附件原文），与显示内容分离
-let pendingApiText = ''
-// 记录最后一条用户消息在 messages 中的索引
-let lastUserMsgIndex = -1
-
-/** 构建 API 消息：最后一条用户消息用完整文本（含附件），其余用显示文本 */
-function buildApiMessages(): { role: string; content: string }[] {
-  const out: { role: string; content: string }[] = []
-  const sys = props.systemPrompt.trim()
-  if (sys) out.push({ role: 'system', content: sys })
-  const msgs = props.messages
-  for (let i = 0; i < msgs.length; i++) {
-    const m = msgs[i]
-    if (m.role === 'assistant' && !m.content.trim()) continue
-    // 最后一条用户消息如果有待发送的完整文本，用它（附件内容等）
-    if (m.role === 'user' && i === lastUserMsgIndex && pendingApiText) {
-      out.push({ role: 'user', content: pendingApiText })
-    } else {
-      out.push({ role: m.role, content: m.content })
-    }
+function speakText(text: string) {
+  if (!text || !('speechSynthesis' in window)) {
+    finishSpeaking()
+    return
   }
-  return out
+  window.speechSynthesis.cancel()
+  const clean = text.replace(/[#*`_~\[\]()]/g, '').slice(0, 300)
+  const utter = new SpeechSynthesisUtterance(clean)
+  utter.lang = 'zh-CN'
+  utter.rate = 1.05
+  utter.onend = finishSpeaking
+  utter.onerror = finishSpeaking
+  window.speechSynthesis.speak(utter)
 }
 
-/** 文字输入发送 */
+function finishSpeaking() {
+  currentMode.value = 'idle'
+  statusText.value = 'System Ready'
+  showHint.value = true
+  setEmotion('02')
+}
+
+function scrollChat() {
+  nextTick(() => {
+    if (chatScrollRef.value) {
+      chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight
+    }
+  })
+}
+
 function handleTextSend() {
-  const text = inputText.value.trim()
-  const attachment = pendingAttachment.value
-  // 需要至少有文字或附件
-  if ((!text && !attachment) || props.isSending || isLocalSending.value) return
-
-  // 显示文本：只显示用户输入的文字
-  let displayText = ''
-  // API 文本：含附件完整内容
-  let apiText = ''
-  let attachName = ''
-
-  if (attachment) {
-    attachName = attachment.name
-    displayText = text || ''
-    apiText = `[附件: ${attachment.name}]\n${attachment.text}`
-    if (text) apiText += `\n\n用户说明：${text}`
-  } else {
-    displayText = text
-    apiText = text
-  }
-
-  inputText.value = ''
-  pendingAttachment.value = null
-  pendingApiText = apiText
-  handleVoiceSend(displayText, attachName)
+  handleSend(inputText.value)
 }
 
 function onInputKeydown(e: KeyboardEvent) {
@@ -749,504 +818,41 @@ function onInputKeydown(e: KeyboardEvent) {
   }
 }
 
-function useQuickReply(text: string) {
-  if (props.isSending || isLocalSending.value) return
-  inputText.value = text
+function onFileSelect(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  isParsingFile.value = true
+  const reader = new FileReader()
+  reader.onload = () => {
+    pendingAttachment.value = { name: file.name, text: (reader.result as string) || '' }
+    isParsingFile.value = false
+  }
+  reader.onerror = () => {
+    isParsingFile.value = false
+  }
+  reader.readAsText(file)
+  input.value = ''
+}
+
+function onImageSelect(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const b64 = reader.result as string
+    pendingImage.value = b64
+    pendingImagePreview.value = b64
+  }
+  reader.readAsDataURL(file)
+  input.value = ''
 }
 
 function pickCharacter(key: string) {
   emit('update:selectedCharacterKey', key)
-  charPickerOpen.value = false
-  setEmotion('03')
+  setEmotion('06')
 }
-
-function onImageUpload(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file || !file.type.startsWith('image/')) return
-  if (file.size > 10 * 1024 * 1024) return
-
-  if (!userStore.isLoggedIn) {
-    alert('访客模式暂不支持图片分析，请登录以体验云端真实的 DeepSeek 视觉大模型！')
-    return
-  }
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    const base64 = reader.result as string
-    pendingImage.value = base64
-    pendingImagePreview.value = base64
-  }
-  reader.readAsDataURL(file)
-}
-
-function removeImage() {
-  pendingImage.value = null
-  pendingImagePreview.value = null
-}
-
-async function onFileUpload(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-
-  if (!userStore.isLoggedIn) {
-    alert('访客模式暂不支持文档解析，请登录以体验云端真实的智能文档分析！')
-    return
-  }
-
-  const ext = file.name.split('.').pop()?.toLowerCase() || ''
-  const plainTextExts = ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'yaml', 'yml']
-
-  if (plainTextExts.includes(ext)) {
-    // 纯文本文件直接读取
-    const text = await file.text()
-    if (text.trim()) {
-      pendingAttachment.value = { name: file.name, text: text.trim() }
-    }
-  } else {
-    // docx/pdf 等需要后端解析
-    isParsingFile.value = true
-    try {
-      const token = getAuthToken()
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/ai/parse-file', {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      })
-      const data = await res.json()
-      if (data.success && data.text) {
-        pendingAttachment.value = { name: data.filename || file.name, text: data.text }
-      } else {
-        console.warn('文件解析失败:', data.error)
-      }
-    } catch (err) {
-      console.warn('文件解析请求失败:', err)
-    } finally {
-      isParsingFile.value = false
-    }
-  }
-}
-
-/* ── 多 Agent 节点中文映射 ── */
-const agentNodeLabelMap: Record<string, string> = {
-  planner: 'Planner 规划中：分析用户意图，拆解子任务...',
-  executor: 'Executor 执行中：调用工具完成子任务...',
-  reviewer: 'Reviewer 审查中：检查执行结果的完整性和准确性...',
-  synthesizer: 'Synthesizer 合成中：整合结果生成最终回答...',
-}
-
-const toolLabelMap: Record<string, string> = {
-  searchArticles: '正在搜索星记...',
-  getArticleDetail: '正在获取星记详情...',
-  getCategories: '正在获取星域列表...',
-  getBlogStats: '正在获取知识库统计...',
-  getRecentArticles: '正在获取最新星记...',
-  writeArticle: '正在创建星记...',
-  updateArticle: '正在更新星记...',
-  deleteArticle: '正在删除星记...',
-  getAllTags: '正在获取光痕列表...',
-  getArticlesByCategory: '正在获取星域星记...',
-  createCategory: '正在创建星域...',
-  listMcpTools: '正在发现外部 MCP 工具...',
-  callMcpTool: '正在调用外部 MCP 工具...',
-}
-
-const toolStatus = ref<string | null>(null)
-const hasReceivedContent = ref(false)
-
-/** 发送文字给 AI */
-async function handleVoiceSend(text: string, attachmentName?: string) {
-  if (props.isSending || isLocalSending.value) return
-  isLocalSending.value = true
-  hasReceivedContent.value = false
-  setEmotion('31') // 接收任务点头确认
-
-  const imageBase64 = pendingImage.value
-  const hasImage = !!imageBase64
-
-  // 往父组件的消息列表里加用户消息
-  lastUserMsgIndex = props.messages.length
-  props.messages.push({
-    role: 'user',
-    content: text || (hasImage ? '请分析这张图片' : ''),
-    attachmentName: attachmentName || undefined,
-    imageUrl: imageBase64 || undefined,
-  })
-  pendingImage.value = null
-  pendingImagePreview.value = null
-  scrollChat(true)
-  setMode('thinking')
-
-  // 加 AI 占位消息（带 agentTrace）
-  props.messages.push({
-    role: 'assistant',
-    content: '',
-    reasoningContent: '',
-    agentTrace: {
-      planSummary: '',
-      subtasks: [],
-      reviewDecision: '',
-      reviewFeedback: '',
-      retryCount: 0,
-      metrics: null,
-    },
-  })
-  const aiIdx = props.messages.length - 1
-
-  if (!userStore.isLoggedIn) {
-    // 游客真实 AI 对话逻辑
-    try {
-      toolStatus.value = '正在检索和思考...'
-      const fullHistory = buildApiMessages()
-      // 过滤系统提示词，保留对话历史
-      const chatHistory = fullHistory
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-
-      // 最后一个是当前输入的用户消息，需要分离开
-      const lastMsg = chatHistory.pop()
-      const userText = lastMsg ? lastMsg.content : text
-
-      const res = await guestChat(userText, chatHistory, props.selectedCharacterKey)
-      toolStatus.value = null
-      hasReceivedContent.value = true
-
-      // 设置 AI 思考链的元数据和回复的 reasoningContent
-      const trace = props.messages[aiIdx].agentTrace
-      if (trace) {
-        trace.planSummary = '已通过语义搜索成功检索公开知识库内容，正在进行推理回答。'
-        trace.subtasks = [
-          { id: 1, desc: 'Planner: 检索公开内容', status: 'done' },
-          { id: 2, desc: 'Executor: 生成推理回复', status: 'done' },
-        ]
-        trace.reviewDecision = 'PASS'
-        trace.metrics = { tokensIn: 150, tokensOut: res.content.length, latencyMs: 500 }
-      }
-
-      props.messages[aiIdx].reasoningContent = res.reasoningContent || ''
-
-      // 模拟流式打字输出
-      let currentLen = 0
-      const reply = res.content
-      const interval = setInterval(() => {
-        if (currentLen >= reply.length) {
-          clearInterval(interval)
-          props.messages[aiIdx].content = reply
-          isLocalSending.value = false
-          setEmotion('33') // 任务完成撒花庆祝
-          setTimeout(() => setMode('idle'), 2200)
-          emit('refreshQuota')
-        } else {
-          const chunk = reply.substring(currentLen, currentLen + 2)
-          props.messages[aiIdx].content += chunk
-          scrollChat()
-          currentLen += 2
-        }
-      }, 30)
-    } catch (e: any) {
-      toolStatus.value = null
-      isLocalSending.value = false
-      setEmotion('34')
-      setTimeout(() => setMode('idle'), 1500)
-      const errorMsg =
-        e?.response?.status === 429
-          ? '今日访客体验额度（20次）已用尽，登录后即可体验更多哦！'
-          : e?.message || '发送失败，请稍后重试'
-      props.messages[aiIdx].content = errorMsg
-      scrollChat(true)
-    }
-    return
-  }
-
-  abortCtrl = new AbortController()
-
-  try {
-    const token = getAuthToken()
-    const authHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    }
-
-    // 如果有图片，先用 MiMo 流式识别
-    let imageDescription = ''
-    if (hasImage && imageBase64) {
-      try {
-        toolStatus.value = '正在识别图片...'
-        const analyzeRes = await fetch('/api/ai/analyze-image/stream', {
-          method: 'POST',
-          headers: { ...authHeaders, Accept: 'text/event-stream' },
-          body: JSON.stringify({ image: imageBase64, question: text || '请描述这张图片' }),
-          signal: abortCtrl.signal,
-        })
-        if (analyzeRes.ok) {
-          const reader = analyzeRes.body!.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ''
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed || !trimmed.startsWith('data:')) continue
-              try {
-                const data = JSON.parse(trimmed.slice(5).trim())
-                if (data.content) imageDescription += data.content
-              } catch {
-                /* ignore */
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('图片识别失败', e)
-      }
-      toolStatus.value = null
-    }
-
-    const history = buildApiMessages()
-    // 如果有图片描述，把描述拼到最后一条用户消息里
-    if (imageDescription) {
-      const lastMsg = history[history.length - 1]
-      if (lastMsg && lastMsg.role === 'user') {
-        lastMsg.content = `[用户上传了一张图片，图片内容：${imageDescription}]\n\n用户问题：${lastMsg.content}`
-      }
-    }
-
-    toolStatus.value = '正在分析任务...'
-    const res = await fetch(buildMultiAgentSseUrl('deepseek-v4-flash'), {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify(history),
-      signal: abortCtrl.signal,
-    })
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`)
-    }
-
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data:')) continue
-        try {
-          const data = JSON.parse(trimmed.slice(5).trim())
-          if (data.error) {
-            props.messages[aiIdx].content = `错误：${data.error}`
-            setEmotion('34')
-            reader.cancel()
-            break
-          }
-          if (data.reasoning_content) {
-            props.messages[aiIdx].reasoningContent =
-              (props.messages[aiIdx].reasoningContent || '') + data.reasoning_content
-            toolStatus.value = null
-          }
-          if (data.content) {
-            props.messages[aiIdx].content += data.content
-            hasReceivedContent.value = true
-            toolStatus.value = null
-            scrollChat()
-          }
-          if (data.tool_start) {
-            toolStatus.value = toolLabelMap[data.tool_start] || `正在执行 ${data.tool_start}...`
-            setEmotion('40')
-          }
-          if (data.type === 'rag_context') {
-            const trace = props.messages[aiIdx].agentTrace
-            if (trace && Array.isArray(data.articles)) {
-              const merged = [...(trace.ragContexts || []), ...data.articles]
-              trace.ragContexts = Array.from(
-                new Map(merged.map(item => [item.articleId, item])).values(),
-              )
-              trace.ragRetrievalMode = data.retrieval_mode === 'keyword' ? 'keyword' : 'vector'
-            }
-            setEmotion('37')
-          }
-          // ── 多 Agent 事件处理 ──
-          if (data.type === 'plan_start') {
-            toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
-            setEmotion('30')
-          }
-          if (data.type === 'plan') {
-            const trace = props.messages[aiIdx].agentTrace
-            if (trace) {
-              trace.planSummary = data.summary || ''
-              if (Array.isArray(data.subtasks)) {
-                trace.subtasks = data.subtasks.map((st: any) => ({
-                  id: st.id,
-                  desc: st.description || st.toolHint || '',
-                  status: 'pending' as const,
-                }))
-              } else {
-                const count = data.subtasks || 0
-                trace.subtasks = Array.from({ length: count }, (_, i) => ({
-                  id: i + 1,
-                  desc: '',
-                  status: 'pending' as const,
-                }))
-              }
-            }
-            toolStatus.value = `规划完成 → 共拆解为 ${trace?.subtasks.length || 0} 个子任务，开始执行...`
-          }
-          if (data.type === 'subtask_start') {
-            const node = data.node || ''
-            toolStatus.value = agentNodeLabelMap[node] || `正在处理：${node}...`
-            setEmotion('40')
-          }
-          if (data.type === 'subtask_running') {
-            const trace = props.messages[aiIdx].agentTrace
-            const subtaskId = data.subtask_id
-            if (trace && trace.subtasks.length > 0) {
-              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
-              if (st) {
-                st.status = 'running'
-              }
-              toolStatus.value = `Executor 正在执行子任务 ${subtaskId}/${trace.subtasks.length}：${st?.desc || ''}`
-            }
-          }
-          if (data.type === 'subtask_result') {
-            const trace = props.messages[aiIdx].agentTrace
-            const subtaskId = data.subtask_id
-            if (trace && trace.subtasks.length > 0) {
-              const st = trace.subtasks.find((s: any) => s.id === subtaskId)
-              if (st) {
-                st.status = 'done'
-              }
-              const doneCount = trace.subtasks.filter((s: any) => s.status === 'done').length
-              const total = trace.subtasks.length
-              if (doneCount < total) {
-                toolStatus.value = `子任务 ${doneCount}/${total} 已完成，继续执行下一个...`
-              } else {
-                toolStatus.value = `全部 ${total} 个子任务执行完毕，进入审查阶段...`
-              }
-            }
-          }
-          if (data.type === 'review') {
-            const trace = props.messages[aiIdx].agentTrace
-            if (trace) {
-              trace.reviewDecision = data.decision || ''
-              trace.reviewFeedback = data.feedback || ''
-              trace.retryCount = data.retry_count || 0
-            }
-            if (data.decision === 'PASS') {
-              toolStatus.value = 'Reviewer 审查通过，正在生成最终回答...'
-              setEmotion('19')
-            } else if (data.decision === 'REVISE') {
-              toolStatus.value = `Reviewer 发现问题，Executor 正在修正 (第 ${data.retry_count} 次重试)...`
-              setEmotion('11')
-            } else {
-              toolStatus.value = 'Reviewer 审查未通过，生成最终回答...'
-            }
-          }
-          if (data.type === 'metrics') {
-            const trace = props.messages[aiIdx].agentTrace
-            if (trace) {
-              trace.metrics = {
-                tokensIn: data.total_tokens_in || 0,
-                tokensOut: data.total_tokens_out || 0,
-                latencyMs: data.total_latency_ms || 0,
-              }
-            }
-          }
-          if (data.type === 'done') {
-            toolStatus.value = null
-          }
-        } catch {}
-      }
-    }
-  } catch (e: any) {
-    if (e.name !== 'AbortError') {
-      props.messages[aiIdx].content += `\n\n[错误: ${e.message}]`
-    }
-  }
-
-  // 持久化：通知父组件保存本轮对话
-  const aiContent = props.messages[aiIdx]?.content || ''
-  const trace = props.messages[aiIdx]?.agentTrace
-  if (trace && aiContent && !aiContent.startsWith('错误：')) {
-    toolStatus.value = trace.ragContexts?.length ? '正在自动评估 RAG 回答质量...' : null
-    await runAutomaticRagEvaluation(trace, pendingApiText || text, aiContent)
-  }
-  const agentTraceStr =
-    trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision)
-      ? JSON.stringify(trace)
-      : undefined
-  if (aiContent && !aiContent.startsWith('错误：')) {
-    emit('send', pendingApiText || text, aiContent, agentTraceStr)
-  }
-
-  pendingApiText = ''
-  isLocalSending.value = false
-  toolStatus.value = null
-  setEmotion('33') // 任务完成庆祝
-  setTimeout(() => setMode('idle'), 2200)
-}
-
-function setMode(mode: Mode) {
-  currentMode.value = mode
-  showHint.value = mode === 'idle'
-  if (mode === 'idle') {
-    statusText.value = 'System Ready'
-    isRecording.value = false
-    setEmotion('02')
-  } else if (mode === 'listening') {
-    statusText.value = 'Listening...'
-    setEmotion('35')
-  } else if (mode === 'thinking') {
-    statusText.value = 'Processing'
-    setEmotion('30')
-  } else if (mode === 'speaking') {
-    statusText.value = 'Transmitting'
-    setEmotion('39')
-  }
-}
-
-function scrollChat(force = false) {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      const el = chatScrollRef.value
-      if (el) {
-        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-        if (force || distanceFromBottom < 400) {
-          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-        }
-      }
-    })
-  })
-}
-
-watch(
-  () => props.messages,
-  () => {
-    scrollChat()
-  },
-  { deep: true, immediate: true }
-)
-
-watch(toolStatus, () => {
-  scrollChat()
-})
 
 /* ─── Markdown ─── */
 marked.use({ breaks: false, gfm: true })
@@ -1265,7 +871,6 @@ marked.use({ renderer })
 function fmt(s: string): string {
   if (!s) return ''
   try {
-    // 清理多余空行 + 转义单个 ~ 避免被误解为删除线
     let cleaned = s
       .trim()
       .replace(/^\n+/, '')
@@ -1285,266 +890,19 @@ function fmt(s: string): string {
   }
 }
 
-/* ═══════════════════════════════════════════
-   声波动画与语音电平控制
-   ═══════════════════════════════════════════ */
-let animId = 0
-let audioLevel = 0
-
-/* ═══════════════════════════════════════════
-   声波渲染
-   ═══════════════════════════════════════════ */
-const waveLayers = [
-  { speed: 0.005, freq: 0.006, alpha: 0.8, offset: 0, scale: 1.0 },
-  { speed: 0.0075, freq: 0.008, alpha: 0.5, offset: 2, scale: 0.8 },
-  { speed: 0.004, freq: 0.005, alpha: 0.3, offset: 4, scale: 0.6 },
-  { speed: 0.01, freq: 0.01, alpha: 0.2, offset: 6, scale: 0.4 },
-]
-
-let targetWaveW = 160,
-  curWaveW = 160
-let targetAmp = 0,
-  curAmp = 0
-let targetMorph = 1,
-  curMorph = 1
-
-function renderWave(time: number) {
-  const c = waveCanvasRef.value
-  if (!c) return
-  const ctx = c.getContext('2d')
-  if (!ctx) return
-  const w = c.width,
-    h = c.height,
-    cy = h / 2,
-    cx = w / 2
-  ctx.clearRect(0, 0, w, h)
-
-  const mode = currentMode.value
-  if (mode === 'idle') {
-    targetWaveW = 160
-    targetMorph = 1
-    targetAmp = 0
-  } else if (mode === 'listening') {
-    targetWaveW = w * 0.7
-    targetMorph = 0
-    targetAmp = 0.3 + Math.sin(time * 0.005) * 0.1
-  } else if (mode === 'thinking') {
-    targetWaveW = w * 0.5
-    targetMorph = 0
-    targetAmp = 0.2 + Math.random() * 0.1
-  } else if (mode === 'speaking') {
-    targetWaveW = w * 0.9
-    targetMorph = 0
-    targetAmp = 0.2 + audioLevel * 0.8
-  }
-
-  curMorph += (targetMorph - curMorph) * 0.08
-  curWaveW += (targetWaveW - curWaveW) * 0.1
-  curAmp += (targetAmp - curAmp) * 0.1
-  const waveAlpha = 1 - curMorph
-
-  // 液态流光球（idle 状态）
-  if (curMorph > 0.005) {
-    ctx.save()
-    ctx.translate(cx, cy)
-    ctx.scale(1 + (1 - curMorph) * 6, 1 - (1 - curMorph) * 0.8)
-    ctx.globalAlpha = curMorph
-    const orbSize = 55 + Math.sin(time * 0.003) * 4
-    ctx.globalCompositeOperation = 'screen'
-    ctx.rotate(time * 0.001)
-    const colors = [
-      { r: 255, g: 128, b: 181, radius: orbSize * 1.3, offset: 0, dist: 12 },
-      { r: 129, g: 230, b: 217, radius: orbSize * 1.2, offset: 2.1, dist: 18 },
-      { r: 167, g: 139, b: 250, radius: orbSize * 1.4, offset: 4.2, dist: 10 },
-    ]
-    colors.forEach((item, idx) => {
-      ctx.save()
-      ctx.rotate(time * 0.002 * (idx % 2 === 0 ? 1 : -1) + item.offset)
-      ctx.translate(item.dist, 0)
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, item.radius)
-      g.addColorStop(0, `rgba(${item.r},${item.g},${item.b},0.9)`)
-      g.addColorStop(0.5, `rgba(${item.r},${item.g},${item.b},0.4)`)
-      g.addColorStop(1, `rgba(${item.r},${item.g},${item.b},0)`)
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.arc(0, 0, item.radius, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-    })
-    ctx.globalCompositeOperation = 'source-over'
-    const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, orbSize * 0.7)
-    cg.addColorStop(0, 'rgba(255,255,255,1)')
-    cg.addColorStop(0.3, 'rgba(255,255,255,0.7)')
-    cg.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = cg
-    ctx.beginPath()
-    ctx.arc(0, 0, orbSize * 0.7, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
-  }
-
-  // 声波
-  if (waveAlpha > 0.005) {
-    ctx.save()
-    ctx.globalAlpha = waveAlpha
-    ctx.globalCompositeOperation = 'screen'
-    const grad = ctx.createLinearGradient(0, 0, w, 0)
-    grad.addColorStop(0.1, '#ff80b5')
-    grad.addColorStop(0.5, '#a78bfa')
-    grad.addColorStop(0.9, '#81e6d9')
-    const sx = cx - curWaveW / 2,
-      ex = cx + curWaveW / 2
-    waveLayers.forEach(layer => {
-      ctx.beginPath()
-      ctx.moveTo(sx, cy)
-      for (let x = sx; x <= ex; x += 2) {
-        const prog = (x - sx) / curWaveW
-        const env = Math.pow(Math.sin(prog * Math.PI), 2.5)
-        const yOff =
-          Math.sin(x * layer.freq + time * layer.speed + layer.offset) *
-          ((h / 2) * curAmp * layer.scale * env)
-        ctx.lineTo(x, cy + yOff)
-      }
-      for (let x = ex; x >= sx; x -= 2) {
-        const prog = (x - sx) / curWaveW
-        const env = Math.pow(Math.sin(prog * Math.PI), 2.5)
-        const yOff =
-          Math.sin(x * layer.freq + time * layer.speed + layer.offset + Math.PI) *
-          ((h / 2) * curAmp * layer.scale * env)
-        ctx.lineTo(x, cy + yOff)
-      }
-      ctx.closePath()
-      ctx.fillStyle = grad
-      ctx.globalAlpha = layer.alpha * waveAlpha * 1.2
-      ctx.fill()
-    })
-    ctx.restore()
-  }
-}
-
-/* ═══════════════════════════════════════════
-   主动画循环
-   ═══════════════════════════════════════════ */
-function resizeMain() {
-  const c = mainCanvasRef.value
-  if (!c) return
-  width = window.innerWidth
-  height = window.innerHeight
-  c.width = width
-  c.height = height
-  bgStars = Array.from({ length: BG_STAR_COUNT }, () => ({
-    x: Math.random() * width,
-    y: Math.random() * height,
-    size: Math.random() * 1.5 + 0.2,
-    speed: Math.random() * 0.3 + 0.05,
-    twinkle: Math.random() * 0.003 + 0.001,
-    phase: Math.random() * Math.PI * 2,
-  }))
-}
-
-function resizeWave() {
-  const c = waveCanvasRef.value
-  if (!c) return
-  const p = c.parentElement
-  if (!p) return
-  c.width = p.clientWidth * 2
-  c.height = p.clientHeight * 2
-}
-
-function animate(time: number) {
-  const c = mainCanvasRef.value
-  if (!c) return
-  const ctx = c.getContext('2d')
-  if (!ctx) return
-
-  ctx.clearRect(0, 0, width, height)
-  // 背景星星颜色跟随主题
-  ctx.fillStyle = themeColors.star
-
-  bgStars.forEach(s => {
-    s.y -= s.speed
-    if (s.y < 0) s.y = height
-    ctx.globalAlpha = Math.max(0.05, 0.4 + Math.sin(time * s.twinkle + s.phase) * 0.4)
-    ctx.beginPath()
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2)
-    ctx.fill()
-  })
-  ctx.globalAlpha = 1
-
-  curSpeed += (targetSpeed - curSpeed) * 0.05
-
-  if (currentMode.value === 'speaking') {
-    audioLevel +=
-      (Math.max(0, Math.sin(time * 0.015) * Math.sin(time * 0.005) * Math.random()) * 1.5 -
-        audioLevel) *
-      0.2
-  } else {
-    audioLevel += (0 - audioLevel) * 0.1
-  }
-
-  if (!isDragging) {
-    rotY += 0.005 * curSpeed
-    rotX += 0.002 * curSpeed
-  }
-
-  for (const p of orbParticles) p.update(time, rotX, rotY, currentMode.value)
-  orbParticles.sort((a, b) => a.z - b.z)
-  for (const p of orbParticles) p.draw(ctx, width / 2, height / 2)
-
-  renderWave(time)
-  animId = requestAnimationFrame(animate)
-}
-
-/* ─── 鼠标拖拽 ─── */
-function onDown(e: MouseEvent | TouchEvent) {
-  isDragging = true
-  const cx = 'clientX' in e ? e.clientX : e.touches[0].clientX
-  const cy = 'clientY' in e ? e.clientY : e.touches[0].clientY
-  lastMX = cx
-  lastMY = cy
-}
-function onMove(e: MouseEvent | TouchEvent) {
-  if (!isDragging) return
-  const cx = 'clientX' in e ? e.clientX : e.touches[0].clientX
-  const cy = 'clientY' in e ? e.clientY : e.touches[0].clientY
-  rotY += (cx - lastMX) * 0.01
-  rotX -= (cy - lastMY) * 0.01
-  lastMX = cx
-  lastMY = cy
-}
-function onUp() {
-  isDragging = false
-}
-
-/* ─── 生命周期 ─── */
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
 }
 
 onMounted(() => {
   document.documentElement.classList.add('immersive-mode-active')
-  orbParticles = Array.from({ length: PARTICLE_COUNT }, () => new OrbP())
-  resizeMain()
-  resizeWave()
-  window.addEventListener('resize', resizeMain)
-  window.addEventListener('resize', resizeWave)
   window.addEventListener('keydown', handleKeydown)
-  animId = requestAnimationFrame(animate)
   initSpeech()
-  // 监听主题变化
-  themeObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme'],
-  })
 })
 
 onBeforeUnmount(() => {
   document.documentElement.classList.remove('immersive-mode-active')
-  cancelAnimationFrame(animId)
-  window.removeEventListener('resize', resizeMain)
-  window.removeEventListener('resize', resizeWave)
   window.removeEventListener('keydown', handleKeydown)
-  themeObserver.disconnect()
   if (silenceTimer) clearTimeout(silenceTimer)
   mediaRecorder?.stop()
   audioCtx?.close()
@@ -1556,49 +914,38 @@ watch(
   () => scrollChat(),
   { deep: true }
 )
-
 watch(toolStatus, () => scrollChat())
 
 function shouldShowMessage(msg: ChatMsg) {
+  if (msg.role === 'user') return true
   if (msg.content && msg.content.trim()) return true
-  if (msg.imageUrl) return true
-  if (msg.attachmentName) return true
-  if (msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length > 0))
+  if (msg.imageUrl || msg.attachmentName) return true
+  if (
+    msg.agentTrace &&
+    (msg.agentTrace.planSummary ||
+      (msg.agentTrace.subtasks && msg.agentTrace.subtasks.length > 0) ||
+      msg.agentTrace.reviewDecision)
+  ) {
     return true
-  return false
+  }
+  return isLocalSending.value && msg === props.messages[props.messages.length - 1]
 }
 </script>
 
 <template>
   <div class="immersive-overlay">
-    <!-- 左侧吉祥物与语音交互舞台 -->
-    <div class="imm-visual-stage">
-      <div class="imm-mascot-container">
-        <div class="imm-mascot-aura" aria-hidden="true"></div>
-        <EmotionBall
-          ref="emotionBallRef"
-          :size="300"
-          shape="blob"
-          :emotion="currentEmotion"
-          :show-rings="true"
-          :show-style-toggle="true"
-          label="Starlore AI 智能小球"
-        />
-        <div class="imm-mascot-caption">
-          <span class="imm-mascot-badge">✦ STARLORE AI COMPANION</span>
-        </div>
-      </div>
+    <!-- 左侧吉祥物与语音交互舞台 (5:5 均分布局) -->
+    <VoiceWaveStage
+      ref="voiceStageRef"
+      :current-emotion="currentEmotion"
+      :current-mode="currentMode"
+      :status-text="statusText"
+      :interim-text="interimText"
+      :show-hint="showHint"
+      @toggle-voice="toggleVoice"
+    />
 
-      <div class="mic-wrapper">
-        <div class="wave-container" @click="toggleVoice" title="点击开始/结束说话">
-          <canvas ref="waveCanvasRef" class="wave-canvas"></canvas>
-          <div class="interaction-hint" :class="{ hidden: !showHint }">[ 点击以语音交流 ]</div>
-        </div>
-        <div class="status-text" :class="currentMode">{{ statusText }}</div>
-        <div v-if="interimText" class="interim-text">{{ interimText }}</div>
-      </div>
-    </div>
-
+    <!-- 右侧会话与控制面板 (5:5 均分布局) -->
     <div class="chat-panel">
       <!-- 标签栏 -->
       <div class="imm-tabs">
@@ -1642,40 +989,12 @@ function shouldShowMessage(msg: ChatMsg) {
 
       <!-- 对话面板 -->
       <div v-show="activeTab === 'chat'" class="imm-panel-chat">
-        <!-- 工具栏：角色卡 -->
-        <div class="imm-toolbar">
-          <div class="imm-char-picker" :class="{ open: charPickerOpen }">
-            <button
-              type="button"
-              class="imm-char-trigger"
-              @click.stop="charPickerOpen = !charPickerOpen"
-            >
-              <span>{{
-                characterCards.find(c => c.key === selectedCharacterKey)?.name || '角色卡'
-              }}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
-              </svg>
-            </button>
-            <div v-show="charPickerOpen" class="imm-char-panel">
-              <button
-                v-for="c in characterCards"
-                :key="c.key"
-                type="button"
-                class="imm-char-opt"
-                :class="{ active: c.key === selectedCharacterKey }"
-                @click.stop="pickCharacter(c.key)"
-              >
-                <span class="imm-char-name">{{ c.name }}</span>
-                <span class="imm-char-desc">{{ c.description }}</span>
-              </button>
-            </div>
-          </div>
-          <span class="imm-agent-btn active" title="多Agent协作：Planner→Executor→Reviewer">
-            <Bot :size="13" />
-            Multi-Agent
-          </span>
-        </div>
+        <!-- 角色卡选择器 -->
+        <CharacterCardPicker
+          :character-cards="characterCards"
+          :selected-character-key="selectedCharacterKey"
+          @select="pickCharacter"
+        />
 
         <div ref="chatScrollRef" class="chat-messages">
           <div
@@ -1683,147 +1002,16 @@ function shouldShowMessage(msg: ChatMsg) {
             :key="i"
             class="msg"
             :class="msg.role"
-            v-show="shouldShowMessage(msg)"
           >
             <!-- Agent 追踪信息（流式步骤节点） -->
-            <div
-              v-if="
-                msg.agentTrace &&
-                (msg.agentTrace.planSummary ||
-                  msg.agentTrace.subtasks.length ||
-                  msg.agentTrace.reviewDecision)
-              "
-              class="imm-trace-stepper"
-            >
-              <!-- 1. Planner Node -->
-              <div v-if="msg.agentTrace.planSummary" class="imm-step-node is-done">
-                <div class="imm-step-line"></div>
-                <div class="imm-step-icon-container">
-                  <ClipboardList :size="11" class="imm-step-icon" />
-                </div>
-                <div class="imm-step-content">
-                  <div class="imm-step-title">任务规划 (Planner)</div>
-                  <div class="imm-step-desc">{{ msg.agentTrace.planSummary }}</div>
-                </div>
-              </div>
+            <AgentTraceStepper
+              v-if="msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length || msg.agentTrace.reviewDecision)"
+              :agent-trace="msg.agentTrace"
+              :has-content="Boolean(msg.content)"
+              :tool-label-map="toolLabelMap"
+              :agent-node-label-map="agentNodeLabelMap"
+            />
 
-              <!-- 2. Subtask Nodes (when subtasks exist) -->
-              <div
-                v-for="st in msg.agentTrace.subtasks"
-                :key="st.id"
-                class="imm-step-node"
-                :class="{
-                  'is-pending': st.status === 'pending',
-                  'is-running': st.status === 'running',
-                  'is-done': st.status === 'done',
-                }"
-              >
-                <div class="imm-step-line"></div>
-                <div class="imm-step-icon-container">
-                  <span v-if="st.status === 'done'" class="imm-step-dot done">✓</span>
-                  <span v-else-if="st.status === 'running'" class="imm-step-dot running"></span>
-                  <span v-else class="imm-step-dot pending"></span>
-                </div>
-                <div class="imm-step-content">
-                  <div class="imm-step-title">子任务 {{ st.id }}</div>
-                  <div class="imm-step-desc">
-                    {{
-                      toolLabelMap[st.desc] ||
-                      agentNodeLabelMap[st.desc] ||
-                      st.desc ||
-                      '等待获取执行内容...'
-                    }}
-                  </div>
-                </div>
-              </div>
-
-              <!-- 2b. Direct Executor Node (when no subtasks exist) -->
-              <div
-                v-if="msg.agentTrace && msg.agentTrace.subtasks.length === 0"
-                class="imm-step-node"
-                :class="{
-                  'is-done': msg.agentTrace.reviewDecision || msg.content,
-                  'is-running': !msg.agentTrace.reviewDecision && !msg.content,
-                }"
-              >
-                <div class="imm-step-line"></div>
-                <div class="imm-step-icon-container">
-                  <span
-                    v-if="msg.agentTrace.reviewDecision || msg.content"
-                    class="imm-step-dot done"
-                    >✓</span
-                  >
-                  <span v-else class="imm-step-dot running"></span>
-                </div>
-                <div class="imm-step-content">
-                  <div class="imm-step-title">执行阶段 (Executor)</div>
-                  <div class="imm-step-desc">无需外部工具，直接分析并生成回答...</div>
-                </div>
-              </div>
-
-              <!-- 3. Reviewer Node -->
-              <div
-                v-if="
-                  msg.agentTrace.reviewDecision || msg.agentTrace.subtasks.length > 0 || msg.content
-                "
-                class="imm-step-node"
-                :class="{
-                  'is-pending': !msg.agentTrace.reviewDecision,
-                  'is-done': msg.agentTrace.reviewDecision === 'PASS',
-                  'is-warning': msg.agentTrace.reviewDecision === 'REVISE',
-                  'is-error': msg.agentTrace.reviewDecision === 'FAIL',
-                }"
-              >
-                <div class="imm-step-line" v-if="msg.agentTrace.metrics"></div>
-                <div class="imm-step-icon-container">
-                  <CheckCircle
-                    v-if="msg.agentTrace.reviewDecision === 'PASS'"
-                    :size="11"
-                    class="imm-step-icon"
-                  />
-                  <RotateCcw
-                    v-else-if="msg.agentTrace.reviewDecision === 'REVISE'"
-                    :size="11"
-                    class="imm-step-icon"
-                  />
-                  <XCircle
-                    v-else-if="msg.agentTrace.reviewDecision === 'FAIL'"
-                    :size="11"
-                    class="imm-step-icon"
-                  />
-                  <Bot v-else :size="11" class="imm-step-icon" />
-                </div>
-                <div class="imm-step-content">
-                  <div class="imm-step-title">结果审核 (Reviewer)</div>
-                  <div class="imm-step-desc">
-                    <span v-if="msg.agentTrace.reviewDecision">
-                      决策:
-                      <strong :class="msg.agentTrace.reviewDecision.toLowerCase()">{{
-                        msg.agentTrace.reviewDecision
-                      }}</strong>
-                      <span v-if="msg.agentTrace.reviewFeedback">
-                        ({{ msg.agentTrace.reviewFeedback }})</span
-                      >
-                    </span>
-                    <span v-else>正在评估执行结果的质量和完整性...</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 4. Metrics Node -->
-              <div v-if="msg.agentTrace.metrics" class="imm-step-node is-metrics">
-                <div class="imm-step-icon-container">
-                  <span class="imm-step-dot metrics"></span>
-                </div>
-                <div class="imm-step-content">
-                  <div class="imm-step-desc metrics-data">
-                    Token 消耗: {{ msg.agentTrace.metrics.tokensIn }}↓ /
-                    {{ msg.agentTrace.metrics.tokensOut }}↑ · 耗时:
-                    {{ msg.agentTrace.metrics.latencyMs }}ms
-                  </div>
-                </div>
-              </div>
-            </div>
             <!-- 附件标签 -->
             <div v-if="msg.attachmentName" class="imm-attach-tag">
               <Paperclip :size="12" />
@@ -1836,66 +1024,59 @@ function shouldShowMessage(msg: ChatMsg) {
               class="text"
               v-html="sanitizeHtml(fmt(msg.content))"
             ></div>
+
+            <!-- RAG 评估卡片 -->
             <div
               v-if="msg.role === 'assistant' && msg.agentTrace?.ragEvaluation?.scores"
               class="imm-rag-inline"
             >
-                <div class="imm-rag-inline-heading">
-                  <div>
-                    <strong><Activity :size="13" /> RAG 回答质量</strong>
-                    <span>
-                      已自动评估 ·
-                      {{ msg.agentTrace.ragRetrievalMode === 'keyword' ? '关键词检索' : '向量检索' }}
-                    </span>
-                  </div>
-                  <strong v-if="msg.agentTrace.ragEvaluation.scores" class="imm-rag-inline-total">
-                    {{ scorePercent(msg.agentTrace.ragEvaluation.scores.overall) }}
-                  </strong>
+              <div class="imm-rag-inline-heading">
+                <div>
+                  <strong><Activity :size="13" /> RAG 回答质量</strong>
+                  <span>
+                    已自动评估 ·
+                    {{ msg.agentTrace.ragRetrievalMode === 'keyword' ? '关键词检索' : '向量检索' }}
+                  </span>
                 </div>
+                <strong v-if="msg.agentTrace.ragEvaluation.scores" class="imm-rag-inline-total">
+                  {{ scorePercent(msg.agentTrace.ragEvaluation.scores.overall) }}
+                </strong>
+              </div>
 
-                <dl class="imm-rag-inline-scores">
-                  <div>
-                    <dt>有据可查</dt>
-                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.faithfulness) }}</dd>
-                  </div>
-                  <div>
-                    <dt>切题程度</dt>
-                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.answerRelevance) }}</dd>
-                  </div>
-                  <div>
-                    <dt>检索准确</dt>
-                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextPrecision) }}</dd>
-                  </div>
-                  <div>
-                    <dt>检索完整</dt>
-                    <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
-                  </div>
-                </dl>
-                <div v-if="msg.agentTrace.ragEvaluation.contexts?.length" class="imm-rag-citation-list">
-                  <span class="imm-citation-label"><BookOpen :size="12" /> 知识库引用来源：</span>
-                  <div class="imm-citation-badges">
-                    <div
-                      v-for="(ctx, idx) in msg.agentTrace.ragEvaluation.contexts"
-                      :key="idx"
-                      class="imm-citation-badge"
-                    >
-                      <span class="imm-citation-num">[{{ idx + 1 }}]</span>
-                      <span class="imm-citation-title">{{ ctx.title }}</span>
-                      
-                      <!-- Hover 悬浮卡片 -->
-                      <div class="imm-citation-popover">
-                        <div class="pop-head">
-                          <span class="pop-tag">知识切片 #{{ idx + 1 }}</span>
-                          <span class="pop-score">88% 相关匹配</span>
-                        </div>
-                        <h4 class="pop-title">{{ ctx.title }}</h4>
-                        <p class="pop-snippet">“根据文章相关记录，当前系统已经集成了最新的检索增强生成 (RAG) 引擎以及高精准度匹配技术...”</p>
-                      </div>
-                    </div>
+              <dl class="imm-rag-inline-scores">
+                <div>
+                  <dt>有据可查</dt>
+                  <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.faithfulness) }}</dd>
+                </div>
+                <div>
+                  <dt>切题程度</dt>
+                  <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.answerRelevance) }}</dd>
+                </div>
+                <div>
+                  <dt>检索准确</dt>
+                  <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextPrecision) }}</dd>
+                </div>
+                <div>
+                  <dt>检索完整</dt>
+                  <dd>{{ scorePercent(msg.agentTrace.ragEvaluation.scores.contextRecall) }}</dd>
+                </div>
+              </dl>
+              <div v-if="msg.agentTrace.ragEvaluation.contexts?.length" class="imm-rag-citation-list">
+                <span class="imm-citation-label"><BookOpen :size="12" /> 知识库引用来源：</span>
+                <div class="imm-citation-badges">
+                  <div
+                    v-for="(ctx, idx) in msg.agentTrace.ragEvaluation.contexts"
+                    :key="idx"
+                    class="imm-citation-badge"
+                  >
+                    <span class="imm-citation-num">[{{ idx + 1 }}]</span>
+                    <span class="imm-citation-title">{{ ctx.title }}</span>
                   </div>
                 </div>
+              </div>
             </div>
-            <!-- 点赞/点踩反馈工具条（仅在回答完成且非加载中显示在最底部） -->
+
+            <!-- 点赞/点踩反馈工具条 -->
             <div
               v-if="msg.role === 'assistant' && msg.content && msg.content.trim() && !toolStatus && (!isLocalSending || msg !== messages[messages.length - 1])"
               class="imm-msg-actions"
@@ -1920,19 +1101,12 @@ function shouldShowMessage(msg: ChatMsg) {
               </button>
             </div>
           </div>
+
           <!-- 工具/Agent 状态 -->
           <div v-if="toolStatus" class="msg assistant">
             <div class="imm-tool-status">
               <span class="imm-tool-spinner"></span>
               <span>{{ toolStatus }}</span>
-            </div>
-          </div>
-          <!-- 加载动画 -->
-          <div v-if="isLocalSending && !toolStatus && !hasReceivedContent" class="msg assistant">
-            <div class="imm-typing">
-              <span class="dot"></span>
-              <span class="dot"></span>
-              <span class="dot"></span>
             </div>
           </div>
         </div>
@@ -1947,34 +1121,35 @@ function shouldShowMessage(msg: ChatMsg) {
           @mouseleave="onQrMouseUp"
         >
           <button
-            v-for="item in quickReplies"
-            :key="item"
+            v-for="qr in quickReplies"
+            :key="qr"
             type="button"
             class="imm-qr-btn"
             :disabled="isSending || isLocalSending"
-            @click="useQuickReply(item)"
+            @click="handleSend(qr)"
           >
-            {{ item }}
+            {{ qr }}
           </button>
         </div>
 
-        <!-- 输入区 -->
-        <div class="imm-input-area">
-          <input
-            ref="imageInputRef"
-            type="file"
-            accept="image/*"
-            class="hidden-file"
-            @change="onImageUpload"
-          />
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept=".txt,.md,.markdown,.csv,.json,.xml,.yaml,.yml,.docx,.pdf"
-            class="hidden-file"
-            @change="onFileUpload"
-          />
-          <!-- 附件预览 -->
+        <!-- 隐藏的 input -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".txt,.md,.markdown,.docx,.pdf"
+          style="display: none"
+          @change="onFileSelect"
+        />
+        <input
+          ref="imageInputRef"
+          type="file"
+          accept="image/*"
+          style="display: none"
+          @change="onImageSelect"
+        />
+
+        <!-- 输入区域 -->
+        <div class="imm-input-box">
           <div v-if="pendingAttachment" class="imm-attachment">
             <FileText :size="14" />
             <span class="imm-attachment-name">{{ pendingAttachment.name }}</span>
@@ -2042,7 +1217,6 @@ function shouldShowMessage(msg: ChatMsg) {
           </div>
         </div>
       </div>
-      <!-- 关闭 imm-panel-chat -->
 
       <!-- 会话列表面板 -->
       <div v-show="activeTab === 'sessions'" class="imm-panel-sessions">
@@ -2056,7 +1230,6 @@ function shouldShowMessage(msg: ChatMsg) {
           >
             <div class="imm-sess-title">{{ s.title }}</div>
             <div class="imm-sess-meta">{{ s.characterKey }}</div>
-            <!-- 确认删除 -->
             <div v-if="showDeleteConfirm === s.id" class="imm-sess-confirm">
               <button
                 type="button"
@@ -2086,91 +1259,16 @@ function shouldShowMessage(msg: ChatMsg) {
         <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
       </div>
 
-      <!-- Agent 能力面板 -->
-      
-      <!-- Agent 调参面板 (Starlore 原生美学版) -->
-      <div v-show="activeTab === 'config'" class="imm-panel-config">
-        <section class="imm-cap-section">
-          <div class="imm-cap-heading">
-            <div>
-              <p class="imm-cap-eyebrow">Playground Control</p>
-              <h2><Sliders :size="16" style="margin-right: 6px; vertical-align: -2px;" /> Agent 检索与模型参数调优</h2>
-            </div>
-          </div>
-          <p class="imm-cap-copy">动态微调 RAG 知识检索精细度与大模型生成偏好。</p>
+      <!-- Agent 调参面板 -->
+      <AgentConfigDrawer
+        v-show="activeTab === 'config'"
+        :agent-config-form="agentConfigForm"
+        :available-models="availableModels"
+        :agent-config-saved-hint="agentConfigSavedHint"
+        @save="saveAgentConfig"
+      />
 
-          <div class="imm-cfg-form">
-            <div class="imm-cfg-card">
-              <label class="imm-cfg-label">
-                <span>驱动大模型引擎</span>
-                <span class="imm-cfg-tag">LLM Engine</span>
-              </label>
-              <div class="custom-select">
-                <div class="custom-select-trigger" @click.stop="modelSelectOpen = !modelSelectOpen">
-                  <span>{{ currentModelLabel }}</span>
-                  <ChevronDown class="arrow-icon" :class="{ 'is-open': modelSelectOpen }" />
-                </div>
-                <Transition name="dropdown-fade">
-                  <div v-if="modelSelectOpen" class="custom-select-options">
-                    <div
-                      v-for="model in availableModels"
-                      :key="model.id"
-                      class="custom-select-option"
-                      :class="{ active: agentConfigForm.modelName === model.id }"
-                      @click="agentConfigForm.modelName = model.id; modelSelectOpen = false"
-                    >
-                      {{ model.name }} ({{ model.id }})
-                    </div>
-                  </div>
-                </Transition>
-              </div>
-            </div>
-
-            <div class="imm-cfg-card">
-              <div class="imm-cfg-label-row">
-                <span class="imm-cfg-label-title">向量检索相似度阈值 (Similarity)</span>
-                <span class="imm-cfg-val-badge">{{ agentConfigForm.similarityThreshold }}</span>
-              </div>
-              <input type="range" v-model.number="agentConfigForm.similarityThreshold" min="0.1" max="0.95" step="0.05" class="imm-cfg-range" />
-              <p class="imm-cfg-subtext">自动过滤低于该相似度的噪音切片 (推荐 0.55 - 0.70)</p>
-            </div>
-
-            <div class="imm-cfg-card">
-              <div class="imm-cfg-label-row">
-                <span class="imm-cfg-label-title">检索最大切片数 (Top-K)</span>
-                <span class="imm-cfg-val-badge">{{ agentConfigForm.topK }} 条</span>
-              </div>
-              <input type="range" v-model.number="agentConfigForm.topK" min="1" max="10" step="1" class="imm-cfg-range" />
-              <p class="imm-cfg-subtext">限制送入大模型的参考上下文段落数</p>
-            </div>
-
-            <div class="imm-cfg-card">
-              <div class="imm-cfg-label-row">
-                <span class="imm-cfg-label-title">模型随机度 (Temperature)</span>
-                <span class="imm-cfg-val-badge">{{ agentConfigForm.temperature }}</span>
-              </div>
-              <input type="range" v-model.number="agentConfigForm.temperature" min="0.0" max="1.0" step="0.1" class="imm-cfg-range" />
-            </div>
-
-            <div class="imm-cfg-card row-toggle">
-              <div>
-                <span class="imm-cfg-label-title">启用 BM25 混合检索与重排序 (Rerank)</span>
-                <p class="imm-cfg-subtext">融合关键词匹配与向量语义算法</p>
-              </div>
-              <label class="imm-switch">
-                <input type="checkbox" :checked="agentConfigForm.enableRerank === 1" @change="agentConfigForm.enableRerank = ($event.target as HTMLInputElement).checked ? 1 : 0" />
-                <span class="imm-slider"></span>
-              </label>
-            </div>
-
-            <button type="button" class="imm-index-button save-btn" @click="saveAgentConfig">
-              保存 Agent 调参配置
-            </button>
-            <p v-if="agentConfigSavedHint" class="imm-cfg-hint">{{ agentConfigSavedHint }}</p>
-          </div>
-        </section>
-      </div>
-
+      <!-- MCP 能力面板 -->
       <div v-show="activeTab === 'capabilities'" class="imm-panel-capabilities">
         <section class="imm-cap-section" aria-labelledby="mcp-capability-title">
           <div class="imm-cap-heading">
@@ -2241,36 +1339,16 @@ function shouldShowMessage(msg: ChatMsg) {
           </button>
           <p v-if="reindexMessage" class="imm-index-message">{{ reindexMessage }}</p>
         </section>
-
       </div>
     </div>
   </div>
 
-    <!-- 反馈模态框 -->
-    <div v-if="feedbackModalOpen" class="imm-feedback-backdrop" @click.self="feedbackModalOpen = false">
-      <div class="imm-feedback-modal">
-        <div class="imm-feedback-header">
-          <h3>反馈回答质量</h3>
-          <button class="imm-close-btn" @click="feedbackModalOpen = false"><X :size="16" /></button>
-        </div>
-        <div class="imm-feedback-body">
-          <label class="imm-form-label">请选择主要问题类型：</label>
-          <div class="imm-radio-group">
-            <label><input type="radio" v-model="feedbackType" value="NOT_RELEVANT" /> 知识库未检索到正确资料</label>
-            <label><input type="radio" v-model="feedbackType" value="HALLUCINATION" /> 包含大模型凭空幻觉内容</label>
-            <label><input type="radio" v-model="feedbackType" value="WRONG_FACT" /> 事实或语法描述有误</label>
-            <label><input type="radio" v-model="feedbackType" value="OTHER" /> 其他意见</label>
-          </div>
-          <label class="imm-form-label">补充说明 (选填)：</label>
-          <textarea v-model="feedbackComment" placeholder="请输入具体意见或修正建议..." class="imm-feedback-input"></textarea>
-        </div>
-        <div class="imm-feedback-footer">
-          <button class="imm-btn-cancel" @click="feedbackModalOpen = false">取消</button>
-          <button class="imm-btn-submit" @click="submitDislikeFeedback">提交评价</button>
-        </div>
-      </div>
-    </div>
-
+  <!-- 反馈模态框 -->
+  <RagFeedbackModal
+    :open="feedbackModalOpen"
+    @close="feedbackModalOpen = false"
+    @submit="handleFeedbackSubmit"
+  />
 </template>
 
 <style scoped>
@@ -2284,184 +1362,16 @@ function shouldShowMessage(msg: ChatMsg) {
   overflow: hidden;
 }
 
-.main-canvas {
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  cursor: grab;
-}
-.main-canvas:active {
-  cursor: grabbing;
-}
-
-.mic-wrapper {
-  margin-top: 14px;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.wave-container {
-  width: 280px;
-  height: 72px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-}
-
-.wave-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  transition: opacity 0.3s;
-}
-.wave-container:hover .wave-canvas {
-  filter: brightness(1.3);
-}
-
-.interaction-hint {
-  position: absolute;
-  bottom: 2px;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--ink-muted);
-  pointer-events: none;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  animation: breathe-text 2s infinite ease-in-out;
-  opacity: 1;
-  transform: translateY(0);
-}
-.interaction-hint.hidden {
-  opacity: 0;
-  transform: translateY(15px);
-  animation: none;
-}
-@keyframes breathe-text {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.9;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
-  }
-}
-
-.status-text {
-  font-size: 11px;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  font-weight: bold;
-  transition: color 0.3s;
-}
-.status-text.listening {
-  color: var(--accent);
-}
-.status-text.thinking {
-  color: var(--warm);
-}
-.status-text.speaking {
-  color: var(--accent);
-}
-
-.interim-text {
-  font-size: 13px;
-  color: var(--ink-soft);
-  max-width: 300px;
-  text-align: center;
-  animation: fadeInUp 0.3s ease;
-}
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ── 左侧视觉舞台 (从 top: 72px 开始，避让顶部导航栏，在可用区域完美居中) ── */
-.imm-visual-stage {
-  position: absolute;
-  left: 0;
-  top: 72px;
-  bottom: 0;
-  width: calc(100vw - min(620px, 48vw));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  pointer-events: auto;
-  user-select: none;
-  box-sizing: border-box;
-  padding: 0 32px 24px;
-}
-
-.imm-mascot-container {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-top: 0;
-}
-
-.imm-mascot-aura {
-  position: absolute;
-  width: 380px;
-  height: 380px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--accent-rgb, 232, 93, 42), 0.15) 0%, transparent 70%);
-  filter: blur(28px);
-  pointer-events: none;
-  animation: aura-pulse 4s ease-in-out infinite alternate;
-}
-
-@keyframes aura-pulse {
-  0% { transform: scale(0.9); opacity: 0.5; }
-  100% { transform: scale(1.12); opacity: 0.85; }
-}
-
-.imm-mascot-caption {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.imm-mascot-badge {
-  font-size: 11px;
-  letter-spacing: 2.5px;
-  font-weight: 600;
-  color: var(--ink-muted);
-  background: var(--surface-translucent, rgba(255, 255, 255, 0.15));
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  padding: 4px 14px;
-  border-radius: 20px;
-  box-shadow: var(--shadow-sm);
-}
-
-/* ── 右侧会话面板 (顶部留足 76px 留白，彻底避让顶部导航栏) ── */
+/* ── 右侧会话面板 (左右55开，顶部留足 76px 留白避让顶部导航栏) ── */
 .chat-panel {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  width: min(620px, 48vw);
-  min-width: 460px;
-  padding: 76px 28px 24px 28px;
+  width: 50vw;
+  max-width: 50vw;
+  min-width: 420px;
+  padding: 76px 36px 24px 32px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2479,25 +1389,13 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 
 @media (max-width: 900px) {
-  .imm-visual-stage {
-    display: none;
-  }
   .chat-panel {
     width: 100%;
+    max-width: 100%;
     min-width: 0;
     padding: 76px 16px 24px 16px;
     background: var(--canvas);
   }
-}
-
-.chat-header {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 3px;
-  color: var(--ink-muted);
-  margin-bottom: 20px;
-  text-align: right;
-  text-transform: uppercase;
 }
 
 .chat-messages {
@@ -2553,35 +1451,6 @@ function shouldShowMessage(msg: ChatMsg) {
   box-shadow: var(--shadow-sm);
 }
 
-/* ── 附件标签 ── */
-.imm-rag-trigger {
-  min-height: 30px;
-  margin: 4px 0 0 6px;
-  padding: 4px 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  align-self: flex-start;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-muted);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition:
-    color 180ms var(--ease-out-quart),
-    background 180ms var(--ease-out-quart);
-}
-.imm-rag-trigger:hover,
-.imm-rag-trigger[aria-expanded='true'] {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.imm-rag-trigger:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
 .imm-rag-inline {
   width: min(85%, 390px);
   margin-top: 5px;
@@ -2590,7 +1459,6 @@ function shouldShowMessage(msg: ChatMsg) {
   border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  animation: rag-panel-in 180ms var(--ease-out-quart);
 }
 .imm-rag-inline-heading {
   display: flex;
@@ -2608,20 +1476,15 @@ function shouldShowMessage(msg: ChatMsg) {
   color: var(--ink);
   font-size: 12px;
 }
-.imm-rag-inline-heading span,
-.imm-rag-inline-copy,
-.imm-rag-inline-sources {
+.imm-rag-inline-heading span {
   color: var(--ink-muted);
   font-size: 10px;
-  line-height: 1.5;
 }
 .imm-rag-inline-total {
   color: var(--accent) !important;
   font-size: 17px !important;
 }
-.imm-rag-inline-copy {
-  margin: 9px 0 8px;
-}
+
 .imm-rag-inline-scores {
   margin: 11px 0 0;
   display: grid;
@@ -2643,18 +1506,35 @@ function shouldShowMessage(msg: ChatMsg) {
   font-size: 12px;
   font-weight: 650;
 }
-.imm-rag-inline-sources {
-  margin: 8px 0 0;
+
+.imm-rag-citation-list {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
 }
-@keyframes rag-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.imm-citation-label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.imm-citation-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.imm-citation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--ink);
 }
 
 .imm-attach-tag {
@@ -2705,272 +1585,11 @@ function shouldShowMessage(msg: ChatMsg) {
 .msg .text :deep(p) {
   margin: 0.1rem 0;
 }
-.msg .text :deep(p:first-child) {
-  margin-top: 0;
-}
-.msg .text :deep(p:last-child) {
-  margin-bottom: 0;
-}
-.msg .text :deep(.chat-table) {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  margin: 10px 0 16px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  -webkit-overflow-scrolling: touch;
-  border-collapse: collapse;
-  table-layout: auto;
-  color: var(--ink);
-  font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.msg .text :deep(.chat-table + p) {
-  margin-top: 0.75rem;
-}
-.msg .text :deep(.chat-table:focus-visible) {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
-.msg .text :deep(.chat-table th),
-.msg .text :deep(.chat-table td) {
-  min-width: 88px;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  vertical-align: top;
-  word-break: keep-all;
-}
-.msg .text :deep(.chat-table th) {
-  white-space: nowrap;
-  background: var(--tag-bg);
-  color: var(--ink);
-  font-weight: 650;
-}
-.msg .text :deep(.chat-table td) {
-  max-width: 320px;
-  white-space: normal;
-  overflow-wrap: break-word;
-}
-.msg .text :deep(.chat-table tbody tr:last-child td) {
-  border-bottom: 0;
-}
-.msg .text :deep(.chat-table tbody tr:hover) {
-  background: var(--surface-hover);
-}
-.msg .text :deep(ul),
-.msg .text :deep(ol) {
-  padding-left: 1.2rem;
-  margin: 0.15rem 0;
-}
 
-/* ── Agent 追踪（步骤节点） ── */
-.imm-trace-stepper {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 14px;
-  background: var(--surface-raised, rgba(0, 0, 0, 0.02));
-  border: 1px solid var(--border-interactive);
-  border-radius: var(--radius-md, 10px);
-  margin-bottom: 10px;
-  align-self: flex-start;
-  width: 100%;
-}
-
-.imm-step-node {
-  position: relative;
-  display: flex;
-  gap: 12px;
-}
-
-.imm-step-line {
-  position: absolute;
-  top: 18px; /* start from center of icon container */
-  left: 9px; /* align with center of icon container */
-  bottom: -18px; /* extend to center of next icon container */
-  width: 2px;
-  background: var(--border-interactive);
-  z-index: 1;
-}
-
-/* Hide line on the last visible node of the stepper to avoid hanging lines */
-.imm-step-node:last-child .imm-step-line {
-  display: none;
-}
-
-/* Highlight line if the current step is done */
-.imm-step-node.is-done .imm-step-line {
-  background: var(--accent);
-}
-
-.imm-step-icon-container {
-  position: relative;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1.5px solid var(--border-interactive);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s ease;
-}
-
-.imm-step-icon {
-  color: var(--ink-muted);
-}
-
-/* Colors for states */
-.imm-step-node.is-done .imm-step-icon-container {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.imm-step-node.is-done .imm-step-icon {
-  color: var(--accent);
-}
-
-.imm-step-node.is-running .imm-step-icon-container {
-  border-color: var(--accent);
-  background: var(--surface);
-  animation: pulse-ring 1.5s infinite;
-}
-
-.imm-step-node.is-warning .imm-step-icon-container {
-  border-color: var(--warm);
-  background: var(--warm-soft);
-}
-.imm-step-node.is-warning .imm-step-icon {
-  color: var(--warm);
-}
-
-.imm-step-node.is-error .imm-step-icon-container {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-}
-.imm-step-node.is-error .imm-step-icon {
-  color: #ef4444;
-}
-
-/* Subtask dots */
-.imm-step-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ink-muted);
-  display: inline-block;
-  transition: all 0.3s ease;
-}
-
-.imm-step-dot.done {
-  width: auto;
-  height: auto;
-  background: transparent;
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: bold;
-}
-
-.imm-step-dot.running {
-  background: var(--accent);
-  animation: pulse-dot 1s infinite;
-}
-
-.imm-step-dot.pending {
-  background: var(--ink-muted);
-}
-
-.imm-step-dot.metrics {
-  width: 4px;
-  height: 4px;
-  background: var(--ink-muted);
-}
-
-.imm-step-content {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  flex: 1;
-}
-
-.imm-step-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.2;
-}
-
-.imm-step-desc {
-  font-size: 11px;
-  color: var(--ink-muted);
-  margin-top: 2px;
-  word-break: break-word;
-  line-height: 1.4;
-}
-
-.imm-step-desc strong.pass {
-  color: #28a745;
-}
-.imm-step-desc strong.revise {
-  color: var(--warm);
-}
-.imm-step-desc strong.fail {
-  color: #ef4444;
-}
-
-.imm-step-node.is-metrics {
-  gap: 12px;
-}
-
-.imm-step-node.is-metrics .imm-step-icon-container {
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.metrics-data {
-  font-family: var(--font-mono, 'Fira Code', monospace);
-  font-size: 10px;
-  opacity: 0.8;
-}
-
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
-  }
-  70% {
-    box-shadow: 0 0 0 6px rgba(139, 92, 246, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
-  }
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.6;
-  }
-}
-
-/* ── 工具状态 ── */
 .imm-tool-status {
   display: inline-flex;
   align-items: center;
-  gap: 0px;
+  gap: 8px;
   padding: 8px 12px;
   border-radius: 10px;
   background: var(--accent-soft);
@@ -2988,343 +1607,133 @@ function shouldShowMessage(msg: ChatMsg) {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-/* ── 打字动画 ── */
-.imm-typing {
+.imm-msg-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.imm-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 11px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.imm-typing .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.4;
-  animation: typing-bounce 1.4s infinite ease-in-out;
+.imm-action-btn:hover {
+  background: var(--hover-bg);
+  color: var(--ink);
 }
-.imm-typing .dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.imm-typing .dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-@keyframes typing-bounce {
-  0%,
-  60%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.4;
-  }
-  30% {
-    transform: translateY(-6px);
-    opacity: 1;
-  }
+.imm-action-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--border-interactive);
 }
 
-/* ── 工具栏 ── */
-.imm-toolbar {
+.imm-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0 12px;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
   pointer-events: auto;
   flex-shrink: 0;
 }
-
-.imm-char-picker {
-  position: relative;
-}
-
-.imm-char-trigger {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 12px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+.imm-tab {
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-size: 13px;
   color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  backdrop-filter: blur(8px);
-  font-family: inherit;
 }
-.imm-char-trigger:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-interactive);
+.imm-tab:hover {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  color: var(--ink);
 }
-.imm-char-picker.open .imm-char-trigger {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+.imm-tab.active {
+  background: var(--ink);
+  color: var(--canvas);
+  font-weight: 600;
+  border-color: var(--ink);
 }
-
-.imm-char-panel {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 60;
-  min-width: 200px;
-  padding: 6px;
-  border-radius: 12px;
-  background: var(--surface);
+.imm-tab-action {
+  margin-left: auto;
   border: 1px solid var(--border);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-card-hover);
-  max-height: 240px;
-  overflow-y: auto;
+  background: var(--surface);
+  color: var(--ink);
+}
+.imm-tab-action:hover {
+  border-color: var(--ink);
 }
 
-.imm-char-opt {
+.imm-panel-chat {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-soft);
-  font-size: 12px;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.imm-char-opt:hover {
-  background: var(--surface-hover);
-}
-.imm-char-opt.active {
-  background: var(--accent-soft);
-}
-.imm-char-name {
-  font-weight: 700;
-  color: var(--ink);
-}
-.imm-char-desc {
-  font-size: 11px;
-  color: var(--ink-muted);
+  min-height: 0;
 }
 
-.imm-agent-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink-muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-.imm-agent-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-.imm-agent-btn.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.imm-agent-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* ── 快捷回复 ── */
 .imm-quick-replies {
   display: flex;
   gap: 8px;
-  padding: 10px 0;
   overflow-x: auto;
-  overflow-y: hidden;
-  flex-shrink: 0;
+  padding: 10px 0;
   pointer-events: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  cursor: grab;
+  user-select: none;
 }
 .imm-quick-replies::-webkit-scrollbar {
-  display: none;
+  height: 0;
 }
-.imm-quick-replies:active {
-  cursor: grabbing;
-}
-
 .imm-qr-btn {
-  flex-shrink: 0;
   padding: 6px 14px;
-  border-radius: 18px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border);
   background: var(--surface);
-  color: var(--ink-muted);
+  color: var(--ink-soft);
   font-size: 12px;
-  font-family: inherit;
+  white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s;
-  white-space: nowrap;
 }
-.imm-qr-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
+.imm-qr-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
-  transform: translateY(-1px);
-}
-.imm-qr-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
-/* ── 输入区 ── */
-.imm-input-area {
-  flex-shrink: 0;
-  padding: 16px;
-  pointer-events: auto;
+.imm-input-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-[data-theme='dark'] .imm-input-area {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.hidden-file {
-  display: none;
-}
-
-/* ── 附件预览 ── */
-.imm-attachment {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 500;
-}
-.imm-attachment-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.imm-attachment-status {
-  font-size: 11px;
-  color: var(--accent);
-  animation: pulse-opacity 1.2s infinite;
-}
-@keyframes pulse-opacity {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-.imm-attachment-remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(139, 92, 246, 0.15);
-  color: var(--accent);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.imm-attachment-remove:hover {
-  background: rgba(231, 76, 60, 0.2);
-  color: #c44a4a;
-}
-
-/* ── 图片预览 ── */
-.imm-image-preview {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 4px;
-}
-.imm-image-preview img {
-  max-width: 160px;
-  max-height: 120px;
-  border-radius: 10px;
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  object-fit: cover;
-}
-.imm-image-remove {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.imm-image-remove:hover {
-  background: rgba(231, 76, 60, 0.8);
+  pointer-events: auto;
+  box-shadow: var(--shadow-sm);
 }
 
 .imm-textarea {
   width: 100%;
-  min-height: 80px;
-  max-height: 300px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--ink);
-  font-size: 14px;
-  font-family: inherit;
-  resize: none;
-  transition:
-    border-color 0.2s,
-    background-color 0.2s,
-    box-shadow 0.2s;
   box-sizing: border-box;
-}
-.imm-textarea::placeholder {
-  color: var(--ink-muted);
-}
-.imm-textarea:focus {
+  border: none;
   outline: none;
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
-}
-.imm-textarea:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: transparent;
+  font-size: 14px;
+  color: var(--ink);
+  resize: none;
+  font-family: inherit;
 }
 
 .imm-input-actions {
@@ -3332,436 +1741,97 @@ function shouldShowMessage(msg: ChatMsg) {
   align-items: center;
   gap: 8px;
 }
-
 .imm-icon-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  background: var(--surface);
+  background: none;
+  border: none;
   color: var(--ink-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
 }
 .imm-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--hover-bg);
   color: var(--ink);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+}
+
+.imm-input-tip {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
 .imm-send-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  margin-left: auto;
-  box-shadow: var(--shadow-button);
-}
-.imm-send-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  box-shadow: var(--shadow-button-hover);
-  transform: translateY(-1px);
 }
 .imm-send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.imm-input-tip {
-  font-size: 11px;
-  color: var(--ink-muted);
-  letter-spacing: 0.5px;
-  flex: 1;
+.imm-attachment, .imm-image-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  width: fit-content;
 }
-
-/* ── 标签栏 ── */
-.imm-tabs {
+.imm-image-preview img {
+  height: 36px;
+  width: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.imm-attachment-remove, .imm-image-remove {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-bottom: 10px;
-  pointer-events: auto;
-  flex-shrink: 0;
-}
-.imm-tab {
-  padding: 5px 14px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.imm-tab.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-.imm-tab:hover:not(.active) {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-.imm-tab-action {
-  margin-left: auto;
 }
 
-/* ── 对话/会话面板 ── */
-.imm-panel-chat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
 .imm-panel-sessions {
   flex: 1;
   overflow-y: auto;
   pointer-events: auto;
-  padding: 4px 0;
 }
-.imm-panel-capabilities {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  pointer-events: auto;
-  padding: 6px 8px 32px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-.imm-panel-sessions::-webkit-scrollbar,
-.imm-panel-capabilities::-webkit-scrollbar {
-  width: 0;
-}
-
-.imm-cap-section {
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.imm-cap-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--ink-muted);
-}
-.imm-cap-heading h2 {
-  margin: 2px 0 0;
-  color: var(--ink);
-  font-size: 16px;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-}
-.imm-cap-eyebrow {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.imm-cap-copy {
-  margin: 10px 0 12px;
-  color: var(--ink-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.imm-index-copy {
-  margin: 12px 0;
-  color: var(--ink-muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-.imm-index-button {
-  width: 100%;
-  min-height: 38px;
-  border: 1px solid var(--border-interactive);
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  background: var(--accent-soft);
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.imm-index-button:hover:not(:disabled) {
-  border-color: var(--border-focus);
-  color: var(--accent);
-}
-.imm-index-button:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-.imm-index-message {
-  margin: 9px 0 0;
-  color: var(--ink-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.imm-evaluation-target {
-  margin: 0 0 10px;
-  padding: 8px 10px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  color: var(--ink);
-  font-size: 11px;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.imm-cap-refresh {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-.imm-cap-refresh:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--border-interactive);
-  background: var(--surface-hover);
-}
-.imm-cap-refresh:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-.imm-cap-refresh .spinning {
-  animation: spin 0.8s linear infinite;
-}
-
-.imm-cap-loading,
-.imm-cap-empty {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--ink-muted);
-  font-size: 12px;
-}
-.imm-cap-empty {
-  align-items: flex-start;
-  padding: 14px;
-  border-radius: 12px;
-  background: var(--tag-bg);
-}
-.imm-cap-empty strong {
-  color: var(--ink-soft);
-  font-size: 13px;
-}
-.imm-cap-empty p {
-  margin: 3px 0 0;
-  line-height: 1.5;
-}
-.imm-cap-error {
-  margin: 10px 0 0;
-  color: oklch(0.58 0.17 25);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.imm-server-summary {
-  margin: 14px 0 8px;
-  color: var(--ink-muted);
-  font-size: 11px;
-}
-.imm-server-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.imm-server-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--tag-bg);
-}
-.imm-server-status {
-  display: grid;
-  flex: 0 0 34px;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.imm-server-copy {
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-.imm-server-copy strong {
-  color: var(--ink);
-  font-size: 13px;
-}
-.imm-server-copy span {
-  color: var(--ink-muted);
-  font-size: 11px;
-}
-.imm-server-connected {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--ink-muted);
-  font-size: 10px;
-}
-.imm-server-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 7px var(--accent);
-}
-
-.imm-ground-truth {
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  min-height: 56px;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  outline: none;
-  background: var(--tag-bg);
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.imm-ground-truth:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.imm-ground-truth::placeholder {
-  color: var(--ink-muted);
-}
-.imm-evaluate-btn {
-  width: 100%;
-  min-height: 38px;
-  margin-top: 9px;
-  border: 0;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  background: var(--accent);
-  color: var(--canvas);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.imm-evaluate-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-}
-.imm-evaluate-btn:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-.imm-score-result {
-  margin-top: 14px;
-  padding-top: 13px;
-  border-top: 1px solid var(--border);
-}
-.imm-overall-score {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  color: var(--ink-muted);
-  font-size: 11px;
-}
-.imm-overall-score strong {
-  color: var(--accent);
-  font-size: 22px;
-  letter-spacing: -0.04em;
-}
-.imm-score-list {
-  margin: 10px 0 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
-}
-.imm-score-list div {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.imm-score-list dt,
-.imm-score-list dd {
-  margin: 0;
-  font-size: 10px;
-}
-.imm-score-list dt {
-  color: var(--ink-muted);
-}
-.imm-score-list dd {
-  color: var(--ink-soft);
-  font-weight: 700;
-}
-.imm-context-sources {
-  margin: 10px 0 0;
-  color: var(--ink-muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-/* ── 会话列表 ── */
 .imm-sess-list {
   list-style: none;
-  margin: 0;
   padding: 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .imm-sess-item {
-  position: relative;
-  padding: 10px 36px 10px 12px;
-  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   cursor: pointer;
   transition: all 0.2s;
 }
 .imm-sess-item:hover {
-  background: var(--surface-hover);
   border-color: var(--border-interactive);
 }
 .imm-sess-item.current {
@@ -3769,651 +1839,164 @@ function shouldShowMessage(msg: ChatMsg) {
   background: var(--accent-soft);
 }
 .imm-sess-title {
-  font-weight: 600;
   font-size: 13px;
+  font-weight: 500;
   color: var(--ink);
+  flex: 1;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .imm-sess-meta {
   font-size: 11px;
   color: var(--ink-muted);
-  margin-top: 2px;
+  margin-right: 12px;
 }
 .imm-sess-del {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  background: none;
   border: none;
-  background: transparent;
   color: var(--ink-muted);
-  border-radius: 6px;
-  padding: 4px;
   cursor: pointer;
-  transition: all 0.2s;
+  padding: 4px;
 }
 .imm-sess-del:hover {
-  background: rgba(231, 76, 60, 0.1);
-  color: #c44a4a;
+  color: #ef4444;
 }
 .imm-sess-confirm {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
-.imm-sess-confirm-yes,
-.imm-sess-confirm-no {
-  border: none;
-  border-radius: 6px;
-  padding: 4px 10px;
+.imm-sess-confirm button {
   font-size: 11px;
-  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
 }
 .imm-sess-confirm-yes {
-  background: rgba(231, 76, 60, 0.15);
-  color: #c44a4a;
-}
-.imm-sess-confirm-yes:hover {
-  background: rgba(231, 76, 60, 0.3);
+  background: #ef4444;
+  color: white;
+  border: none;
 }
 .imm-sess-confirm-no {
-  background: var(--surface-hover);
-  color: var(--ink-muted);
-}
-.imm-sess-confirm-no:hover {
-  background: var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
 }
 .imm-sess-empty {
   text-align: center;
   color: var(--ink-muted);
   font-size: 13px;
-  padding: 24px 0;
+  margin-top: 40px;
 }
 
-@media (max-width: 768px) {
-  .chat-panel {
-    width: 100%;
-    padding: 60px 20px 140px 20px;
-  }
-  .wave-container {
-    width: 280px;
-    height: 120px;
-  }
-  .imm-toolbar {
-    flex-wrap: wrap;
-  }
+.imm-panel-capabilities {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 4px;
+  pointer-events: auto;
 }
-</style>
-
-<style scoped>
-
-/* ─── 赞同与踩按钮 (Starlore 原生美学设计系统版) ─── */
-.imm-msg-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  align-items: center;
-}
-.imm-action-btn {
-  background: var(--tag-bg);
-  border: 1px solid var(--border-interactive);
-  color: var(--ink-soft);
-  border-radius: var(--radius-full, 999px);
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--shadow-sm);
-}
-.imm-action-btn:hover {
-  color: var(--ink);
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  transform: translateY(-1px);
-}
-.imm-action-btn.active.like {
-  color: #ffffff !important;
-  border-color: var(--accent) !important;
-  background: var(--accent) !important;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
-}
-.imm-action-btn.active.dislike {
-  color: #ffffff !important;
-  border-color: #f43f5e !important;
-  background: #f43f5e !important;
-  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.35);
-}
-
-/* ─── 反馈弹窗（Starlore 原生美学设计系统版） ─── */
-.imm-feedback-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: modalFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-@keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.imm-feedback-modal {
+.imm-cap-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 16px);
-  width: 440px;
-  max-width: 90vw;
-  padding: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: var(--ink);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
 }
-
-.imm-feedback-header {
+.imm-cap-heading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-.imm-feedback-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
-  color: var(--ink);
-}
-.imm-close-btn {
-  background: transparent;
-  border: none;
-  color: var(--ink-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-.imm-close-btn:hover {
-  color: var(--ink);
-  background: var(--tag-bg);
-}
-
-.imm-form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  margin-bottom: 10px;
-}
-
-.imm-radio-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
-  font-size: 13px;
-}
-.imm-radio-group label {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--tag-bg);
-  border: 1px solid var(--border-interactive);
-  color: var(--ink);
-  transition: all 0.2s ease;
-}
-.imm-radio-group label:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.imm-radio-group input[type="radio"] {
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.imm-feedback-input {
-  width: 100%;
-  height: 90px;
-  background: var(--tag-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
-  color: var(--ink);
-  padding: 12px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-.imm-feedback-input:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  background: var(--surface);
-}
-
-.imm-feedback-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
-}
-.imm-btn-cancel {
-  background: var(--tag-bg);
-  border: 1px solid var(--border);
-  color: var(--ink-soft);
-  padding: 8px 18px;
-  border-radius: var(--radius-full, 999px);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.imm-btn-cancel:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-.imm-btn-submit {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: var(--canvas);
-  padding: 8px 20px;
-  border-radius: var(--radius-full, 999px);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-.imm-btn-submit:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-}
-
-</style>
-
-<style scoped>
-
-/* ─── Citation Citation Badges & Hover Popover (Starlore 原生设计语言版) ─── */
-.imm-rag-citation-list {
-  margin-top: 10px;
-}
-.imm-citation-label {
-  font-size: 11px;
-  color: var(--ink-muted);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-.imm-citation-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.imm-citation-badge {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--tag-bg);
-  border: 1px solid var(--border-interactive);
-  border-radius: var(--radius-sm, 6px);
-  padding: 4px 10px;
-  font-size: 11px;
-  color: var(--accent);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.imm-citation-badge:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  transform: translateY(-1px);
-}
-.imm-citation-num {
-  font-weight: 700;
-}
-.imm-citation-title {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Starlore 同款有机半透明 Hover 浮动卡片 */
-.imm-citation-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  width: 270px;
-  padding: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 12px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: var(--ink);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(6px);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 100;
-  pointer-events: none;
-}
-.imm-citation-badge:hover .imm-citation-popover {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
-.pop-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 10px;
+  align-items: flex-start;
   margin-bottom: 8px;
 }
-.pop-tag {
-  background: var(--accent-soft);
-  color: var(--accent);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.pop-score {
+.imm-cap-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   color: var(--accent);
   font-weight: 700;
+  margin-bottom: 4px;
 }
-.pop-title {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 650;
+.imm-cap-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
   color: var(--ink);
-}
-.pop-snippet {
   margin: 0;
-  font-size: 11px;
-  color: var(--ink-muted);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
-
-/* ─── 调参面板（匹配 Starlore 原生设计语言） ─── */
-.imm-panel-config {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  pointer-events: auto;
-  position: relative;
-  z-index: 10;
-  padding: 6px 8px 32px 0;
-}
-.imm-cfg-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 14px;
-}
-.imm-cfg-card {
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--tag-bg);
+.imm-cap-refresh {
+  background: none;
   border: 1px solid var(--border);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.imm-cap-empty {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.02));
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.imm-server-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: all 0.2s ease;
+  margin-top: 12px;
 }
-.imm-cfg-card:hover {
-  border-color: var(--border-interactive);
-}
-.imm-cfg-card.row-toggle {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-.imm-cfg-label {
+.imm-server-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.imm-cfg-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.imm-cfg-label-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.imm-cfg-tag {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.imm-cfg-val-badge {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-.imm-cfg-subtext {
-  margin: 0;
-  font-size: 11px;
-  color: var(--ink-muted);
-  line-height: 1.4;
-}
-.imm-select-wrapper {
-  position: relative;
-  width: 100%;
-}
-.imm-cfg-select {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--surface);
-  border: 1px solid var(--border-interactive);
-  color: var(--ink);
-  padding: 10px 32px 10px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  cursor: pointer;
-  pointer-events: auto;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  transition: all 0.2s ease;
-}
-.imm-cfg-select option {
-  background: #1e1e2e;
-  color: #ffffff;
-  padding: 10px;
-}
-.imm-cfg-select:focus, .imm-cfg-select:hover {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.imm-cfg-range {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
-  pointer-events: auto;
-}
-/* 开关 Toggle */
-.imm-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-  pointer-events: auto;
-}
-.imm-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.imm-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0, 0, 0, 0.15);
-  transition: .3s;
-  border-radius: 24px;
-}
-.imm-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .3s;
-  border-radius: 50%;
-}
-input:checked + .imm-slider {
-  background-color: var(--accent);
-}
-input:checked + .imm-slider:before {
-  transform: translateX(20px);
-}
-.save-btn {
-  margin-top: 8px;
-  background: var(--accent);
-  color: var(--canvas);
-  border-color: var(--accent);
-}
-.save-btn:hover {
-  background: var(--accent-hover);
-  color: #fff;
-}
-.imm-cfg-hint {
-  color: #10b981;
-  font-size: 12px;
-  margin-top: 6px;
-  text-align: center;
-}
-
-</style>
-
-<style scoped>
-
-/* ─── Starlore 文章编辑页同款 custom-select 下拉框样式 ─── */
-.custom-select {
-  position: relative;
-  width: 100%;
-}
-.custom-select-trigger {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border-interactive);
-  border-radius: var(--radius-md, 10px);
-  font-size: 0.85rem;
-  color: var(--ink);
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-.custom-select-trigger:hover {
-  border-color: var(--border-focus);
-  background: var(--surface-hover);
-}
-.arrow-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--ink-muted);
-  transition: transform 0.2s ease, color 0.2s ease;
-}
-.arrow-icon.is-open {
-  transform: rotate(180deg);
-  color: var(--accent);
-}
-.custom-select-options {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  background: var(--surface);
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.02));
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
-  z-index: 200;
-  max-height: 220px;
-  overflow-y: auto;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 6px;
+  border-radius: var(--radius-md);
+}
+.imm-server-copy {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.custom-select-option {
-  padding: 9px 12px;
-  border-radius: var(--radius-sm, 6px);
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-  transition: all 0.2s ease;
+.imm-server-copy strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+.imm-server-copy span {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+.imm-server-connected {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #28c840;
+  font-weight: 500;
+}
+.imm-server-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #28c840;
+}
+.imm-index-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
 }
-.custom-select-option:hover {
-  background: var(--accent-soft);
+.imm-index-button:hover {
+  border-color: var(--accent);
   color: var(--accent);
 }
-.custom-select-option.active {
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 600;
-}
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
 </style>

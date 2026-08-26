@@ -865,79 +865,93 @@ onBeforeUnmount(() => {
 .starfield-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(8, 12, 24, 0.65);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 20;
+  z-index: 2000;
+  padding: 24px;
 }
 
 .starfield-modal {
-  background: linear-gradient(135deg, rgba(15, 32, 55, 0.95), rgba(8, 15, 25, 0.95));
-  border: 1px solid rgba(100, 200, 255, 0.3);
-  padding: 30px;
-  border-radius: 12px;
+  background: rgba(16, 24, 48, 0.92);
+  border: 1px solid rgba(100, 200, 255, 0.25);
+  padding: 26px 28px;
+  border-radius: 24px;
   color: #fff;
-  max-width: 400px;
-  width: 80%;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 150, 255, 0.2);
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(79, 110, 247, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: modalCardPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .starfield-modal__title {
-  margin: 0 0 15px 0;
-  color: #d4fbff;
-  font-weight: 400;
-  letter-spacing: 1px;
-  font-size: 1.2rem;
+  margin: 0 0 12px 0;
+  color: #f1f6ff;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.25rem;
 }
 
 .starfield-modal__desc {
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 20px;
+  line-height: 1.65;
+  color: rgba(235, 240, 255, 0.82);
+  margin-bottom: 22px;
   font-size: 0.92rem;
 }
 
 .starfield-modal__actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: flex-end;
 }
 
 .starfield-modal__btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #fff;
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 8px 18px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   font-size: 0.88rem;
+  font-weight: 550;
 }
 
 .starfield-modal__btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
 }
 
 .starfield-modal__btn--primary {
-  background: var(--accent, #b85c38);
+  background: #3b82f6;
+  border: none;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  font-weight: 600;
 }
 
 .starfield-modal__btn--primary:hover {
-  background: var(--accent-hover, #a04e2e);
+  background: #2563eb;
+  transform: translateY(-1px);
 }
 
-.modal-fade-enter-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.modal-fade-enter-active,
 .modal-fade-leave-active {
-  transition: all 0.2s ease-in;
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
 }
-.modal-fade-enter-from .starfield-modal {
-  transform: scale(0.9);
+
+.modal-fade-enter-from .starfield-modal,
+.modal-fade-leave-to .starfield-modal {
+  opacity: 0;
+  transform: scale(0.93) translateY(10px);
 }
 </style>

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { listResumes, deleteResume, getResume, createResume, type ResumeData } from '@/api/resume'
 import { useUserStore } from '@/stores/user'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { FileText } from '@lucide/vue'
+import { FileText, X } from '@lucide/vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -228,43 +228,48 @@ const handleCopy = async (item: ResumeData) => {
 
       <!-- Template Picker Modal -->
       <Teleport to="body">
-        <div
-          v-if="showTemplatePicker"
-          class="modal-overlay"
-          @click.self="showTemplatePicker = false"
-        >
-          <div class="modal-card">
-            <div class="modal-header">
-              <h2>选择简历模板</h2>
-              <button class="modal-close" @click="showTemplatePicker = false">&times;</button>
-            </div>
-            <div class="template-grid">
-              <div
-                v-for="tpl in TEMPLATES"
-                :key="tpl.key"
-                class="template-option"
-                :class="{ 'template-option--active': false }"
-                @click="createWithTemplate(tpl.key)"
-              >
-                <div class="template-preview">
-                  <div class="template-placeholder">{{ tpl.name }}</div>
-                </div>
-                <div class="template-info">
-                  <h4>{{ tpl.name }}</h4>
-                  <p>{{ tpl.desc }}</p>
+        <Transition name="modal-fade">
+          <div
+            v-if="showTemplatePicker"
+            class="modal-overlay"
+            @click.self="showTemplatePicker = false"
+          >
+            <div class="modal-card">
+              <div class="modal-header">
+                <h2>选择简历模板</h2>
+                <button class="modal-close" @click="showTemplatePicker = false">
+                  <X :size="16" />
+                </button>
+              </div>
+              <div class="template-grid">
+                <div
+                  v-for="tpl in TEMPLATES"
+                  :key="tpl.key"
+                  class="template-option"
+                  :class="{ 'template-option--active': false }"
+                  @click="createWithTemplate(tpl.key)"
+                >
+                  <div class="template-preview">
+                    <div class="template-placeholder">{{ tpl.name }}</div>
+                  </div>
+                  <div class="template-info">
+                    <h4>{{ tpl.name }}</h4>
+                    <p>{{ tpl.desc }}</p>
+                  </div>
                 </div>
               </div>
+              <div v-if="creating" class="modal-loading">创建中...</div>
             </div>
-            <div v-if="creating" class="modal-loading">创建中...</div>
           </div>
-        </div>
+        </Transition>
       </Teleport>
 
       <ConfirmModal
         :show="showDeleteConfirm"
         title="确认删除"
         message="确认删除该简历？此操作不可撤销。"
-        confirm-text="删除"
+        confirm-text="删除简历"
+        tone="danger"
         @confirm="confirmDelete"
         @cancel="showDeleteConfirm = false"
       />
@@ -379,87 +384,129 @@ const handleCopy = async (item: ResumeData) => {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
 }
+
 .modal-card {
-  background: var(--surface, #fff);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
   width: 90%;
   max-width: 640px;
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
-  padding: 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  padding: 24px 28px;
+  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: modalCardPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
+
 .modal-header h2 {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
+
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 50%;
   color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.modal-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  transform: rotate(90deg);
+}
+
 .template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 16px;
 }
+
 .template-option {
-  border: 2px solid var(--border);
-  border-radius: 14px;
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s;
+  background: rgba(0, 0, 0, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .template-option:hover {
   border-color: var(--accent, #6d63ff);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
+
 .template-preview {
-  height: 160px;
-  background: linear-gradient(135deg, #f0edff, #faf6ee);
+  height: 140px;
+  background: linear-gradient(135deg, rgba(116, 145, 255, 0.1), rgba(110, 231, 183, 0.1));
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 .template-placeholder {
-  font-size: 0.9rem;
-  color: var(--ink-muted);
-  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--ink);
+  font-weight: 650;
 }
+
 .template-info {
   padding: 12px;
 }
+
 .template-info h4 {
   margin: 0 0 4px;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--ink);
 }
+
 .template-info p {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--ink-muted);
+  color: var(--ink-soft);
+  line-height: 1.4;
 }
+
 .modal-loading {
   text-align: center;
   padding: 16px;
-  color: var(--ink-muted);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 550;
 }
 
 .page-desc {
@@ -494,5 +541,39 @@ const handleCopy = async (item: ResumeData) => {
   color: var(--ink-muted);
   margin: 0 0 24px;
   font-size: 0.95rem;
+}
+
+:global([data-theme="dark"]) .modal-overlay {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+:global([data-theme="dark"]) .modal-card {
+  background: rgba(22, 26, 38, 0.96);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 32px 80px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+:global([data-theme="dark"]) .modal-header {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:global([data-theme="dark"]) .modal-close {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="dark"]) .modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+:global([data-theme="dark"]) .template-option {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:global([data-theme="dark"]) .template-option:hover {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
 }
 </style>

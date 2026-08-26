@@ -64,5 +64,10 @@ ro-blog/*.env
 starlore-py/data/
 starlore-py/.env
 
+# Temporary and local
+tmp/
+.codex-remote-attachments/
+.impeccable/
+
 # Scratch scripts
 scratch/

@@ -53,6 +53,12 @@ class _ZhipuEmbeddings(Embeddings):
                                 "Content-Type": "application/json",
                             },
                         )
+                        if resp.status_code == 401:
+                            logger.error(
+                                "[RAG Embedding 异常] 智谱 API 身份验证失败 (HTTP 401)，请在数据库或环境变量中检查 Zhipu API Key"
+                            )
+                            last_err = RuntimeError("智谱 API 身份验证失败 (HTTP 401)")
+                            break
                         if resp.status_code >= 400:
                             logger.error(
                                 "[RAG Embedding 异常] 智谱 API 返回 HTTP %d: %s (URL: %s, Model: %s)",
@@ -68,6 +74,9 @@ class _ZhipuEmbeddings(Embeddings):
                         last_err = None
                         break
                     except Exception as e:
+                        if resp and getattr(resp, 'status_code', None) == 401:
+                            last_err = e
+                            break
                         last_err = e
                         logger.warning("[RAG Embedding 重试 %d/3] %s", attempt + 1, e)
                         time.sleep(1.0)

@@ -195,3 +195,124 @@
     font-size: 0.88rem;
   }
 }
+
+/* ════════════════════════════════════════
+   Global Modern Modal & Dialog Design System
+   ════════════════════════════════════════ */
+
+.el-overlay {
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.1) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+[data-theme="dark"] .el-overlay {
+  background: rgba(0, 0, 0, 0.65) !important;
+}
+
+.el-dialog {
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.18), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  overflow: hidden !important;
+  animation: modalCardPop 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+[data-theme="dark"] .el-dialog {
+  background: rgba(22, 26, 38, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 32px 80px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.el-dialog__header {
+  padding: 22px 26px 18px !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  margin: 0 !important;
+}
+
+[data-theme="dark"] .el-dialog__header {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.el-dialog__title {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--ink) !important;
+}
+
+.el-dialog__headerbtn {
+  top: 18px !important;
+  right: 18px !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 50% !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  display: grid !important;
+  place-items: center !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.el-dialog__headerbtn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  transform: rotate(90deg) scale(1.05) !important;
+}
+
+[data-theme="dark"] .el-dialog__headerbtn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .el-dialog__headerbtn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--ink-muted) !important;
+  font-size: 16px !important;
+}
+
+.el-dialog__body {
+  padding: 22px 26px !important;
+}
+
+.el-dialog__footer {
+  padding: 16px 26px 22px !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .el-dialog__footer {
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Global Drawer */
+.el-drawer {
+  border-radius: 28px 0 0 28px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: -20px 0 60px rgba(15, 23, 42, 0.14) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+[data-theme="dark"] .el-drawer {
+  background: rgba(22, 26, 38, 0.96) !important;
+  border-left-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5) !important;
+}
+
+@keyframes modalCardPop {
+  0% {
+    transform: scale(0.93) translateY(12px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}

@@ -941,50 +941,42 @@ const handleChangePassword = async () => {
 }
 
 .btn-cancel {
-  padding: 8px 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  font-size: 14px;
-  font-weight: 500;
+  padding: 9px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 550;
   cursor: pointer;
   color: var(--ink-soft);
-  background: transparent;
+  background: rgba(0, 0, 0, 0.03);
   transition: all var(--transition);
   font-family: inherit;
 }
 
 .btn-cancel:hover {
-  background: var(--canvas-deep);
-}
-
-:deep(.el-dialog) {
-  font-family: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.72), transparent 42%),
-    rgba(237, 246, 252, 0.82);
-  backdrop-filter: blur(28px) saturate(1.08);
-  -webkit-backdrop-filter: blur(28px) saturate(1.08);
-  box-shadow:
-    0 36px 80px -28px rgba(52, 79, 94, 0.34),
-    0 12px 30px -20px rgba(52, 79, 94, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
 }
 
 :deep(.account-dialog) {
   width: min(var(--el-dialog-width), calc(100vw - 32px));
-  max-height: min(760px, calc(100dvh - 32px));
+  max-height: min(780px, calc(100dvh - 32px));
   margin: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
 }
 
-:deep(.el-dialog__header) {
+:deep(.account-dialog .el-dialog__header) {
   flex: 0 0 auto;
-  padding: 24px 28px 20px;
-  border-bottom: 1px solid rgba(92, 77, 61, 0.1);
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   margin: 0;
 }
 
@@ -995,7 +987,7 @@ const handleChangePassword = async () => {
 .dialog-heading h2 {
   margin: 8px 0 3px;
   color: var(--ink);
-  font-size: 23px;
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -1004,62 +996,105 @@ const handleChangePassword = async () => {
 .dialog-heading p {
   margin: 0;
   color: var(--ink-muted);
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.6;
 }
 
 .dialog-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  color: var(--ink-muted);
-  font-family: Inter, "Noto Sans SC", system-ui, sans-serif;
+  gap: 6px;
+  padding: 3px 10px;
+  background: rgba(79, 110, 247, 0.08);
+  border-radius: 999px;
+  color: var(--accent);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
 }
 
 .dialog-kicker::before {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
   content: "";
 }
 
 :deep(.account-dialog .el-dialog__headerbtn) {
   top: 20px;
   right: 20px;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  transition: background-color var(--transition), color var(--transition);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  display: grid;
+  place-items: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :deep(.account-dialog .el-dialog__headerbtn:hover) {
-  background: var(--accent-soft);
-}
-
-:deep(.el-dialog__body) {
-  padding: 22px 28px 24px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ink);
+  transform: rotate(90deg);
 }
 
 :deep(.account-dialog .el-dialog__body) {
+  padding: 22px 28px 24px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
-:deep(.el-dialog__footer) {
+:deep(.account-dialog .form-field input),
+:deep(.account-dialog .form-field textarea) {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 13.5px;
+  background: #f8fafc;
+  color: var(--ink);
+  transition: all 0.2s;
+}
+
+:deep(.account-dialog .form-field input:focus),
+:deep(.account-dialog .form-field textarea:focus) {
+  border-color: #4f6ef7;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+  background: #ffffff;
+}
+
+:deep(.account-dialog .form-field .input-disabled) {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
+  cursor: not-allowed;
+}
+
+:deep(.account-dialog .el-dialog__footer) {
   flex: 0 0 auto;
-  padding: 16px 28px 20px;
-  border-top: 1px solid rgba(92, 77, 61, 0.1);
+  padding: 16px 28px 22px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   background: transparent;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+:deep(.account-dialog .btn-primary) {
+  padding: 9px 24px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--ink);
+  color: var(--canvas);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+:deep(.account-dialog .btn-primary:hover:not(:disabled)) {
+  opacity: 0.92;
+  transform: translateY(-1px);
 }
 
 .password-form {
@@ -1074,19 +1109,48 @@ const handleChangePassword = async () => {
 }
 
 :global([data-theme="dark"]) :deep(.account-dialog) {
-  border-color: rgba(130, 151, 255, 0.18);
-  background:
-    radial-gradient(circle at 8% 0%, rgba(99, 133, 255, 0.1), transparent 38%),
-    rgba(16, 12, 38, 0.96);
-  box-shadow:
-    0 34px 90px rgba(0, 0, 0, 0.58),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(22, 26, 38, 0.98) !important;
+  box-shadow: 0 32px 80px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
-:global([data-theme="dark"]) .form-field input,
-:global([data-theme="dark"]) .form-field textarea {
-  border-color: rgba(130, 151, 255, 0.16);
-  background: rgba(255, 255, 255, 0.065);
+:global([data-theme="dark"]) :deep(.account-dialog .el-dialog__header),
+:global([data-theme="dark"]) :deep(.account-dialog .el-dialog__footer) {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog .form-field input),
+:global([data-theme="dark"]) :deep(.account-dialog .form-field textarea) {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog .form-field input:focus),
+:global([data-theme="dark"]) :deep(.account-dialog .form-field textarea:focus) {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog .form-field .input-disabled) {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog .el-dialog__headerbtn) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global([data-theme="dark"]) :deep(.account-dialog .el-dialog__headerbtn:hover) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+:global([data-theme="dark"]) .btn-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--ink-soft);
 }
 
 /* ─── Project ───────────────────────────────────────── */

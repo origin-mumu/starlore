@@ -520,10 +520,22 @@ async def synthesizer_node(state: MultiAgentState, llm: ChatOpenAI) -> MultiAgen
 
     # 流式输出最终回答
     full_content = ""
-    messages = [
-        SystemMessage(content="你是 Starlore 知识库助手。请只根据已确认的真实工具结果生成最终回答；审查失败时必须明确说明失败，禁止声称已经更新成功。"),
-        HumanMessage(content=(state.final_answer or "没有执行结果") + f"\n\n审查结论：{state.review_decision}\n审查意见：{state.review_feedback}"),
-    ]
+    messages = []
+    if state.system_prompt:
+        messages.append(SystemMessage(content=state.system_prompt + "\n\n【回答要求】请直接以你的设定人设、角色和语气自然面向用户作答。严禁输出类似「审查结论为 PASS」、「子任务已通过无需修正」等机械化的系统审查报告。"))
+    else:
+        messages.append(SystemMessage(content="你是 Starlore 智能助理。请直接面向用户给出自然、亲切、生动的回答。严禁输出类似「审查结论为 PASS」、「子任务已通过无需修正」等机械化的系统审查报告。"))
+
+    synthesizer_prompt = f"""## 用户的原始问题/请求
+{state.user_query}
+
+## 任务执行得到的内容与数据
+{state.final_answer or "（无特定工具调用结果，请直接结合上下文回应用户）"}
+"""
+    if state.review_decision == "FAIL":
+        synthesizer_prompt += f"\n\n注意：部分操作执行未达预期（{state.review_feedback}），请在回答中据实向用户友好说明。"
+
+    messages.append(HumanMessage(content=synthesizer_prompt))
 
     async for chunk in llm.astream(messages):
         if chunk.content:
