@@ -201,7 +201,7 @@ defineExpose({
       <div class="imm-mascot-aura" aria-hidden="true"></div>
       <EmotionBall
         ref="emotionBallRef"
-        :size="300"
+        :size="380"
         shape="blob"
         :emotion="currentEmotion"
         :sketch="false"
@@ -255,14 +255,15 @@ defineExpose({
 
 .imm-mascot-aura {
   position: absolute;
-  width: 380px;
-  height: 380px;
+  width: 480px;
+  height: 480px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(var(--accent-rgb, 232, 93, 42), 0.15) 0%, transparent 70%);
-  filter: blur(28px);
+  background: radial-gradient(circle, rgba(var(--accent-rgb, 232, 93, 42), 0.16) 0%, transparent 70%);
+  filter: blur(36px);
   pointer-events: none;
   animation: aura-pulse 4s ease-in-out infinite alternate;
 }
+
 
 @keyframes aura-pulse {
   0% { transform: scale(0.9); opacity: 0.5; }
