@@ -1298,4 +1298,54 @@ const handleChangePassword = async () => {
     min-height: 44px;
   }
 }
+
+:deep(.el-dialog) {
+  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.18);
+  padding: 8px 12px;
+}
+
+:deep(.el-dialog__header) {
+  padding: 16px 16px 8px;
+}
+
+:deep(.el-dialog__title) {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+:deep(.el-dialog__body) {
+  padding: 12px 16px;
+}
+
+:deep(.el-dialog__footer) {
+  padding: 12px 16px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 22px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.btn-cancel:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink);
+  border-color: var(--border-interactive);
+}
 </style>

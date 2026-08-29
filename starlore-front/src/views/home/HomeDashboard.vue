@@ -270,13 +270,25 @@ onMounted(async () => {
   pointer-events: none;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .knowledge-hero {
   width: 100%;
-  min-height: 430px;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .knowledge-intro {
@@ -286,7 +298,7 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 32px;
-  margin-bottom: 30px;
+  margin-bottom: 16px;
 }
 
 .knowledge-intro-copy {
@@ -339,8 +351,8 @@ onMounted(async () => {
   flex-shrink: 0;
   border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
   border-radius: var(--radius-full);
-  background: var(--ink);
-  color: var(--canvas);
+  background: var(--ink) !important;
+  color: #FFFFFF !important;
   font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
   font-size: 0.9rem;
   font-weight: 650;
@@ -349,18 +361,23 @@ onMounted(async () => {
   transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
 }
 
+.knowledge-create svg {
+  color: #FFFFFF !important;
+}
+
 .knowledge-create:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-button-hover);
+  color: #FFFFFF !important;
 }
 
 .knowledge-constellation {
   position: relative;
-  width: clamp(340px, 30vw, 400px);
+  width: clamp(300px, 26vw, 360px);
   grid-column: 2;
   justify-self: end;
   color: var(--ink);
-  transform: translateY(54px);
+  transform: translateY(12px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -380,9 +397,9 @@ onMounted(async () => {
 
 .constellation-ball-core {
   position: relative;
-  width: 172px;
-  height: 172px;
-  margin: 94px 0 98px;
+  width: 160px;
+  height: 160px;
+  margin: 40px 0 44px;
   z-index: 2;
   display: flex;
   justify-content: center;
@@ -575,8 +592,8 @@ onMounted(async () => {
 .knowledge-dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 32px;
-  margin-top: 24px;
+  gap: 24px;
+  margin-top: 14px;
 }
 
 .knowledge-recent,

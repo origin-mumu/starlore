@@ -1369,8 +1369,8 @@ function shouldShowMessage(msg: ChatMsg) {
   top: 0;
   bottom: 0;
   width: 50vw;
-  max-width: 50vw;
-  min-width: 420px;
+  max-width: 600px;
+  min-width: 380px;
   padding: 76px 36px 24px 32px;
   box-sizing: border-box;
   display: flex;
@@ -1664,7 +1664,7 @@ function shouldShowMessage(msg: ChatMsg) {
 }
 .imm-tab.active {
   background: var(--ink);
-  color: var(--canvas);
+  color: #FFFFFF !important;
   font-weight: 600;
   border-color: var(--ink);
 }
@@ -1892,15 +1892,19 @@ function shouldShowMessage(msg: ChatMsg) {
 .imm-panel-capabilities {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 4px;
+  padding: 6px 4px 16px;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
   pointer-events: auto;
 }
 .imm-cap-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 20px;
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px -8px rgba(0, 0, 0, 0.06);
 }
 .imm-cap-heading {
   display: flex;

@@ -130,58 +130,63 @@ onBeforeUnmount(() => {
 .imm-panel-config {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 4px;
+  padding: 6px 4px 16px;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+  pointer-events: auto;
 }
 
 .imm-cap-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  margin-bottom: 20px;
+  border-radius: 20px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px -8px rgba(0, 0, 0, 0.06);
 }
 
 .imm-cap-heading {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.imm-cap-eyebrow {
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-weight: 700;
   margin-bottom: 4px;
 }
 
+.imm-cap-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
 .imm-cap-heading h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--ink);
   margin: 0;
 }
 
 .imm-cap-copy {
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin-bottom: 20px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-bottom: 16px;
+  line-height: 1.4;
 }
 
 .imm-cfg-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .imm-cfg-card {
   background: var(--surface-secondary, rgba(0, 0, 0, 0.02));
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -197,7 +202,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--ink);
 }
@@ -207,7 +212,7 @@ onBeforeUnmount(() => {
   font-family: 'Fira Code', monospace;
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 4px;
   color: var(--ink-muted);
 }
@@ -219,25 +224,26 @@ onBeforeUnmount(() => {
 }
 
 .imm-cfg-label-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .imm-cfg-val-badge {
-  font-size: 12px;
+  font-size: 11.5px;
   font-family: 'Fira Code', monospace;
   font-weight: 700;
   color: var(--accent);
   background: var(--accent-soft);
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 1px 7px;
+  border-radius: 8px;
 }
 
 .imm-cfg-range {
   width: 100%;
   accent-color: var(--accent);
   cursor: pointer;
+  margin: 2px 0;
 }
 
 .imm-cfg-subtext {
@@ -257,9 +263,9 @@ onBeforeUnmount(() => {
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  font-size: 13px;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12.5px;
   color: var(--ink);
   cursor: pointer;
   transition: all 0.2s;
@@ -285,8 +291,8 @@ onBeforeUnmount(() => {
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.15);
   z-index: 50;
   max-height: 180px;
   overflow-y: auto;
@@ -294,10 +300,10 @@ onBeforeUnmount(() => {
 }
 
 .custom-select-option {
-  padding: 8px 12px;
+  padding: 7px 10px;
   font-size: 12px;
   color: var(--ink);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -315,8 +321,9 @@ onBeforeUnmount(() => {
 .imm-switch {
   position: relative;
   display: inline-block;
-  width: 38px;
+  width: 36px;
   height: 20px;
+  flex-shrink: 0;
 }
 .imm-switch input {
   opacity: 0;
@@ -346,27 +353,30 @@ input:checked + .imm-slider {
   background-color: var(--accent);
 }
 input:checked + .imm-slider:before {
-  transform: translateX(18px);
+  transform: translateX(16px);
 }
 
 .imm-index-button.save-btn {
-  width: 100%;
-  padding: 12px;
+  width: auto;
+  min-width: 160px;
+  margin: 10px auto 0;
+  padding: 9px 24px;
   background: var(--accent);
-  color: white;
+  color: #FFFFFF !important;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 13px;
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-button);
   transition: all 0.2s;
-  margin-top: 8px;
+  display: block;
 }
 
 .imm-index-button.save-btn:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-button-hover);
 }
 
 .imm-cfg-hint {
