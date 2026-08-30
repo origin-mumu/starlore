@@ -2,6 +2,7 @@
 import { RouterView, useRoute } from 'vue-router'
 
 import navbar from './components/navbar.vue'
+import BlurredBubbles from './components/BlurredBubbles.vue'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useUserStore } from '@/stores/user'
 
@@ -71,6 +72,8 @@ onBeforeUnmount(() => {
     class="app-container"
     :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' }"
   >
+    <!-- 全局背景装饰 - 模糊气泡 -->
+    <BlurredBubbles />
     <div v-if="!isAppReady" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>

@@ -5,16 +5,16 @@ import { useThemeStore } from '@/stores/theme'
 const themeStore = useThemeStore()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
-// 全局背景使用的主题气泡颜色（浅色模式具备多色彩搭配，深色模式具备深邃夜空感）
+// 全局背景使用的主题气泡颜色（浅色模式具备多色彩搭配，深色模式具备极光夜空感）
 const themeBubbles: Record<string, string[]> = {
-  light: ['#f7da3960', '#8fdbe970', '#ffffff60'],
-  dark: ['#16007B', '#12173F', '#1F1E54', '#151036', '#221045'],
+  light: ['#f7da3987', '#8fdbe9', '#fffef8'],
+  dark: ['#16007B', '#2A48F3', '#35BFAB', '#51D0B9', '#8B5CF6'],
 }
 
 // 滤镜强度
 const themeFilter: Record<string, string> = {
   light: 'blur(50px)',
-  dark: 'blur(50px)',
+  dark: 'blur(40px)',
 }
 
 // Simplex Noise
@@ -209,8 +209,8 @@ function draw(ctx: CanvasRenderingContext2D) {
   ctx.clearRect(0, 0, width, height)
 
   const themeAlpha: Record<string, number> = {
-    light: 0.7,
-    dark: 0.22,
+    light: 0.8,
+    dark: 0.45,
   }
   const alpha = themeAlpha[themeStore.current] ?? 0.32
 
@@ -303,10 +303,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .blurred-bubbles {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
+  z-index: -2;
   filter: blur(50px);
   pointer-events: none;
 }

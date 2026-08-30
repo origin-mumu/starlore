@@ -10,30 +10,19 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
-  background-color: var(--canvas);
-  min-height: 100%;
 }
 
 body {
-  min-height: 100%;
-  background-color: var(--canvas);
+  background: var(--canvas);
   background-image:
     radial-gradient(ellipse 80% 50% at 15% 15%, var(--orb-1) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 85% 75%, var(--orb-2) 0%, transparent 50%),
     radial-gradient(ellipse 50% 35% at 50% 40%, var(--orb-3) 0%, transparent 45%);
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  background-size: cover;
   color: var(--ink);
   font: 400 16px/1.8 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0;
-}
-
-#app {
-  min-height: 100%;
-  background-color: transparent;
 }
 
 img {
@@ -180,11 +169,11 @@ ol {
   --accent-amber: #E5B869;
   --accent-amber-soft: rgba(229, 184, 105, 0.14);
 
-  /* Background orbs — unified clean canvas */
-  --orb-1: transparent;
-  --orb-2: transparent;
-  --orb-3: transparent;
-  --orb-glow: transparent;
+  /* Background orbs — soft celestial sapphire, aurora emerald & star amber glow */
+  --orb-1: rgba(22, 0, 123, 0.38);
+  --orb-2: rgba(42, 72, 243, 0.22);
+  --orb-3: rgba(53, 191, 171, 0.14);
+  --orb-glow: rgba(42, 72, 243, 0.22);
   --star-color: rgba(235, 240, 255, 0.5);
 
   --ink: #E6E8E8;
