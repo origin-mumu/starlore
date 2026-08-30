@@ -10,19 +10,30 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  background-color: var(--canvas);
+  min-height: 100%;
 }
 
 body {
-  background: var(--canvas);
+  min-height: 100%;
+  background-color: var(--canvas);
   background-image:
     radial-gradient(ellipse 80% 50% at 15% 15%, var(--orb-1) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 85% 75%, var(--orb-2) 0%, transparent 50%),
     radial-gradient(ellipse 50% 35% at 50% 40%, var(--orb-3) 0%, transparent 45%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
   color: var(--ink);
   font: 400 16px/1.8 'LXGW WenKai', 'Source Serif 4', 'Georgia', 'Noto Serif SC', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0;
+}
+
+#app {
+  min-height: 100%;
+  background-color: transparent;
 }
 
 img {

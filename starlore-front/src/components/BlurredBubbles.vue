@@ -303,11 +303,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .blurred-bubbles {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
-  z-index: -2;
+  z-index: 0;
   filter: blur(50px);
   pointer-events: none;
 }
