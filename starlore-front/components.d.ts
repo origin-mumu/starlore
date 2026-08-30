@@ -17,7 +17,6 @@ declare module 'vue' {
     BlurredBubbles: typeof import('./src/components/BlurredBubbles.vue')['default']
     CharacterCardPicker: typeof import('./src/components/immersive/CharacterCardPicker.vue')['default']
     ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
-    CosmicBackdrop: typeof import('./src/components/CosmicBackdrop.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDrawer: typeof import('element-plus/es')['ElDrawer']

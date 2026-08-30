@@ -3,16 +3,12 @@ import { RouterView, useRoute } from 'vue-router'
 
 import navbar from './components/navbar.vue'
 import BlurredBubbles from './components/BlurredBubbles.vue'
-import CosmicBackdrop from './components/CosmicBackdrop.vue'
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const isAppReady = ref(false)
 const userStore = useUserStore()
 const route = useRoute()
-const showAmbientBackdrop = computed(
-  () => !['/echobot', '/vr', '/login'].includes(route.path),
-)
 const APP_LOADING_MIN_MS = 120
 const ICP_RECORD_NUMBER = '豫ICP备2026009410号'
 const MIIT_URL = 'https://beian.miit.gov.cn/'
@@ -78,7 +74,6 @@ onBeforeUnmount(() => {
   >
     <!-- 全局背景装饰 - 模糊气泡 -->
     <BlurredBubbles />
-    <CosmicBackdrop v-if="showAmbientBackdrop" />
     <div v-if="!isAppReady" class="loading-container">
       <div class="loading-spinner">
         <div class="spinner"></div>
