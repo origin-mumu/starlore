@@ -180,11 +180,11 @@ ol {
   --accent-amber: #E5B869;
   --accent-amber-soft: rgba(229, 184, 105, 0.14);
 
-  /* Background orbs — soft celestial sapphire, aurora emerald & star amber glow */
-  --orb-1: rgba(22, 0, 123, 0.38);
-  --orb-2: rgba(42, 72, 243, 0.22);
-  --orb-3: rgba(53, 191, 171, 0.14);
-  --orb-glow: rgba(42, 72, 243, 0.22);
+  /* Background orbs — unified clean canvas */
+  --orb-1: transparent;
+  --orb-2: transparent;
+  --orb-3: transparent;
+  --orb-glow: transparent;
   --star-color: rgba(235, 240, 255, 0.5);
 
   --ink: #E6E8E8;
