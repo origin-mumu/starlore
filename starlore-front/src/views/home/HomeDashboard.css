@@ -1,10 +1,4 @@
 .knowledge-home {
-  --soft-glass: rgba(255, 255, 255, 0.6);
-  --soft-glass-strong: rgba(255, 255, 255, 0.72);
-  --soft-glass-border: rgba(255, 255, 255, 0.88);
-  --soft-glass-shadow:
-    0 40px 50px -32px rgba(72, 53, 42, 0.14),
-    inset 0 0 20px rgba(255, 255, 255, 0.25);
   width: min(1080px, calc(100% - 32px));
   margin: 0 auto;
   padding: 128px 0 72px;
@@ -14,16 +8,7 @@
 }
 
 .knowledge-home::before {
-  content: '';
-  position: absolute;
-  z-index: -2;
-  inset: 82px -8vw auto;
-  height: 560px;
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink-muted) 42%, transparent) 1px, transparent 1.2px);
-  background-size: 24px 24px;
-  opacity: 0.34;
-  mask-image: linear-gradient(to bottom, black 5%, black 65%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 5%, black 65%, transparent 100%);
+  display: none;
 }
 
 .knowledge-home::after {
@@ -120,10 +105,10 @@
   gap: 8px;
   padding: 0 18px;
   flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  background: var(--ink) !important;
-  color: #FFFFFF !important;
+  background: var(--ink);
+  color: var(--canvas);
   font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
   font-size: 0.9rem;
   font-weight: 650;
@@ -132,14 +117,18 @@
   transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
 }
 
+:global([data-theme="dark"]) .knowledge-create {
+  background: var(--accent);
+  color: #FFFFFF;
+}
+
 .knowledge-create svg {
-  color: #FFFFFF !important;
+  color: currentColor;
 }
 
 .knowledge-create:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-button-hover);
-  color: #FFFFFF !important;
 }
 
 .knowledge-constellation {
@@ -281,13 +270,11 @@
   align-items: center;
   gap: 14px;
   padding: 8px 10px 8px 20px;
-  border: 1px solid var(--soft-glass-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  background: var(--soft-glass-strong);
+  background: var(--glass-bg);
   color: var(--ink-muted);
-  box-shadow:
-    0 18px 32px -26px rgba(72, 53, 42, 0.2),
-    inset 0 0 16px rgba(255, 255, 255, 0.22);
+  box-shadow: var(--shadow-card);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   transition: border-color 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
@@ -333,8 +320,14 @@
   transition: transform 180ms var(--ease-out-quart), opacity 180ms ease;
 }
 
+:global([data-theme="dark"]) .knowledge-search button {
+  background: var(--accent);
+  color: #FFFFFF;
+}
+
 .knowledge-search button:hover {
   transform: translateY(-1px);
+  box-shadow: var(--shadow-button-hover);
   opacity: 0.92;
 }
 
@@ -380,12 +373,13 @@
 
 .knowledge-recent,
 .knowledge-spaces {
-  background: var(--soft-glass-strong);
-  border: 1px solid var(--soft-glass-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
   border-radius: 28px;
-  box-shadow: var(--soft-glass-shadow);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all var(--transition);
 }
 
 .knowledge-recent {
@@ -449,7 +443,7 @@
 }
 
 .knowledge-row:hover {
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--row-hover-bg);
   transform: translateX(3px);
 }
 
@@ -564,7 +558,7 @@
 }
 
 .space-row:hover {
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--row-hover-bg);
 }
 
 .space-dot {
@@ -584,19 +578,23 @@
 .rediscover-card {
   padding: 20px;
   border-radius: 22px;
-  background: linear-gradient(135deg, rgba(232, 93, 42, 0.08), rgba(130, 155, 209, 0.12));
-  border: 1px solid var(--soft-glass-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column;
   gap: 6px;
   text-decoration: none;
   color: inherit;
-  box-shadow: var(--shadow-sm);
-  transition: transform 180ms var(--ease-out-quart);
+  transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart), border-color 180ms var(--ease-out-quart);
 }
 
 .rediscover-card:hover {
   transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-interactive);
 }
 
 .rediscover-label {
@@ -634,7 +632,8 @@
   justify-content: space-around;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--surface);
+  border: 1px solid var(--border);
   font-size: 0.78rem;
   color: var(--ink-soft);
 }
