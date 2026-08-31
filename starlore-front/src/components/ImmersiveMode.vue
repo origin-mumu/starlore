@@ -22,13 +22,16 @@ import {
 } from '@/api/ai'
 import { guestChat } from '@/api/guest-ai'
 import { useUserStore } from '@/stores/user'
+import { useCompanionStore } from '@/stores/companion'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getAuthToken } from '@/utils/authToken'
+import { useRoute } from 'vue-router'
 import {
   ThumbsUp,
   ThumbsDown,
   BookOpen,
   Sliders,
+  Settings,
   Image,
   FileText,
   Send,
@@ -40,6 +43,7 @@ import {
   Server,
 } from '@lucide/vue'
 
+const route = useRoute()
 const userStore = useUserStore()
 
 type ChatMsg = {
@@ -85,11 +89,23 @@ const emit = defineEmits<{
 }>()
 
 /* ─── 子组件 Ref 与 交互状态 ─── */
+const companionStore = useCompanionStore()
 const voiceStageRef = ref<InstanceType<typeof VoiceWaveStage> | null>(null)
 const currentEmotion = ref('02')
+let emotionTimer: ReturnType<typeof setTimeout> | null = null
 
-function setEmotion(emoId: string) {
+function setEmotion(emoId: string, durationMs?: number) {
+  if (emotionTimer) {
+    clearTimeout(emotionTimer)
+    emotionTimer = null
+  }
   currentEmotion.value = emoId
+  if (durationMs && durationMs > 0) {
+    emotionTimer = setTimeout(() => {
+      currentEmotion.value = companionStore.expression || '02'
+      emotionTimer = null
+    }, durationMs)
+  }
 }
 
 /* ─── 状态 ─── */
@@ -108,7 +124,9 @@ async function handleLike(msg: any) {
   msg.userFeedback = msg.userFeedback === 'LIKE' ? null : 'LIKE'
   const targetId = msg.id || 9999
   if (msg.userFeedback === 'LIKE') {
-    setEmotion('19')
+    // 触发单次欢快反馈并在 2 秒后自动恢复常态，避免无休止循环转圈
+    setEmotion('happy', 2000)
+    voiceStageRef.value?.getEmotionBall()?.spin(1)
   }
   try {
     await submitMessageFeedback(targetId, {
@@ -122,7 +140,7 @@ function openDislikeModal(msg: any) {
   msg.userFeedback = 'DISLIKE'
   feedbackTargetMessageId.value = msg.id || 9999
   feedbackModalOpen.value = true
-  setEmotion('12')
+  setEmotion('sad', 3000)
 }
 
 async function handleFeedbackSubmit(data: { type: string; comment: string }) {
@@ -136,6 +154,7 @@ async function handleFeedbackSubmit(data: { type: string; comment: string }) {
     })
   } catch {}
   feedbackModalOpen.value = false
+  setEmotion(companionStore.expression || '02')
 }
 
 /* ─── 文字输入 ─── */
@@ -152,10 +171,11 @@ watch(inputText, () => {
 })
 
 /* ─── 会话列表 ─── */
-const activeTab = ref<'chat' | 'sessions' | 'capabilities' | 'config'>('chat')
+const activeTab = ref<'chat' | 'sessions' | 'capabilities'>('chat')
 const showDeleteConfirm = ref<number | null>(null)
+const configModalOpen = ref(false)
 
-/* ─── Agent 检索调参 ─── */
+/* ─── Agent 检索调参与形象设置 ─── */
 const agentConfigSavedHint = ref('')
 const agentConfigForm = reactive({
   modelName: 'deepseek-chat',
@@ -171,7 +191,7 @@ const availableModels = ref<{ id: string; name: string; configured?: boolean }[]
 ])
 
 async function openAgentConfig() {
-  activeTab.value = 'config'
+  configModalOpen.value = true
   agentConfigSavedHint.value = ''
   try {
     const modelRes = await getAiModels()
@@ -199,6 +219,10 @@ async function saveAgentConfig() {
   try {
     await updateAgentConfig(agentConfigForm)
     agentConfigSavedHint.value = '✓ 参数保存成功！'
+    setTimeout(() => {
+      configModalOpen.value = false
+      agentConfigSavedHint.value = ''
+    }, 1200)
   } catch (e: any) {
     agentConfigSavedHint.value = '保存失败: ' + (e.message || '未知错误')
   }
@@ -553,7 +577,7 @@ async function handleSend(userText: string) {
       isLocalSending.value = false
       currentMode.value = 'speaking'
       statusText.value = 'Speaking...'
-      setEmotion('19')
+      setEmotion('05', 3000)
       emit('send', finalContent, res.content)
       emit('refreshQuota')
       speakText(res.content)
@@ -756,7 +780,7 @@ async function handleSend(userText: string) {
     isLocalSending.value = false
     currentMode.value = 'speaking'
     statusText.value = 'Speaking...'
-    setEmotion('19')
+    setEmotion('05', 3000)
     emit('send', finalContent, fullText, assistantMsg.agentTrace ? JSON.stringify(assistantMsg.agentTrace) : undefined)
     emit('refreshQuota')
     if (assistantMsg.agentTrace && assistantMsg.agentTrace.ragContexts?.length) {
@@ -916,6 +940,12 @@ watch(
 )
 watch(toolStatus, () => scrollChat())
 
+onMounted(() => {
+  if (route.query.tab === 'config' || route.query.tab === 'settings') {
+    openAgentConfig()
+  }
+})
+
 function shouldShowMessage(msg: ChatMsg) {
   if (msg.role === 'user') return true
   if (msg.content && msg.content.trim()) return true
@@ -976,11 +1006,11 @@ function shouldShowMessage(msg: ChatMsg) {
         <button
           type="button"
           class="imm-tab"
-          :class="{ active: activeTab === 'config' }"
+          :class="{ active: configModalOpen }"
           @click="openAgentConfig"
         >
-          <Sliders :size="13" style="margin-right: 4px;" />
-          调参
+          <Settings :size="13" style="margin-right: 4px;" />
+          设置
         </button>
         <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
           ＋ 新会话
@@ -1218,25 +1248,25 @@ function shouldShowMessage(msg: ChatMsg) {
         </div>
       </div>
 
-      <!-- 会话列表面板 -->
+      <!-- 会话历史列表 -->
       <div v-show="activeTab === 'sessions'" class="imm-panel-sessions">
-        <ul class="imm-sess-list">
+        <ul v-if="sessions.length" class="imm-sess-list">
           <li
             v-for="s in sessions"
             :key="s.id"
             class="imm-sess-item"
-            :class="{ current: s.id === currentSessionId }"
-            @click="(emit('loadSession', s.id), (activeTab = 'chat'))"
+            :class="{ active: s.id === currentSessionId }"
+            @click="emit('loadSession', s.id); activeTab = 'chat'"
           >
-            <div class="imm-sess-title">{{ s.title }}</div>
-            <div class="imm-sess-meta">{{ s.characterKey }}</div>
-            <div v-if="showDeleteConfirm === s.id" class="imm-sess-confirm">
+            <span class="imm-sess-title">{{ s.title }}</span>
+            <div v-if="showDeleteConfirm === s.id" class="imm-sess-confirm" @click.stop>
+              <span>确认删除？</span>
               <button
                 type="button"
                 class="imm-sess-confirm-yes"
-                @click.stop="(emit('deleteSession', s.id), (showDeleteConfirm = null))"
+                @click.stop="emit('deleteSession', s.id); showDeleteConfirm = null"
               >
-                确认
+                删除
               </button>
               <button
                 type="button"
@@ -1258,15 +1288,6 @@ function shouldShowMessage(msg: ChatMsg) {
         </ul>
         <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
       </div>
-
-      <!-- Agent 调参面板 -->
-      <AgentConfigDrawer
-        v-show="activeTab === 'config'"
-        :agent-config-form="agentConfigForm"
-        :available-models="availableModels"
-        :agent-config-saved-hint="agentConfigSavedHint"
-        @save="saveAgentConfig"
-      />
 
       <!-- MCP 能力面板 -->
       <div v-show="activeTab === 'capabilities'" class="imm-panel-capabilities">
@@ -1348,6 +1369,16 @@ function shouldShowMessage(msg: ChatMsg) {
     :open="feedbackModalOpen"
     @close="feedbackModalOpen = false"
     @submit="handleFeedbackSubmit"
+  />
+
+  <!-- AI 形象与参数设置弹窗 (Modal) -->
+  <AgentConfigDrawer
+    :open="configModalOpen"
+    :agent-config-form="agentConfigForm"
+    :available-models="availableModels"
+    :agent-config-saved-hint="agentConfigSavedHint"
+    @close="configModalOpen = false"
+    @save="saveAgentConfig"
   />
 </template>
 

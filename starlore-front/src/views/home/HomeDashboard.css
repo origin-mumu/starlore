@@ -172,37 +172,6 @@
   align-items: center;
 }
 
-.mascot-customize-badge {
-  position: absolute;
-  bottom: -4px;
-  right: -8px;
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--ink-soft);
-  font-size: 0.72rem;
-  font-weight: 650;
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: all 180ms ease;
-  opacity: 0.85;
-}
-
-.mascot-customize-badge:hover {
-  opacity: 1;
-  color: var(--accent);
-  border-color: var(--accent);
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: var(--shadow-card);
-}
-
 
 .knowledge-constellation > span {
   position: absolute;

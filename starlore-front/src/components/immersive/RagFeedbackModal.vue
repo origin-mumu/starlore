@@ -54,9 +54,7 @@ function handleSubmit() {
 .imm-feedback-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  background: rgba(0, 0, 0, 0.45);
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -65,24 +63,21 @@ function handleSubmit() {
 }
 
 .imm-feedback-modal {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 24px;
-  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: none;
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16);
   width: 100%;
   max-width: 460px;
   overflow: hidden;
-  animation: modalCardPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalCardPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .imm-feedback-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 22px 24px 8px;
 }
 
 .imm-feedback-header h3 {
@@ -97,25 +92,24 @@ function handleSubmit() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
   border-radius: 50%;
   color: var(--ink-muted);
   cursor: pointer;
   padding: 0;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.15s ease;
 }
 
 .imm-close-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: #f1f5f9;
   color: var(--ink);
-  transform: rotate(90deg);
 }
 
 .imm-feedback-body {
-  padding: 22px 24px;
+  padding: 12px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -148,7 +142,7 @@ function handleSubmit() {
 }
 
 .imm-radio-group input[type="radio"] {
-  accent-color: var(--accent);
+  accent-color: #337BF4;
   width: 16px;
   height: 16px;
   cursor: pointer;
@@ -172,8 +166,8 @@ function handleSubmit() {
 
 .imm-feedback-input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: #337BF4;
+  box-shadow: 0 0 0 3px rgba(51, 123, 244, 0.15);
   background: #fff;
 }
 
@@ -181,43 +175,49 @@ function handleSubmit() {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 10px 24px 22px;
   background: transparent;
 }
 
 .imm-btn-cancel,
 .imm-btn-submit {
-  padding: 8px 18px;
-  font-size: 13px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  height: 38px;
+  border-radius: var(--radius-full, 9999px);
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.2s;
+  font-size: 0.84rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: inherit;
 }
 
 .imm-btn-cancel {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: var(--ink-soft);
+  padding: 0 20px;
+  background: #f1f5f9;
+  border: none;
+  color: #475569;
 }
 
 .imm-btn-cancel:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--ink);
+  background: #e2e8f0;
+  color: #1e293b;
 }
 
 .imm-btn-submit {
-  background: var(--ink);
+  padding: 0 22px;
+  background: #337BF4;
   border: none;
-  color: var(--canvas);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(51, 123, 244, 0.28);
 }
 
 .imm-btn-submit:hover {
-  opacity: 0.92;
+  background: #2563eb;
   transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(51, 123, 244, 0.38);
 }
 
 :global([data-theme="dark"]) .imm-feedback-backdrop {
@@ -225,24 +225,18 @@ function handleSubmit() {
 }
 
 :global([data-theme="dark"]) .imm-feedback-modal {
-  background: rgba(22, 26, 38, 0.96);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 32px 80px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: #181b26;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
 }
 
-:global([data-theme="dark"]) .imm-feedback-header,
-:global([data-theme="dark"]) .imm-feedback-footer {
-  border-color: rgba(255, 255, 255, 0.06);
+:global([data-theme="dark"]) .imm-btn-cancel {
+  background: #242a38;
+  color: #cbd5e1;
 }
 
-:global([data-theme="dark"]) .imm-close-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-:global([data-theme="dark"]) .imm-close-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+:global([data-theme="dark"]) .imm-btn-cancel:hover {
+  background: #333d52;
+  color: #ffffff;
 }
 
 :global([data-theme="dark"]) .imm-radio-group,

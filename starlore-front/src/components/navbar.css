@@ -1,7 +1,7 @@
 /* ── Shared Navbar Pill Style ── */
 .navbar {
   position: fixed;
-  z-index: 10001;
+  z-index: 100;
   background: rgba(255, 255, 255, 0.52);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius-full);

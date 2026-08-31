@@ -16,10 +16,30 @@ logger = logging.getLogger(__name__)
 
 async def _resolve_model(db: AsyncSession, model: str, temperature: float = 0.7) -> ChatOpenAI:
     """解析模型配置，返回 LangChain ChatOpenAI 实例。"""
-    # 优先从数据库读取配置
-    db_config = await ai_config_service.get_config_by_key(db, model)
-    if (not db_config or not db_config.enabled or not db_config.apiKey) and model in ("deepseek-chat", "default", ""):
-        db_config = await ai_config_service.get_config_by_key(db, "deepseek-v4-flash")
+    provider_key = None
+    target_model = model or "deepseek-chat"
+
+    if "::" in target_model:
+        provider_key, target_model = target_model.split("::", 1)
+
+    all_configs = await ai_config_service.get_all_configs(db)
+    active_configs = [c for c in all_configs if c.enabled and c.apiKey]
+
+    db_config = None
+    if provider_key:
+        db_config = next((c for c in active_configs if c.modelKey == provider_key or c.modelName.lower() == provider_key.lower()), None)
+
+    if not db_config:
+        db_config = next((c for c in active_configs if c.modelKey == target_model), None)
+
+    if not db_config and active_configs:
+        for cfg in active_configs:
+            if cfg.modelKey.lower() in target_model.lower() or cfg.modelName.lower() in target_model.lower():
+                db_config = cfg
+                break
+        if not db_config:
+            db_config = active_configs[0]
+
     if db_config and db_config.enabled and db_config.apiKey:
         base_url = db_config.apiUrl
         if base_url.endswith("/chat/completions"):
@@ -30,10 +50,13 @@ async def _resolve_model(db: AsyncSession, model: str, temperature: float = 0.7)
         if "xiaomimimo.com" in base_url:
             extra_kwargs["default_headers"] = {"api-key": db_config.apiKey}
 
+        # 动态使用传入的具体模型名，若传入的是 providerKey 则使用默认 modelId
+        actual_model = target_model if target_model != db_config.modelKey else (db_config.modelId or target_model)
+
         return ChatOpenAI(
             base_url=base_url,
             api_key=db_config.apiKey,
-            model=db_config.modelId,
+            model=actual_model,
             temperature=temperature,
             streaming=True,
             **extra_kwargs,

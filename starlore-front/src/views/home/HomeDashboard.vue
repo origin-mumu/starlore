@@ -11,7 +11,6 @@ import {
   MessageCircle,
   FileText,
   ChevronRight,
-  Sparkles,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -99,10 +98,6 @@ onMounted(async () => {
           </div>
           <div class="constellation-ball-core">
             <EmotionBall :size="220" :show-rings="false" />
-            <router-link to="/companion-studio" class="mascot-customize-badge" title="进入伴侣工坊定制形象">
-              <Sparkles :size="13" />
-              <span>定制形象</span>
-            </router-link>
           </div>
           <span>KNOWLEDGE MAP</span>
 
@@ -126,10 +121,6 @@ onMounted(async () => {
         <router-link to="/articles/edit" class="knowledge-create">
           <Plus :size="17" />
           新建知识
-        </router-link>
-        <router-link to="/companion-studio" class="companion-studio-link">
-          <Sparkles :size="16" />
-          伴侣工坊
         </router-link>
         <router-link to="/echobot" class="ask-knowledge">
           <MessageCircle :size="17" />

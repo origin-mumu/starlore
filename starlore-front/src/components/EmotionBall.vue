@@ -272,7 +272,7 @@ const handleInteractiveSpin = () => {
         title="转个圈"
         @click="handleInteractiveSpin"
       >
-        <span class="toggle-text">✨ 互动</span>
+        <span class="toggle-text">互动</span>
       </button>
     </div>
   </div>

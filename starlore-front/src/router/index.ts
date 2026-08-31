@@ -154,13 +154,7 @@ const router = createRouter({
     {
       path: '/companion-studio',
       alias: '/companion',
-      name: 'companionStudio',
-      component: () => import('../views/CompanionStudioView.vue'),
-      meta: {
-        title: 'AI 伴侣工坊 - Starlore',
-        requiresAuth: false,
-        guestAllowed: true
-      }
+      redirect: '/echobot?tab=config'
     },
     {
       path: '/:pathMatch(.*)*',

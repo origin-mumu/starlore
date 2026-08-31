@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import {
   ArrowLeft,
   BookOpen,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleCheck,
   Clock3,
@@ -49,6 +50,7 @@ const articleCategory = ref('全部')
 const groupSearch = ref('')
 const groupFilter = ref<'all' | 'due' | 'mastered'>('all')
 const groupCategory = ref('全部')
+const categoryDropdownOpen = ref(false)
 const selectedArticleIds = ref<Set<number>>(new Set())
 const draftArticleIds = ref<Set<number>>(new Set())
 const generationProgress = ref<GenerationProgress | null>(null)
@@ -306,8 +308,21 @@ function startNextReview() {
   if (target) startReview(target)
 }
 
-onMounted(loadPage)
-</script>
+function handleOutsideClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.custom-category-select')) {
+    categoryDropdownOpen.value = false
+  }
+}
+
+onMounted(() => {
+  loadPage()
+  window.addEventListener('click', handleOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', handleOutsideClick)
+})</script>
 
 <template>
   <main class="memory-page">
@@ -384,24 +399,51 @@ onMounted(loadPage)
               </section>
 
               <section class="group-section">
-                <label v-if="groups.length" class="group-search">
-                  <Search :size="16" aria-hidden="true" />
-                  <input v-model="groupSearch" type="search" placeholder="搜索文章题库" />
-                  <span>{{ visibleGroups.length }} 篇</span>
-                </label>
-
                 <div v-if="groups.length" class="group-toolbar">
-                  <div class="filter-pills" aria-label="筛选知识题库">
-                    <button :class="{ active: groupFilter === 'all' }" type="button" @click="groupFilter = 'all'">全部</button>
-                    <button :class="{ active: groupFilter === 'due' }" type="button" @click="groupFilter = 'due'">待复习</button>
-                    <button :class="{ active: groupFilter === 'mastered' }" type="button" @click="groupFilter = 'mastered'">已掌握</button>
+                  <div class="toolbar-left">
+                    <label class="group-search">
+                      <Search :size="15" class="search-icon" aria-hidden="true" />
+                      <input v-model="groupSearch" type="search" placeholder="搜索文章题库..." />
+                    </label>
+
+                    <div class="filter-pills" aria-label="筛选知识题库">
+                      <button :class="{ active: groupFilter === 'all' }" type="button" @click="groupFilter = 'all'">全部</button>
+                      <button :class="{ active: groupFilter === 'due' }" type="button" @click="groupFilter = 'due'">待复习</button>
+                      <button :class="{ active: groupFilter === 'mastered' }" type="button" @click="groupFilter = 'mastered'">已掌握</button>
+                    </div>
                   </div>
-                  <label class="category-select">
-                    <span>文章分类</span>
-                    <select v-model="groupCategory" aria-label="按文章分类筛选题库">
-                      <option v-for="category in groupCategories" :key="category" :value="category">{{ category }}</option>
-                    </select>
-                  </label>
+
+                  <div class="toolbar-right">
+                    <!-- 自定义分类下拉框 -->
+                    <div class="custom-category-select">
+                      <button
+                        type="button"
+                        class="category-select-trigger"
+                        @click.stop="categoryDropdownOpen = !categoryDropdownOpen"
+                        aria-label="按文章分类筛选题库"
+                      >
+                        <span class="cat-label">文章分类</span>
+                        <span class="cat-val">{{ groupCategory }}</span>
+                        <ChevronDown class="arrow-icon" :class="{ 'is-open': categoryDropdownOpen }" :size="14" />
+                      </button>
+
+                      <Transition name="dropdown-fade">
+                        <div v-if="categoryDropdownOpen" class="category-select-options">
+                          <button
+                            v-for="category in groupCategories"
+                            :key="category"
+                            type="button"
+                            class="category-select-option"
+                            :class="{ active: groupCategory === category }"
+                            @click="groupCategory = category; categoryDropdownOpen = false"
+                          >
+                            {{ category }}
+                          </button>
+                        </div>
+                      </Transition>
+                    </div>
+                    <span class="group-count-tag">{{ visibleGroups.length }} 篇</span>
+                  </div>
                 </div>
 
                 <div v-if="loading" class="state-panel ink-glass-card">

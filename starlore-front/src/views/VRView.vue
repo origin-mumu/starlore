@@ -475,7 +475,7 @@ function readFullArticle(id: number) {
               <span class="vr-drawer__category">{{ selectedArticle.category || '未分类' }}</span>
               <h2 class="vr-drawer__title">{{ selectedArticle.title }}</h2>
               <div class="vr-drawer__meta">
-                <span>📅 更新时间：{{ selectedArticle.updatedAt?.slice(0, 10) || selectedArticle.createdAt?.slice(0, 10) || '-' }}</span>
+                <span>更新时间：{{ selectedArticle.updatedAt?.slice(0, 10) || selectedArticle.createdAt?.slice(0, 10) || '-' }}</span>
               </div>
               <p class="vr-drawer__desc">{{ selectedArticle.description || '暂无描述' }}</p>
               

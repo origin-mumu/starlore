@@ -30,6 +30,36 @@ export type AiMessageRow = {
   createdAt: string
 }
 
+export type AiProviderInfo = {
+  key: string
+  name: string
+  apiUrl: string
+  defaultModel: string
+  enabled: boolean
+  configured: boolean
+}
+
+export type ProviderModelInfo = {
+  id: string
+  name: string
+  owned_by?: string
+}
+
+export async function getAiProviders() {
+  return (await request.get('/ai/providers')) as {
+    success: boolean
+    providers: AiProviderInfo[]
+  }
+}
+
+export async function getProviderModels(providerKey: string) {
+  return (await request.get(`/ai/providers/${providerKey}/models`)) as {
+    success: boolean
+    providerKey: string
+    models: ProviderModelInfo[]
+  }
+}
+
 export async function getAiModels() {
   return (await request.get('/ai/models')) as {
     success?: boolean

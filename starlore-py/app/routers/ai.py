@@ -29,8 +29,8 @@ from app.schemas.ai import (
     CreateSessionRequest,
     UpdateSessionRequest,
 )
-from app.schemas.common import SimpleResponse
-from app.services import ai_service, ai_stream_service, ai_quota_service
+from app.exceptions import NotFoundException
+from app.services import ai_service, ai_stream_service, ai_quota_service, ai_config_service
 from app.services.langgraph_agent import run_agent
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,62 @@ async def get_models(
 ):
     models = await ai_service.get_models(db)
     return AIModelsResponse(success=True, models=models)
+
+
+@router.get("/providers")
+async def get_providers(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取所有配置的 AI 厂商列表。"""
+    configs = await ai_config_service.get_all_configs(db)
+    providers = []
+    for c in configs:
+        providers.append({
+            "key": c.modelKey,
+            "name": c.modelName or c.modelKey,
+            "apiUrl": c.apiUrl,
+            "defaultModel": c.modelId,
+            "enabled": c.enabled,
+            "configured": bool(c.apiKey),
+        })
+    return {"success": True, "providers": providers}
+
+
+@router.get("/providers/{provider_key}/models")
+async def get_provider_models(
+    provider_key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """根据厂商配置动态拉取官方最新模型列表。"""
+    config = await ai_config_service.get_config_by_key(db, provider_key)
+    if not config:
+        raise NotFoundException(f"厂商配置 {provider_key} 不存在")
+
+    remote_models = await ai_config_service.fetch_provider_models(config.apiUrl, config.apiKey)
+    if not remote_models:
+        # 如果远程接口暂时无法连通，提供厂商官方最新全量模型
+        if "deepseek" in config.modelKey.lower() or "deepseek" in config.apiUrl.lower() or "deepseek" in (config.modelName or "").lower():
+            remote_models = [
+                {"id": "deepseek-chat", "name": "deepseek-chat (DeepSeek-V3)"},
+                {"id": "deepseek-reasoner", "name": "deepseek-reasoner (DeepSeek-R1 深度思考)"},
+                {"id": "deepseek-coder", "name": "deepseek-coder (代码大模型)"},
+            ]
+        elif "mimo" in config.modelKey.lower():
+            remote_models = [
+                {"id": "mimo", "name": "小米 MiMo"}
+            ]
+        elif "qwen" in config.modelKey.lower():
+            remote_models = [
+                {"id": "qwen-max", "name": "通义千问 Max"},
+                {"id": "qwen-plus", "name": "通义千问 Plus"},
+                {"id": "qwen-turbo", "name": "通义千问 Turbo"},
+            ]
+        elif config.modelId:
+            remote_models = [{"id": config.modelId, "name": config.modelId}]
+
+    return {"success": True, "providerKey": provider_key, "models": remote_models}
 
 
 @router.get("/character-cards", response_model=AICharacterCardsResponse)

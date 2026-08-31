@@ -1,6 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
@@ -16,7 +15,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      tailwindcss(),
       AutoImport({
         resolvers: [ElementPlusResolver()],
       }),

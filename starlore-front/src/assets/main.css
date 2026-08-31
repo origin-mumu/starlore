@@ -201,10 +201,9 @@
    ════════════════════════════════════════ */
 
 .el-overlay {
-  background: rgba(15, 23, 42, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(1.1) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.1) !important;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  z-index: 99999 !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 [data-theme="dark"] .el-overlay {
@@ -212,64 +211,51 @@
 }
 
 .el-dialog {
-  border-radius: 24px !important;
-  background: rgba(255, 255, 255, 0.96) !important;
-  border: 1px solid rgba(255, 255, 255, 0.85) !important;
-  box-shadow: 0 24px 64px -12px rgba(15, 23, 42, 0.18), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.16) !important;
   overflow: hidden !important;
-  animation: modalCardPop 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: modalCardPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 [data-theme="dark"] .el-dialog {
-  background: rgba(22, 26, 38, 0.96) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 32px 80px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  background: #181b26 !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6) !important;
 }
 
 .el-dialog__header {
-  padding: 22px 26px 18px !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  padding: 22px 26px 8px !important;
+  border-bottom: none !important;
   margin: 0 !important;
 }
 
-[data-theme="dark"] .el-dialog__header {
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
-}
-
 .el-dialog__title {
-  font-size: 1.15rem !important;
+  font-size: 1.12rem !important;
   font-weight: 700 !important;
-  letter-spacing: -0.02em !important;
+  letter-spacing: -0.01em !important;
   color: var(--ink) !important;
 }
 
 .el-dialog__headerbtn {
   top: 18px !important;
   right: 18px !important;
-  width: 34px !important;
-  height: 34px !important;
+  width: 32px !important;
+  height: 32px !important;
   border-radius: 50% !important;
-  background: rgba(0, 0, 0, 0.04) !important;
-  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  background: transparent !important;
+  border: none !important;
   display: grid !important;
   place-items: center !important;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.15s ease !important;
 }
 
 .el-dialog__headerbtn:hover {
-  background: rgba(0, 0, 0, 0.08) !important;
-  transform: rotate(90deg) scale(1.05) !important;
-}
-
-[data-theme="dark"] .el-dialog__headerbtn {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
 }
 
 [data-theme="dark"] .el-dialog__headerbtn:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 .el-dialog__headerbtn .el-dialog__close {
@@ -278,47 +264,127 @@
 }
 
 .el-dialog__footer {
-  padding: 16px 26px 22px !important;
-  border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+  padding: 8px 26px 22px !important;
+  border-top: none !important;
   display: flex !important;
   justify-content: flex-end !important;
   align-items: center !important;
   gap: 12px !important;
 }
 
-[data-theme="dark"] .el-dialog__footer {
-  border-top-color: rgba(255, 255, 255, 0.06) !important;
+/* Global Modal Buttons (Unified Pill Style) */
+.el-dialog__footer .btn-cancel,
+.btn-cancel {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  padding: 0 20px !important;
+  border-radius: var(--radius-full, 9999px) !important;
+  border: none !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  font-family: inherit !important;
 }
 
-/* Global Select & Popper */
+.el-dialog__footer .btn-cancel:hover,
+.btn-cancel:hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.el-dialog__footer .btn-primary,
+.el-dialog__footer .btn-save,
+.btn-primary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  padding: 0 22px !important;
+  border-radius: var(--radius-full, 9999px) !important;
+  border: none !important;
+  background: #337BF4 !important;
+  color: #ffffff !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(51, 123, 244, 0.28) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  font-family: inherit !important;
+}
+
+.el-dialog__footer .btn-primary:hover:not(:disabled),
+.el-dialog__footer .btn-save:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  background: #2563eb !important;
+  filter: brightness(1.05) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px rgba(51, 123, 244, 0.38) !important;
+}
+
+[data-theme="dark"] .el-dialog__footer .btn-cancel,
+[data-theme="dark"] .btn-cancel {
+  background: #242a38 !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .el-dialog__footer .btn-cancel:hover,
+[data-theme="dark"] .btn-cancel:hover {
+  background: #333d52 !important;
+  color: #ffffff !important;
+}
+
+/* Global Select & Popper (Matching KnowledgeMemoryView Pill Design) */
 .el-select__wrapper {
-  border-radius: 12px !important;
-  background: rgba(0, 0, 0, 0.025) !important;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) inset !important;
+  border-radius: var(--radius-full, 9999px) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 1px var(--border-interactive) inset !important;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   min-height: 38px !important;
   height: 38px !important;
-  padding: 0 12px !important;
+  padding: 0 16px !important;
   display: flex !important;
   align-items: center !important;
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+}
+
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--accent) inset, 0 2px 8px -2px rgba(0, 0, 0, 0.08) !important;
+  background: var(--surface-hover) !important;
 }
 
 .el-select__wrapper.is-focused {
-  box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft) !important;
-  background: #fff !important;
+  box-shadow: 0 0 0 1.5px var(--accent) inset, 0 0 0 3.5px var(--accent-soft) !important;
+  background: var(--surface) !important;
+}
+
+.el-select__selected-item {
+  color: var(--ink) !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
 }
 
 .el-popper.el-select__popper,
 .el-popper.is-light,
 .el-popper.is-pure {
-  border-radius: 14px !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--border) !important;
   box-shadow: 0 16px 40px -6px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.02) !important;
-  background: rgba(255, 255, 255, 0.98) !important;
+  background: var(--surface) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
   overflow: hidden !important;
-  padding: 0 !important;
+  padding: 6px !important;
 }
 
 .el-popper__arrow {
@@ -326,58 +392,64 @@
 }
 
 .el-select-dropdown {
-  border-radius: 14px !important;
+  border-radius: 16px !important;
   border: none !important;
   box-shadow: none !important;
   background: transparent !important;
-  padding: 6px !important;
+  padding: 0 !important;
 }
 
 .el-select-dropdown__list {
   padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
 }
 
 .el-select-dropdown__item {
-  border-radius: 8px !important;
-  margin: 2px 0 !important;
-  font-size: 13px !important;
+  border-radius: 10px !important;
+  margin: 1px 0 !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
   height: 34px !important;
   line-height: 34px !important;
-  padding: 0 12px !important;
-  color: var(--ink) !important;
+  padding: 0 14px !important;
+  color: var(--ink-soft) !important;
   transition: all 0.15s ease !important;
 }
 
 .el-select-dropdown__item.is-hovering {
-  background: rgba(0, 0, 0, 0.04) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
 }
 
 .el-select-dropdown__item.is-selected {
-  color: var(--accent) !important;
+  color: #ffffff !important;
   font-weight: 600 !important;
-  background: var(--accent-soft) !important;
+  background: var(--accent) !important;
 }
 
 [data-theme="dark"] .el-select__wrapper {
-  background: rgba(255, 255, 255, 0.05) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 1px var(--border-interactive) inset !important;
 }
 
 [data-theme="dark"] .el-select__wrapper.is-focused {
-  background: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 0 0 1px var(--accent) inset, 0 0 0 3px var(--accent-soft) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 1.5px var(--accent) inset, 0 0 0 3.5px var(--accent-soft) !important;
 }
 
 [data-theme="dark"] .el-popper.el-select__popper,
 [data-theme="dark"] .el-popper.is-light,
 [data-theme="dark"] .el-popper.is-pure {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  background: rgba(24, 28, 40, 0.98) !important;
+  border-color: var(--border) !important;
+  background: var(--surface) !important;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6) !important;
 }
 
 [data-theme="dark"] .el-select-dropdown__item.is-hovering {
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
 }
 
 /* Global Drawer */

@@ -20,8 +20,7 @@ const navItems = computed(() => {
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
     { name: '灵感', path: '/diverge' },
-    { name: 'AI', path: '/echobot' },
-    { name: '工坊', path: '/companion-studio' }
+    { name: 'AI', path: '/echobot' }
   )
   return items
 })
@@ -32,7 +31,7 @@ const mobileMenuOpen = ref(false)
 
 const themeStore = useThemeStore()
 
-const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr', '/companion-studio', '/companion']
+const guestAllowedPaths = ['/', '/about', '/articles', '/categories', '/vr']
 
 const handleLogout = () => {
   userStore.logout()
@@ -60,7 +59,6 @@ const mobileMainTabs = [
 const mobileMoreItems = computed(() => {
   const all = [
     { name: '关于我', path: '/about' },
-    { name: '工坊', path: '/companion-studio' },
     { name: '灵感', path: '/diverge' },
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },

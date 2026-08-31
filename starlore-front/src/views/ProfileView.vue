@@ -327,6 +327,7 @@ const handleChangePassword = async () => {
               width="640px"
               class="account-dialog account-dialog--profile"
               align-center
+              :append-to-body="true"
               :close-on-click-modal="false"
               destroy-on-close
             >
@@ -433,6 +434,7 @@ const handleChangePassword = async () => {
               width="440px"
               class="account-dialog account-dialog--password"
               align-center
+              :append-to-body="true"
               :close-on-click-modal="false"
               destroy-on-close
             >
@@ -530,10 +532,20 @@ const handleChangePassword = async () => {
             <el-dialog
               v-model="projectDialogVisible"
               :title="projectEditingId ? '编辑项目' : '新增项目'"
-              width="480px"
+              width="540px"
+              class="account-dialog account-dialog--project"
+              align-center
+              :append-to-body="true"
               :close-on-click-modal="false"
               destroy-on-close
             >
+              <template #header>
+                <div class="dialog-heading">
+                  <span class="dialog-kicker">项目管理</span>
+                  <h2>{{ projectEditingId ? '编辑项目' : '新增项目' }}</h2>
+                  <p>添加或编辑你的个人展示项目，丰富个人作品集。</p>
+                </div>
+              </template>
               <form @submit.prevent="handleSaveProject" class="profile-form">
                 <div class="form-field">
                   <label for="proj-name">项目名称 *</label>
@@ -554,8 +566,8 @@ const handleChangePassword = async () => {
                 <p v-if="projectMsg" class="form-msg">{{ projectMsg }}</p>
               </form>
               <template #footer>
-                <button class="btn-cancel" @click="projectDialogVisible = false">取消</button>
-                <button class="btn-primary" :disabled="projectLoading" @click="handleSaveProject">
+                <button type="button" class="btn-cancel" @click="projectDialogVisible = false">取消</button>
+                <button type="button" class="btn-primary" :disabled="projectLoading" @click="handleSaveProject">
                   <span v-if="projectLoading" class="btn-spinner"></span>
                   {{ projectLoading ? '保存中...' : '保存' }}
                 </button>
