@@ -98,37 +98,37 @@
   font-size: 0.9rem;
 }
 
-.knowledge-create {
+.knowledge-create,
+.knowledge-shortcuts .knowledge-create {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 18px;
+  padding: 0 20px;
   flex-shrink: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-full);
-  background: var(--ink);
-  color: var(--canvas);
+  background: var(--accent) !important;
+  color: #FFFFFF !important;
   font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
   font-size: 0.9rem;
   font-weight: 650;
   text-decoration: none;
-  box-shadow: var(--shadow-button);
-  transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 36%, transparent);
+  transition: transform 180ms var(--ease-out-quart), box-shadow 180ms var(--ease-out-quart), opacity 180ms ease;
 }
 
-:global([data-theme="dark"]) .knowledge-create {
-  background: var(--accent);
-  color: #FFFFFF;
+.knowledge-create svg,
+.knowledge-shortcuts .knowledge-create svg {
+  color: #FFFFFF !important;
 }
 
-.knowledge-create svg {
-  color: currentColor;
-}
-
-.knowledge-create:hover {
+.knowledge-create:hover,
+.knowledge-shortcuts .knowledge-create:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-button-hover);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 50%, transparent);
+  color: #FFFFFF !important;
+  opacity: 0.95;
 }
 
 .knowledge-constellation {
