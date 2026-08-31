@@ -152,6 +152,17 @@ const router = createRouter({
       }
     },
     {
+      path: '/companion-studio',
+      alias: '/companion',
+      name: 'companionStudio',
+      component: () => import('../views/CompanionStudioView.vue'),
+      meta: {
+        title: 'AI 伴侣工坊 - Starlore',
+        requiresAuth: false,
+        guestAllowed: true
+      }
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'notFound',
       component: () => import('../views/NotFound.vue'),
@@ -165,7 +176,6 @@ const router = createRouter({
     return savedPosition || { top: 0 }
   }
 })
-
 function isExpiredJwt(token: string): boolean {
   try {
     const payloadPart = token.split('.')[1]

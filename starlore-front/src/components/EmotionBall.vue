@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { mountReplica, type ReplicaMount } from '@/replica/host'
 import { useThemeStore } from '@/stores/theme'
+import { useCompanionStore } from '@/stores/companion'
 
 interface Props {
   emotion?: string
@@ -20,9 +21,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  emotion: 'curious',
+  emotion: '',
   state: '',
-  shape: 'blob',
+  shape: '',
   follow: true,
   showStyleToggle: false,
   interactive: true,
@@ -38,6 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const companionStore = useCompanionStore()
 const svgRef = ref<SVGSVGElement | null>(null)
 let replica: ReplicaMount | null = null
 let isAlive = true
@@ -54,19 +56,26 @@ const EMOTION_MAP: Record<string, string> = {
   '19': 'celebrate',
 }
 
+const currentShape = computed(() => {
+  if (props.shape) return props.shape
+  return companionStore.shape || 'blob'
+})
+
 const currentState = computed(() => {
-  const raw = props.state || props.emotion || 'curious'
+  const raw = props.state || props.emotion || companionStore.expression || 'curious'
   return EMOTION_MAP[raw] || raw
 })
 
-// 默认颜色适配亮暗色主题
+// 默认颜色适配亮暗色主题，若用户在 Studio 中自定义了颜色则优先使用用户的全局设置
 const currentColor = computed(() => {
   if (props.color) return props.color
+  if (companionStore.color) return companionStore.color
   return themeStore.current === 'dark' ? 'cyan' : 'orange'
 })
 
 const currentPaper = computed(() => {
   if (props.eyeColor) return props.eyeColor
+  if (companionStore.eyeColor) return companionStore.eyeColor
   return themeStore.current === 'dark' ? '#0A051F' : '#FFFFFF'
 })
 
@@ -83,12 +92,12 @@ const sizeStyle = computed(() => ({
 function getReplicaInput() {
   return {
     state: currentState.value,
-    shape: props.shape || 'blob',
+    shape: currentShape.value,
     color: currentColor.value,
-    follow: props.interactive && props.follow,
+    follow: props.interactive && props.follow && companionStore.follow,
     paper: currentPaper.value,
     size: parsedSize.value,
-    autoTricks: props.autoTricks,
+    autoTricks: props.autoTricks && companionStore.autoTricks,
   }
 }
 
@@ -131,6 +140,7 @@ const currentShapeIndex = ref(0)
 const cycleShape = () => {
   currentShapeIndex.value = (currentShapeIndex.value + 1) % availableShapes.length
   const nextShape = availableShapes[currentShapeIndex.value]
+  companionStore.saveConfig({ shape: nextShape })
   replica?.setShape(nextShape)
   replica?.spin(0.5)
 }
