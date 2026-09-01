@@ -12,6 +12,8 @@ export interface CompanionConfig {
 
 const STORAGE_KEY = 'starlore_custom_companion_config'
 
+const DEFAULT_COLOR_GRADIENT = 'g:7cfb5f-4172d9-135'
+
 export const useCompanionStore = defineStore('companion', () => {
   // 从 localStorage 恢复或使用默认值
   const saved = (() => {
@@ -23,7 +25,7 @@ export const useCompanionStore = defineStore('companion', () => {
   })()
 
   const shape = ref<string>(saved.shape || 'blob')
-  const color = ref<string>(saved.color || '')
+  const color = ref<string>(saved.color || DEFAULT_COLOR_GRADIENT)
   const expression = ref<string>(saved.expression || 'curious')
   const eyeColor = ref<string>(saved.eyeColor || '')
   const autoTricks = ref<boolean>(saved.autoTricks ?? true)
@@ -59,7 +61,7 @@ export const useCompanionStore = defineStore('companion', () => {
   function resetDefault() {
     saveConfig({
       shape: 'blob',
-      color: '',
+      color: DEFAULT_COLOR_GRADIENT,
       expression: 'curious',
       eyeColor: '',
       autoTricks: true,

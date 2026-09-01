@@ -4,6 +4,7 @@ import { getArticleByIdService, getPublicArticleByIdService } from '@/api/articl
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 import { List, Hash, Sparkles, Send, Trash2, Bot, User } from '@lucide/vue'
 import { getAuthToken } from '@/utils/authToken'
 import { renderArticleContent } from '@/utils/articleContent'
@@ -426,15 +427,14 @@ const formatDate = (dateString: string) => {
         <div class="detail-container">
           <div class="detail-3col-layout">
             <!-- ─── 左侧：文章目录 (TOC) ─── -->
-            <aside class="sidebar-toc">
-              <nav class="toc-card ink-glass-card">
+            <aside class="sidebar-toc" :class="{ 'is-collapsed': !tocOpen }">
+              <nav class="toc-card ink-glass-card" :class="{ 'is-collapsed': !tocOpen }">
                 <div class="toc-header" @click="tocOpen = !tocOpen">
                   <div class="toc-header-title">
                     <List :size="16" class="toc-icon" />
                     <span>文章目录</span>
                   </div>
                   <div class="toc-header-right">
-                    <span v-if="tocItems.length" class="toc-badge">{{ tocItems.length }}</span>
                     <span class="toc-toggle">{{ tocOpen ? '收起' : '展开' }}</span>
                   </div>
                 </div>
@@ -590,4 +590,4 @@ const formatDate = (dateString: string) => {
   </div>
 </template>
 
-<style scoped src="./ArticleDetail.css"></style>
+<style src="./ArticleDetail.css"></style>

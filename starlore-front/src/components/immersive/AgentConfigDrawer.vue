@@ -8,8 +8,12 @@ import {
   Check,
   RotateCw,
   X,
+  Server,
+  RefreshCw,
 } from '@lucide/vue'
 import { useCompanionStore } from '@/stores/companion'
+import { useUserStore } from '@/stores/user'
+import { getMcpTools, reindexKnowledgeBase, type McpToolInfo } from '@/api/ai'
 import EmotionBall from '@/components/EmotionBall.vue'
 import {
   COLOR_IDS,
@@ -40,23 +44,24 @@ const emit = defineEmits<{
   (e: 'save'): void
 }>()
 
+const userStore = useUserStore()
 const companionStore = useCompanionStore()
-const activeSubTab = ref<'mascot' | 'params'>('mascot')
+const activeSubTab = ref<'mascot' | 'params' | 'capabilities'>('mascot')
 const modelSelectOpen = ref(false)
 const previewBallRef = ref<InstanceType<typeof EmotionBall> | null>(null)
 const companionSavedHint = ref('')
 
 // 颜色模式: 'flat' (纯色) | 'grad' (线性渐变) | 'radial' (径向渐变)
-const colorMode = ref<'flat' | 'grad' | 'radial'>('flat')
-const flatHex = ref('#0e74e0')
-const gradFrom = ref('#ff8838')
-const gradTo = ref('#0e74e0')
+const colorMode = ref<'flat' | 'grad' | 'radial'>('grad')
+const flatHex = ref('#7cfb5f')
+const gradFrom = ref('#7cfb5f')
+const gradTo = ref('#4172d9')
 const gradAngle = ref(135)
 
 // 表单草稿状态
 const draftConfig = reactive({
   shape: companionStore.shape || 'blob',
-  color: companionStore.color || '',
+  color: companionStore.color || 'g:7cfb5f-4172d9-135',
   expression: companionStore.expression || 'curious',
   follow: companionStore.follow ?? true,
   autoTricks: companionStore.autoTricks ?? true,
@@ -64,7 +69,8 @@ const draftConfig = reactive({
 
 // 解析初始色彩模式
 function syncColorFromDraft() {
-  const spec = parseInk(draftConfig.color)
+  const colorStr = draftConfig.color || companionStore.color || 'g:7cfb5f-4172d9-135'
+  const spec = parseInk(colorStr)
   if (spec.kind === 'preset') {
     colorMode.value = 'flat'
     flatHex.value = colorHex(spec.id)
@@ -83,17 +89,72 @@ function syncColorFromDraft() {
   }
 }
 
+// ─── 扩展能力与工具（MCP + 知识库索引）───
+const mcpTools = ref<McpToolInfo[]>([])
+const mcpServers = ref<string[]>([])
+const mcpLoading = ref(false)
+const mcpError = ref('')
+const reindexLoading = ref(false)
+const reindexMessage = ref('')
+
+async function loadMcpCapabilities() {
+  if (!userStore.token || mcpLoading.value) return
+  mcpLoading.value = true
+  mcpError.value = ''
+  try {
+    const result = await getMcpTools()
+    mcpTools.value = result.tools || []
+    mcpServers.value = result.servers || []
+  } catch (error: any) {
+    mcpError.value = error?.message || 'MCP 工具加载失败'
+  } finally {
+    mcpLoading.value = false
+  }
+}
+
+async function rebuildKnowledgeIndex() {
+  if (reindexLoading.value) return
+  reindexLoading.value = true
+  reindexMessage.value = ''
+  try {
+    const result = await reindexKnowledgeBase()
+    reindexMessage.value = result.message || `已索引 ${result.count || 0} 篇文章`
+  } catch (error: any) {
+    reindexMessage.value = error?.response?.data?.message || error?.message || '重建索引失败'
+  } finally {
+    reindexLoading.value = false
+  }
+}
+
+function switchSubTab(tab: 'mascot' | 'params' | 'capabilities') {
+  activeSubTab.value = tab
+  if (tab === 'capabilities' && !mcpTools.value.length && !mcpLoading.value) {
+    void loadMcpCapabilities()
+  }
+}
+
+function getMcpServerName(server: string) {
+  return server === 'zhipu-web-search' ? '智谱联网搜索' : server
+}
+
+function getMcpServerToolCount(server: string) {
+  return mcpTools.value.filter(tool => tool.server === server).length
+}
+
 watch(
   () => props.open,
   (val) => {
     if (val) {
       draftConfig.shape = companionStore.shape || 'blob'
-      draftConfig.color = companionStore.color || ''
+      draftConfig.color = companionStore.color || 'g:7cfb5f-4172d9-135'
       draftConfig.expression = companionStore.expression || 'curious'
       draftConfig.follow = companionStore.follow ?? true
       draftConfig.autoTricks = companionStore.autoTricks ?? true
       syncColorFromDraft()
       fetchProvidersAndModels()
+      if (activeSubTab.value === 'capabilities') {
+        void loadMcpCapabilities()
+      }
     }
   },
   { immediate: true }
@@ -298,13 +359,15 @@ function handleSaveAll() {
       follow: draftConfig.follow,
       autoTricks: draftConfig.autoTricks,
     })
-    companionSavedHint.value = '✓ AI 伴侣形象已保存！'
+    companionSavedHint.value = '✓ AI 助手形象已保存！'
     setTimeout(() => {
       companionSavedHint.value = ''
       emit('close')
     }, 900)
-  } else {
+  } else if (activeSubTab.value === 'params') {
     emit('save')
+  } else {
+    emit('close')
   }
 }
 
@@ -333,7 +396,7 @@ onBeforeUnmount(() => {
           <!-- 弹窗顶部栏：无分割线 -->
           <header class="pure-modal-header">
             <div class="header-left">
-              <h3>AI 伴侣与模型设置</h3>
+              <h3>AI 助手与模型设置</h3>
               <!-- 子标签切换胶囊 -->
               <div class="tab-pills" role="tablist">
                 <button
@@ -353,6 +416,15 @@ onBeforeUnmount(() => {
                 >
                   <Sliders :size="13" />
                   <span>模型与 RAG 调参</span>
+                </button>
+                <button
+                  type="button"
+                  class="tab-pill"
+                  :class="{ active: activeSubTab === 'capabilities' }"
+                  @click="switchSubTab('capabilities')"
+                >
+                  <Server :size="13" />
+                  <span>扩展工具与能力</span>
                 </button>
               </div>
             </div>
@@ -709,6 +781,81 @@ onBeforeUnmount(() => {
                 </label>
               </div>
             </div>
+
+            <!-- ── 子面板 3: 扩展工具与能力 ── -->
+            <div v-show="activeSubTab === 'capabilities'" class="capabilities-layout">
+              <section class="modal-cap-section" aria-labelledby="mcp-capability-title">
+                <div class="modal-cap-heading">
+                  <div>
+                    <p class="modal-cap-eyebrow">External tools</p>
+                    <h4 id="mcp-capability-title">MCP 外部服务与联网能力</h4>
+                  </div>
+                  <button
+                    type="button"
+                    class="modal-cap-refresh"
+                    :disabled="mcpLoading"
+                    aria-label="刷新 MCP 工具"
+                    @click="loadMcpCapabilities"
+                  >
+                    <RefreshCw :size="13" :class="{ spinning: mcpLoading }" />
+                  </button>
+                </div>
+
+                <p v-if="mcpError" class="modal-cap-error">{{ mcpError }}</p>
+                <div v-else-if="mcpLoading" class="modal-cap-loading">
+                  <span class="modal-tool-spinner"></span>
+                  正在连接 MCP Server...
+                </div>
+                <div v-else-if="!mcpTools.length" class="modal-cap-empty">
+                  <Server :size="18" />
+                  <div>
+                    <strong>实时搜索等待配置</strong>
+                    <p>生产环境设置 ZHIPU_API_KEY 后，会自动启用智谱实时联网搜索与知识扩展。</p>
+                  </div>
+                </div>
+                <template v-else>
+                  <p class="modal-server-summary">已连接 {{ mcpServers.length }} 个 MCP 服务</p>
+                  <div class="modal-server-list">
+                    <article v-for="server in mcpServers" :key="server" class="modal-server-item">
+                      <div class="modal-server-status" aria-hidden="true">
+                        <Server :size="15" />
+                      </div>
+                      <div class="modal-server-copy">
+                        <strong>{{ getMcpServerName(server) }}</strong>
+                        <span>{{ getMcpServerToolCount(server) }} 种实时搜索能力</span>
+                      </div>
+                      <span class="modal-server-connected">
+                        <span class="modal-server-dot"></span>已连接
+                      </span>
+                    </article>
+                  </div>
+                </template>
+              </section>
+
+              <section class="modal-cap-section" aria-labelledby="rag-index-title">
+                <div class="modal-cap-heading">
+                  <div>
+                    <p class="modal-cap-eyebrow">Knowledge index</p>
+                    <h4 id="rag-index-title">知识库向量索引</h4>
+                  </div>
+                </div>
+                <p class="modal-index-copy">
+                  已发布文章会自动写入向量索引。首次启用或批量更新文章库时，可手动触发完整重建。
+                </p>
+                <div class="modal-index-action-row">
+                  <button
+                    type="button"
+                    class="modal-index-button"
+                    :disabled="reindexLoading"
+                    @click="rebuildKnowledgeIndex"
+                  >
+                    <RefreshCw :size="13" :class="{ spinning: reindexLoading }" />
+                    {{ reindexLoading ? '正在重建索引...' : '重建我的文章索引' }}
+                  </button>
+                  <p v-if="reindexMessage" class="modal-index-message">{{ reindexMessage }}</p>
+                </div>
+              </section>
+            </div>
           </div>
 
           <!-- 弹窗底部操作栏：无分割线 -->
@@ -719,8 +866,15 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="footer-actions">
-              <button type="button" class="btn-cancel" @click="emit('close')">取消</button>
-              <button type="button" class="btn-save" @click="handleSaveAll">
+              <button type="button" class="btn-cancel" @click="emit('close')">
+                {{ activeSubTab === 'capabilities' ? '关闭' : '取消' }}
+              </button>
+              <button
+                v-if="activeSubTab !== 'capabilities'"
+                type="button"
+                class="btn-save"
+                @click="handleSaveAll"
+              >
                 保存配置
               </button>
             </div>
@@ -1556,6 +1710,269 @@ input:checked + .pure-slider:before {
 :global([data-theme="dark"]) .refresh-models-btn:hover {
   background: #337BF4;
   color: #ffffff;
+}
+
+/* ─── 扩展能力与工具面板 ─── */
+.capabilities-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 10px;
+}
+
+.modal-cap-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  transition: all 0.2s ease;
+}
+
+.modal-cap-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.modal-cap-eyebrow {
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #337BF4;
+  font-weight: 700;
+  margin: 0 0 3px 0;
+}
+
+.modal-cap-heading h4 {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.modal-cap-refresh {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 5px 8px;
+  border-radius: 7px;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.modal-cap-refresh:hover {
+  color: #337BF4;
+  border-color: #cbd5e1;
+}
+
+.modal-cap-refresh svg.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.modal-cap-error {
+  font-size: 0.78rem;
+  color: #ef4444;
+  margin: 6px 0 0;
+}
+
+.modal-cap-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 10px 0;
+}
+
+.modal-tool-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(51, 123, 244, 0.2);
+  border-top-color: #337BF4;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.modal-cap-empty {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 8px;
+  align-items: flex-start;
+}
+
+.modal-cap-empty strong {
+  display: block;
+  color: #334155;
+  font-size: 0.82rem;
+  margin-bottom: 2px;
+}
+
+.modal-cap-empty p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.modal-server-summary {
+  font-size: 0.76rem;
+  color: #64748b;
+  margin: 6px 0 8px;
+}
+
+.modal-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-server-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.modal-server-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(40, 200, 64, 0.1);
+  color: #16a34a;
+}
+
+.modal-server-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.modal-server-copy strong {
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+
+.modal-server-copy span {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.modal-server-connected {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.modal-server-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+.modal-index-copy {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 2px 0 10px;
+}
+
+.modal-index-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-index-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-index-button:hover {
+  border-color: #337BF4;
+  color: #337BF4;
+  box-shadow: 0 1px 4px rgba(51, 123, 244, 0.12);
+}
+
+.modal-index-button svg.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.modal-index-message {
+  font-size: 0.76rem;
+  color: #16a34a;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* 暗色模式适配 */
+:global([data-theme="dark"]) .modal-cap-section {
+  background: #0f121a;
+  border-color: #242938;
+}
+
+:global([data-theme="dark"]) .modal-cap-heading h4 {
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .modal-cap-refresh,
+:global([data-theme="dark"]) .modal-server-item,
+:global([data-theme="dark"]) .modal-index-button {
+  background: #1e2433;
+  border-color: #2c3549;
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .modal-cap-empty {
+  background: #141824;
+  border-color: #2c3549;
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .modal-cap-empty strong,
+:global([data-theme="dark"]) .modal-server-copy strong {
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .modal-server-copy span,
+:global([data-theme="dark"]) .modal-index-copy,
+:global([data-theme="dark"]) .modal-server-summary {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .modal-index-button:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
 }
 
 </style>

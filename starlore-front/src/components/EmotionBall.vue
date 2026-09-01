@@ -30,7 +30,7 @@ const props = withDefaults(defineProps<Props>(), {
   showRings: false,
   initialSpin: true,
   autoTricks: true,
-  label: 'Starlore AI Companion',
+  label: 'Starlore AI 助手',
 })
 
 const emit = defineEmits<{
@@ -66,11 +66,11 @@ const currentState = computed(() => {
   return EMOTION_MAP[raw] || raw
 })
 
-// 默认颜色适配亮暗色主题，若用户在 Studio 中自定义了颜色则优先使用用户的全局设置
+// 默认颜色使用 #7CFB5F 到 #4172D9 渐变，若用户在设置中自定义了颜色则优先使用用户的全局设置
 const currentColor = computed(() => {
   if (props.color) return props.color
   if (companionStore.color) return companionStore.color
-  return themeStore.current === 'dark' ? 'cyan' : 'orange'
+  return 'g:7cfb5f-4172d9-135'
 })
 
 const currentPaper = computed(() => {
@@ -228,7 +228,7 @@ const handleInteractiveSpin = () => {
     <div
       class="emotion-ball-container"
       :style="sizeStyle"
-      :title="label || 'Starlore AI Companion'"
+      :title="label || 'Starlore AI 助手'"
       @click="handleClick"
       @mouseenter="handleMouseEnter"
     >

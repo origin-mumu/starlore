@@ -10,14 +10,11 @@ import RagFeedbackModal from './immersive/RagFeedbackModal.vue'
 import {
   buildMultiAgentSseUrl,
   evaluateRag,
-  getMcpTools,
-  reindexKnowledgeBase,
   getAiModels,
   getAgentConfig,
   updateAgentConfig,
   submitMessageFeedback,
   type CharacterCard,
-  type McpToolInfo,
   type RagEvaluationResult,
 } from '@/api/ai'
 import { guestChat } from '@/api/guest-ai'
@@ -39,8 +36,6 @@ import {
   X,
   Paperclip,
   Activity,
-  RefreshCw,
-  Server,
 } from '@lucide/vue'
 
 const route = useRoute()
@@ -109,12 +104,7 @@ function setEmotion(emoId: string, durationMs?: number) {
 }
 
 /* ─── 状态 ─── */
-type Mode = 'idle' | 'listening' | 'thinking' | 'speaking'
-const currentMode = ref<Mode>('idle')
-const statusText = ref('SYSTEM READY')
-const showHint = ref(true)
 const isLocalSending = ref(false)
-const interimText = ref('')
 
 /* ─── 用户反馈点赞点踩 ─── */
 const feedbackModalOpen = ref(false)
@@ -171,7 +161,7 @@ watch(inputText, () => {
 })
 
 /* ─── 会话列表 ─── */
-const activeTab = ref<'chat' | 'sessions' | 'capabilities'>('chat')
+const activeTab = ref<'chat' | 'sessions'>('chat')
 const showDeleteConfirm = ref<number | null>(null)
 const configModalOpen = ref(false)
 
@@ -226,56 +216,6 @@ async function saveAgentConfig() {
   } catch (e: any) {
     agentConfigSavedHint.value = '保存失败: ' + (e.message || '未知错误')
   }
-}
-
-/* ─── Agent 能力检查 ─── */
-const mcpTools = ref<McpToolInfo[]>([])
-const mcpServers = ref<string[]>([])
-const mcpLoading = ref(false)
-const mcpError = ref('')
-const reindexLoading = ref(false)
-const reindexMessage = ref('')
-
-async function loadMcpCapabilities() {
-  if (!userStore.token || mcpLoading.value) return
-  mcpLoading.value = true
-  mcpError.value = ''
-  try {
-    const result = await getMcpTools()
-    mcpTools.value = result.tools || []
-    mcpServers.value = result.servers || []
-  } catch (error: any) {
-    mcpError.value = error?.message || 'MCP 工具加载失败'
-  } finally {
-    mcpLoading.value = false
-  }
-}
-
-async function rebuildKnowledgeIndex() {
-  if (reindexLoading.value) return
-  reindexLoading.value = true
-  reindexMessage.value = ''
-  try {
-    const result = await reindexKnowledgeBase()
-    reindexMessage.value = result.message || `已索引 ${result.count || 0} 篇文章`
-  } catch (error: any) {
-    reindexMessage.value = error?.response?.data?.message || error?.message || '重建索引失败'
-  } finally {
-    reindexLoading.value = false
-  }
-}
-
-function openCapabilities() {
-  activeTab.value = 'capabilities'
-  if (!mcpTools.value.length && !mcpLoading.value) void loadMcpCapabilities()
-}
-
-function getMcpServerName(server: string) {
-  return server === 'zhipu-web-search' ? '智谱联网搜索' : server
-}
-
-function getMcpServerToolCount(server: string) {
-  return mcpTools.value.filter(tool => tool.server === server).length
 }
 
 function scorePercent(score: number) {
@@ -352,154 +292,7 @@ function removeImage() {
   pendingImagePreview.value = null
 }
 
-const isRecording = ref(false)
 const chatScrollRef = ref<HTMLElement | null>(null)
-
-/* ─── 语音识别（MediaRecorder + MiMo ASR + 静音自动停止）─── */
-const speechSupported = ref(false)
-let mediaRecorder: MediaRecorder | null = null
-let audioChunks: Blob[] = []
-let silenceTimer: ReturnType<typeof setTimeout> | null = null
-let audioCtx: AudioContext | null = null
-let analyser: AnalyserNode | null = null
-let micStream: MediaStream | null = null
-
-function initSpeech() {
-  speechSupported.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
-}
-
-function toggleVoice() {
-  if (isRecording.value) {
-    stopRecording(true)
-  } else {
-    startRecording()
-  }
-}
-
-async function startRecording() {
-  if (isLocalSending.value || props.isSending) return
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    analyser = audioCtx.createAnalyser()
-    analyser.fftSize = 256
-    const source = audioCtx.createMediaStreamSource(micStream)
-    source.connect(analyser)
-
-    mediaRecorder = new MediaRecorder(micStream)
-    audioChunks = []
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) audioChunks.push(e.data)
-    }
-    mediaRecorder.onstop = () => {
-      if (audioChunks.length > 0) {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
-        sendAudioToAsr(audioBlob)
-      }
-    }
-    mediaRecorder.start(200)
-    isRecording.value = true
-    currentMode.value = 'listening'
-    statusText.value = 'Listening...'
-    interimText.value = ''
-    showHint.value = false
-    setEmotion('16')
-    detectSilence()
-  } catch (err) {
-    console.error('录音权限获取失败:', err)
-    statusText.value = 'Mic Error'
-    setTimeout(() => {
-      statusText.value = 'System Ready'
-      currentMode.value = 'idle'
-    }, 2000)
-  }
-}
-
-function detectSilence() {
-  if (!analyser || !isRecording.value) return
-  const data = new Uint8Array(analyser.frequencyBinCount)
-  const check = () => {
-    if (!isRecording.value || !analyser) return
-    analyser.getByteFrequencyData(data)
-    const sum = data.reduce((a, b) => a + b, 0)
-    const avg = sum / data.length
-    if (avg < 10) {
-      if (!silenceTimer) {
-        silenceTimer = setTimeout(() => {
-          if (isRecording.value) stopRecording(true)
-        }, 2200)
-      }
-    } else {
-      if (silenceTimer) {
-        clearTimeout(silenceTimer)
-        silenceTimer = null
-      }
-    }
-    requestAnimationFrame(check)
-  }
-  requestAnimationFrame(check)
-}
-
-function stopRecording(send: boolean) {
-  if (!isRecording.value) return
-  isRecording.value = false
-  if (silenceTimer) {
-    clearTimeout(silenceTimer)
-    silenceTimer = null
-  }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    if (!send) audioChunks = []
-    mediaRecorder.stop()
-  }
-  if (micStream) {
-    micStream.getTracks().forEach(t => t.stop())
-    micStream = null
-  }
-  if (!send) {
-    currentMode.value = 'idle'
-    statusText.value = 'System Ready'
-    showHint.value = true
-    setEmotion('02')
-  } else {
-    currentMode.value = 'thinking'
-    statusText.value = 'Transcribing...'
-  }
-}
-
-async function sendAudioToAsr(blob: Blob) {
-  try {
-    const formData = new FormData()
-    formData.append('audio', blob, 'audio.webm')
-    const token = getAuthToken()
-    const res = await fetch('/api/ai/asr', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    })
-    const json = await res.json()
-    if (json.text && json.text.trim()) {
-      interimText.value = json.text
-      handleSend(json.text)
-    } else {
-      statusText.value = 'No Speech Detected'
-      currentMode.value = 'idle'
-      setEmotion('08')
-      setTimeout(() => {
-        statusText.value = 'System Ready'
-        showHint.value = true
-        setEmotion('02')
-      }, 2000)
-    }
-  } catch (err) {
-    console.error('ASR 请求失败:', err)
-    statusText.value = 'ASR Error'
-    currentMode.value = 'idle'
-    setTimeout(() => {
-      statusText.value = 'System Ready'
-      showHint.value = true
-    }, 2000)
-  }
-}
 
 /* ─── SSE 流式响应处理 ─── */
 let abortCtrl: AbortController | null = null
@@ -549,9 +342,6 @@ async function handleSend(userText: string) {
   if (textareaRef.value) textareaRef.value.style.height = 'auto'
 
   isLocalSending.value = true
-  currentMode.value = 'thinking'
-  statusText.value = 'Thinking...'
-  showHint.value = false
   toolStatus.value = 'Planner 正在分析您的请求，拆解为可执行的子任务...'
   const assistantMsg: ChatMsg = {
     role: 'assistant',
@@ -575,18 +365,12 @@ async function handleSend(userText: string) {
       const res = await guestChat(finalContent, history, props.selectedCharacterKey)
       assistantMsg.content = res.content
       isLocalSending.value = false
-      currentMode.value = 'speaking'
-      statusText.value = 'Speaking...'
       setEmotion('05', 3000)
       emit('send', finalContent, res.content)
       emit('refreshQuota')
-      speakText(res.content)
     } catch (err: any) {
       assistantMsg.content = err?.message || '请求失败，请稍后重试'
       isLocalSending.value = false
-      currentMode.value = 'idle'
-      statusText.value = 'System Ready'
-      showHint.value = true
       setEmotion('04')
     }
     return
@@ -778,15 +562,12 @@ async function handleSend(userText: string) {
 
     toolStatus.value = ''
     isLocalSending.value = false
-    currentMode.value = 'speaking'
-    statusText.value = 'Speaking...'
     setEmotion('05', 3000)
     emit('send', finalContent, fullText, assistantMsg.agentTrace ? JSON.stringify(assistantMsg.agentTrace) : undefined)
     emit('refreshQuota')
     if (assistantMsg.agentTrace && assistantMsg.agentTrace.ragContexts?.length) {
       void runAutomaticRagEvaluation(assistantMsg.agentTrace, finalContent, fullText)
     }
-    speakText(fullText)
   } catch (err: any) {
     if (err.name !== 'AbortError') {
       console.error('SSE 流式错误:', err)
@@ -795,32 +576,7 @@ async function handleSend(userText: string) {
     }
     toolStatus.value = ''
     isLocalSending.value = false
-    currentMode.value = 'idle'
-    statusText.value = 'System Ready'
-    showHint.value = true
   }
-}
-
-function speakText(text: string) {
-  if (!text || !('speechSynthesis' in window)) {
-    finishSpeaking()
-    return
-  }
-  window.speechSynthesis.cancel()
-  const clean = text.replace(/[#*`_~\[\]()]/g, '').slice(0, 300)
-  const utter = new SpeechSynthesisUtterance(clean)
-  utter.lang = 'zh-CN'
-  utter.rate = 1.05
-  utter.onend = finishSpeaking
-  utter.onerror = finishSpeaking
-  window.speechSynthesis.speak(utter)
-}
-
-function finishSpeaking() {
-  currentMode.value = 'idle'
-  statusText.value = 'System Ready'
-  showHint.value = true
-  setEmotion('02')
 }
 
 function scrollChat() {
@@ -921,15 +677,11 @@ function handleKeydown(e: KeyboardEvent) {
 onMounted(() => {
   document.documentElement.classList.add('immersive-mode-active')
   window.addEventListener('keydown', handleKeydown)
-  initSpeech()
 })
 
 onBeforeUnmount(() => {
   document.documentElement.classList.remove('immersive-mode-active')
   window.removeEventListener('keydown', handleKeydown)
-  if (silenceTimer) clearTimeout(silenceTimer)
-  mediaRecorder?.stop()
-  audioCtx?.close()
   abortCtrl?.abort()
 })
 
@@ -964,15 +716,10 @@ function shouldShowMessage(msg: ChatMsg) {
 
 <template>
   <div class="immersive-overlay">
-    <!-- 左侧吉祥物与语音交互舞台 (5:5 均分布局) -->
+    <!-- 左侧吉祥物舞台 (5:5 均分布局) -->
     <VoiceWaveStage
       ref="voiceStageRef"
       :current-emotion="currentEmotion"
-      :current-mode="currentMode"
-      :status-text="statusText"
-      :interim-text="interimText"
-      :show-hint="showHint"
-      @toggle-voice="toggleVoice"
     />
 
     <!-- 右侧会话与控制面板 (5:5 均分布局) -->
@@ -985,7 +732,7 @@ function shouldShowMessage(msg: ChatMsg) {
           :class="{ active: activeTab === 'chat' }"
           @click="activeTab = 'chat'"
         >
-          对话
+          <span>对话</span>
         </button>
         <button
           type="button"
@@ -993,15 +740,7 @@ function shouldShowMessage(msg: ChatMsg) {
           :class="{ active: activeTab === 'sessions' }"
           @click="activeTab = 'sessions'"
         >
-          会话
-        </button>
-        <button
-          type="button"
-          class="imm-tab"
-          :class="{ active: activeTab === 'capabilities' }"
-          @click="openCapabilities"
-        >
-          能力
+          <span>会话</span>
         </button>
         <button
           type="button"
@@ -1009,11 +748,11 @@ function shouldShowMessage(msg: ChatMsg) {
           :class="{ active: configModalOpen }"
           @click="openAgentConfig"
         >
-          <Settings :size="13" style="margin-right: 4px;" />
-          设置
+          <Settings :size="13" class="imm-tab-icon" />
+          <span>设置</span>
         </button>
         <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
-          ＋ 新会话
+          <span>＋ 新会话</span>
         </button>
       </div>
 
@@ -1200,7 +939,7 @@ function shouldShowMessage(msg: ChatMsg) {
             v-model="inputText"
             class="imm-textarea"
             rows="2"
-            placeholder="输入消息，或点击下方语音..."
+            placeholder="输入消息..."
             :disabled="isSending || isLocalSending"
             @keydown="onInputKeydown"
           ></textarea>
@@ -1287,79 +1026,6 @@ function shouldShowMessage(msg: ChatMsg) {
           </li>
         </ul>
         <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
-      </div>
-
-      <!-- MCP 能力面板 -->
-      <div v-show="activeTab === 'capabilities'" class="imm-panel-capabilities">
-        <section class="imm-cap-section" aria-labelledby="mcp-capability-title">
-          <div class="imm-cap-heading">
-            <div>
-              <p class="imm-cap-eyebrow">External tools</p>
-              <h2 id="mcp-capability-title">MCP 服务</h2>
-            </div>
-            <button
-              type="button"
-              class="imm-cap-refresh"
-              :disabled="mcpLoading"
-              aria-label="刷新 MCP 工具"
-              @click="loadMcpCapabilities"
-            >
-              <RefreshCw :size="14" :class="{ spinning: mcpLoading }" />
-            </button>
-          </div>
-
-          <p v-if="mcpError" class="imm-cap-error">{{ mcpError }}</p>
-          <div v-else-if="mcpLoading" class="imm-cap-loading">
-            <span class="imm-tool-spinner"></span>
-            正在连接 MCP Server...
-          </div>
-          <div v-else-if="!mcpTools.length" class="imm-cap-empty">
-            <Server :size="20" />
-            <div>
-              <strong>实时搜索等待配置</strong>
-              <p>生产环境设置 ZHIPU_API_KEY 后，会自动启用智谱实时联网搜索。</p>
-            </div>
-          </div>
-          <template v-else>
-            <p class="imm-server-summary">已连接 {{ mcpServers.length }} 个 MCP 服务</p>
-            <div class="imm-server-list">
-              <article v-for="server in mcpServers" :key="server" class="imm-server-item">
-                <div class="imm-server-status" aria-hidden="true">
-                  <Server :size="17" />
-                </div>
-                <div class="imm-server-copy">
-                  <strong>{{ getMcpServerName(server) }}</strong>
-                  <span>{{ getMcpServerToolCount(server) }} 种实时搜索能力</span>
-                </div>
-                <span class="imm-server-connected">
-                  <span class="imm-server-dot"></span>已连接
-                </span>
-              </article>
-            </div>
-          </template>
-        </section>
-
-        <section class="imm-cap-section" aria-labelledby="rag-index-title">
-          <div class="imm-cap-heading">
-            <div>
-              <p class="imm-cap-eyebrow">Knowledge index</p>
-              <h2 id="rag-index-title">知识库向量索引</h2>
-            </div>
-          </div>
-          <p class="imm-index-copy">
-            已发布文章会自动写入索引。首次启用或部署前已有文章时，可手动完整重建一次。
-          </p>
-          <button
-            type="button"
-            class="imm-index-button"
-            :disabled="reindexLoading"
-            @click="rebuildKnowledgeIndex"
-          >
-            <RefreshCw :size="14" :class="{ spinning: reindexLoading }" />
-            {{ reindexLoading ? '正在重建索引...' : '重建我的文章索引' }}
-          </button>
-          <p v-if="reindexMessage" class="imm-index-message">{{ reindexMessage }}</p>
-        </section>
       </div>
     </div>
   </div>

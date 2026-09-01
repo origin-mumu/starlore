@@ -232,6 +232,51 @@
 .msg .text :deep(p) {
   margin: 0.1rem 0;
 }
+.msg .text :deep(.chat-table),
+.msg .text :deep(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0.6rem 0;
+  font-size: 0.76rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+.msg .text :deep(table::-webkit-scrollbar) {
+  height: 5px;
+}
+.msg .text :deep(table::-webkit-scrollbar-thumb) {
+  background: var(--accent);
+  border-radius: 999px;
+}
+.msg .text :deep(th),
+.msg .text :deep(td) {
+  padding: 6px 10px;
+  min-width: 80px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  line-height: 1.4;
+}
+.msg .text :deep(th:last-child),
+.msg .text :deep(td:last-child) {
+  border-right: none;
+}
+.msg .text :deep(tr:last-child td) {
+  border-bottom: none;
+}
+.msg .text :deep(th) {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+}
 
 .imm-tool-status {
   display: inline-flex;
@@ -296,14 +341,34 @@
   flex-shrink: 0;
 }
 .imm-tab {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 14px;
   border: 1px solid transparent;
   background: transparent;
   border-radius: var(--radius-full);
   font-size: 13px;
+  line-height: 1;
   color: var(--ink-soft);
   cursor: pointer;
   transition: all 0.2s;
+  vertical-align: middle;
+  user-select: none;
+}
+.imm-tab .imm-tab-icon,
+.imm-tab svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  margin: 0;
+}
+.imm-tab span {
+  display: inline-block;
+  line-height: 1;
 }
 .imm-tab:hover {
   background: var(--hover-bg, rgba(0, 0, 0, 0.04));
