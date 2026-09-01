@@ -256,15 +256,23 @@ onUnmounted(() => {
           >
             <div class="feature-header">
               <div class="feature-icon">
-                <component :is="feature.icon" :size="24" />
+                <component :is="feature.icon" :size="22" />
               </div>
-              <span class="feature-tech">{{ feature.tech }}</span>
             </div>
             <h3 class="feature-title">{{ feature.title }}</h3>
             <p class="feature-desc">{{ feature.desc }}</p>
-            <router-link v-if="feature.link" :to="feature.link" class="feature-link">
-              探索 <ArrowRight :size="14" />
-            </router-link>
+            <div class="feature-footer">
+              <div class="feature-tech-chips">
+                <span
+                  v-for="tag in feature.tech.split(' · ')"
+                  :key="tag"
+                  class="tech-chip"
+                >{{ tag }}</span>
+              </div>
+              <router-link v-if="feature.link" :to="feature.link" class="feature-link">
+                探索 <ArrowRight :size="14" />
+              </router-link>
+            </div>
           </div>
         </div>
       </div>
