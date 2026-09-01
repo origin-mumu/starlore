@@ -186,13 +186,13 @@ onUnmounted(() => {
             通过 Planner 规划 → Executor 执行 → Reviewer 审查，让 AI 真正深入理解您的碎片化知识。
           </p>
           <div class="hero-actions fade-in-up" style="animation-delay: 0.4s">
-            <router-link to="/login" class="btn-primary btn-lg">
+            <router-link to="/login" class="hero-action-btn hero-action-btn--primary">
               <Terminal :size="16" />
-              开始探索
+              <span>开始探索</span>
             </router-link>
-            <a href="#features" class="btn-secondary btn-lg">
+            <a href="#features" class="hero-action-btn hero-action-btn--secondary">
               <Code2 :size="16" />
-              技术架构
+              <span>技术架构</span>
             </a>
           </div>
 
