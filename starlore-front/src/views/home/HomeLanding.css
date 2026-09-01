@@ -172,6 +172,7 @@
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   vertical-align: middle;
+  overflow: hidden;
 }
 
 .hero-action-btn svg {
@@ -180,23 +181,22 @@
 }
 
 .hero-action-btn--primary {
-  background: var(--accent-gradient, linear-gradient(135deg, #e85d2a, #d44d1c));
+  background: linear-gradient(135deg, #e85d2a 0%, #d44d1c 100%);
   color: #ffffff !important;
-  border: 1.5px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 14px rgba(232, 93, 42, 0.32);
 }
 
 .hero-action-btn--primary:hover {
-  background: var(--accent-hover, #d44d1c);
+  background: linear-gradient(135deg, #f06a38 0%, #dc5422 100%);
   box-shadow: 0 6px 20px rgba(232, 93, 42, 0.45);
   transform: translateY(-2px);
-  filter: brightness(1.06);
 }
 
 .hero-action-btn--secondary {
   background: var(--surface, #ffffff);
   color: var(--ink, #1e293b) !important;
-  border: 1.5px solid var(--border-interactive, rgba(0, 0, 0, 0.14));
+  border: 1px solid var(--border-interactive, rgba(0, 0, 0, 0.12));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
