@@ -415,34 +415,43 @@ function handleDelete(id: number, e: MouseEvent) {
 .btn-chunk-drawer {
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--ink-soft);
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 .btn-chunk-drawer:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: var(--hover-bg);
 }
 
 .card-icon-btn {
-  background: none;
-  border: none;
+  width: 28px;
+  height: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
   color: var(--ink-muted);
   cursor: pointer;
-  padding: 3px;
-  border-radius: 4px;
-  display: flex;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 .card-icon-btn:hover,
 .card-icon-btn.active {
   color: var(--ink);
+  border-color: var(--accent);
   background: var(--hover-bg);
 }
 .card-icon-btn.danger:hover {
   color: #ef4444;
+  border-color: #ef4444;
 }
 
 .card-more-wrap {
@@ -455,18 +464,16 @@ function handleDelete(id: number, e: MouseEvent) {
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
-  background: var(--surface);
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
   padding: 4px;
   min-width: 104px;
   z-index: 50;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .dropdown-item {
