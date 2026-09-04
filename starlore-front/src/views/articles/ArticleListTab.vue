@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Search,
   Database,
   Edit3,
   Trash2,
+  MoreHorizontal,
 } from '@lucide/vue'
 import DummyCard from '@/components/dummyCard.vue'
 import SideBar from '@/components/sideBar.vue'
@@ -61,6 +62,24 @@ const hasArticles = computed(() => props.filteredArticles.length > 0)
 function onSearchInput(e: Event) {
   emit('update:articleSearch', (e.target as HTMLInputElement).value)
 }
+
+const activeMoreId = ref<number | null>(null)
+
+function toggleMore(id: number) {
+  activeMoreId.value = activeMoreId.value === id ? null : id
+}
+
+function closeMore() {
+  activeMoreId.value = null
+}
+
+onMounted(() => {
+  window.addEventListener('click', closeMore)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', closeMore)
+})
 
 function handleDelete(id: number, e: MouseEvent) {
   e.stopPropagation()
@@ -136,24 +155,35 @@ function handleDelete(id: number, e: MouseEvent) {
                 >
                   查看切片
                 </button>
-                <button
-                  v-if="userStore.isLoggedIn"
-                  class="card-icon-btn"
-                  @click.stop="router.push(`/articles/edit/${article.id}`)"
-                  title="编辑星记"
-                  aria-label="编辑星记"
-                >
-                  <Edit3 :size="15" />
-                </button>
-                <button
-                  v-if="userStore.isLoggedIn"
-                  class="card-icon-btn danger"
-                  @click="handleDelete(article.id, $event)"
-                  title="删除星记"
-                  aria-label="删除星记"
-                >
-                  <Trash2 :size="15" />
-                </button>
+                <div v-if="userStore.isLoggedIn" class="card-more-wrap">
+                  <button
+                    class="card-icon-btn"
+                    :class="{ active: activeMoreId === article.id }"
+                    @click.stop="toggleMore(article.id)"
+                    title="更多操作"
+                    aria-label="更多操作"
+                  >
+                    <MoreHorizontal :size="16" />
+                  </button>
+                  <transition name="dropdown-fade">
+                    <div v-if="activeMoreId === article.id" class="card-dropdown">
+                      <button
+                        class="dropdown-item"
+                        @click.stop="closeMore(); router.push(`/articles/edit/${article.id}`)"
+                      >
+                        <Edit3 :size="14" />
+                        <span>编辑星记</span>
+                      </button>
+                      <button
+                        class="dropdown-item danger"
+                        @click="closeMore(); handleDelete(article.id, $event)"
+                      >
+                        <Trash2 :size="14" />
+                        <span>删除星记</span>
+                      </button>
+                    </div>
+                  </transition>
+                </div>
               </div>
             </div>
           </div>
@@ -406,12 +436,79 @@ function handleDelete(id: number, e: MouseEvent) {
   display: flex;
   align-items: center;
 }
-.card-icon-btn:hover {
+.card-icon-btn:hover,
+.card-icon-btn.active {
   color: var(--ink);
   background: var(--hover-bg);
 }
 .card-icon-btn.danger:hover {
   color: #ef4444;
+}
+
+.card-more-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.card-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 104px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--ink-soft);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.dropdown-item:hover {
+  background: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  color: var(--ink);
+}
+
+.dropdown-item.danger {
+  color: #ef4444;
+}
+
+.dropdown-item.danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 .pagination {

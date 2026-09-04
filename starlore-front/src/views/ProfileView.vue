@@ -1,6 +1,7 @@
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { MoreHorizontal, Edit3, Trash2 } from '@lucide/vue'
 import { useUserStore } from '@/stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import { changePasswordService } from '@/api/auth'
@@ -202,8 +203,21 @@ const confirmDeleteProject = (p: Project) => {
   }).catch(() => {/* ignore */})
 }
 
+const activeProjectMoreId = ref<number | null>(null)
+const toggleProjectMore = (id: number) => {
+  activeProjectMoreId.value = activeProjectMoreId.value === id ? null : id
+}
+const closeProjectMore = () => {
+  activeProjectMoreId.value = null
+}
+
 onMounted(() => {
   fetchProjects()
+  window.addEventListener('click', closeProjectMore)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', closeProjectMore)
 })
 
 const handleChangePassword = async () => {
@@ -520,9 +534,34 @@ const handleChangePassword = async () => {
                     <p v-if="p.description" class="project-desc">{{ p.description }}</p>
                     <a v-if="p.url" :href="p.url" target="_blank" class="project-link">{{ p.url }}</a>
                   </div>
-                  <div class="project-actions">
-                    <button class="project-btn" @click="openProjectDialog(p)" title="编辑">&#9998;</button>
-                    <button class="project-btn project-btn--del" @click="confirmDeleteProject(p)" title="删除">&times;</button>
+                  <div class="project-more-wrap" @click.stop>
+                    <button
+                      class="project-btn"
+                      :class="{ active: activeProjectMoreId === p.id }"
+                      @click.stop="toggleProjectMore(p.id)"
+                      title="更多操作"
+                      aria-label="更多操作"
+                    >
+                      <MoreHorizontal :size="16" />
+                    </button>
+                    <transition name="dropdown-fade">
+                      <div v-if="activeProjectMoreId === p.id" class="project-dropdown">
+                        <button
+                          class="project-dropdown-item"
+                          @click="closeProjectMore(); openProjectDialog(p)"
+                        >
+                          <Edit3 :size="14" />
+                          <span>编辑</span>
+                        </button>
+                        <button
+                          class="project-dropdown-item danger"
+                          @click="closeProjectMore(); confirmDeleteProject(p)"
+                        >
+                          <Trash2 :size="14" />
+                          <span>删除</span>
+                        </button>
+                      </div>
+                    </transition>
                   </div>
                 </div>
               </div>
