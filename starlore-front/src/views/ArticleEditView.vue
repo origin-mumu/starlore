@@ -35,21 +35,19 @@ const form = ref<CreateArticleData>({
   category: '',
   tags: [],
   coverImage: '',
-  status: 'draft',
+  status: 'published',
   is_public: false,
 })
 
 const categories = ref<{ name: string }[]>([])
 const tagInput = ref('')
 
-const statusOpen = ref(false)
 const visibilityOpen = ref(false)
 const categoryOpen = ref(false)
 
 const closeAllDropdowns = (e: MouseEvent) => {
   const target = e.target as HTMLElement
   if (!target.closest('.custom-select')) {
-    statusOpen.value = false
     visibilityOpen.value = false
     categoryOpen.value = false
   }
@@ -71,7 +69,7 @@ onMounted(async () => {
         category: data.category || '',
         tags: data.tags || [],
         coverImage: data.coverImage || data.cover_image || '',
-        status: data.status || 'draft',
+        status: data.status === 'draft' ? 'published' : (data.status || 'published'),
         is_public: data.is_public ?? data.isPublic ?? false,
       }
     }
@@ -236,37 +234,7 @@ function handleNotifyConfirm() {
                 ></textarea>
               </div>
               
-              <div class="field">
-                <label class="field-label">
-                  <FileText class="field-icon-sm" />
-                  <span>发布状态</span>
-                </label>
-                <div class="custom-select">
-                  <div class="custom-select-trigger" @click.stop="statusOpen = !statusOpen">
-                    <span>{{ form.status === 'draft' ? '草稿 (Draft)' : '发布 (Publish)' }}</span>
-                    <ChevronDown class="arrow-icon" :class="{ 'is-open': statusOpen }" />
-                  </div>
-                  <Transition name="dropdown-fade">
-                    <div v-if="statusOpen" class="custom-select-options">
-                      <div 
-                        class="custom-select-option" 
-                        :class="{ active: form.status === 'draft' }"
-                        @click="form.status = 'draft'; statusOpen = false"
-                      >
-                        草稿 (Draft)
-                      </div>
-                      <div 
-                        class="custom-select-option" 
-                        :class="{ active: form.status === 'published' }"
-                        @click="form.status = 'published'; statusOpen = false"
-                      >
-                        发布 (Publish)
-                      </div>
-                    </div>
-                  </Transition>
-                </div>
-              </div>
-              
+
               <div class="field">
                 <label class="field-label">
                   <component :is="form.is_public ? Globe : Lock" class="field-icon-sm" />
