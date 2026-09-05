@@ -88,14 +88,14 @@
   font-size: 14px;
   line-height: 1.7;
   font-weight: 300;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 10px 14px;
-  border-radius: 16px 16px 16px 2px;
-  max-width: 85%;
-  width: fit-content;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  border-radius: 0;
+  max-width: 100%;
+  width: 100%;
   word-break: break-word;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .imm-rag-inline {
