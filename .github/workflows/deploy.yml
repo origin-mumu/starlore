@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "starlore-front/**"
-      - "starlore-back/**"
       - "starlore-py/**"
       - "docker-compose.yml"
       - ".github/workflows/deploy.yml"
@@ -40,9 +39,6 @@ jobs:
             front:
               - 'starlore-front/**'
               - '.github/workflows/deploy.yml'
-            back:
-              - 'starlore-back/**'
-              - '.github/workflows/deploy.yml'
             py:
               - 'starlore-py/**'
               - '.github/workflows/deploy.yml'
@@ -68,14 +64,6 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_PREFIX }}/starlore-front:latest
 
-      - name: Build and Push starlore-back
-        if: steps.changes.outputs.back == 'true' || github.event_name == 'workflow_dispatch'
-        uses: docker/build-push-action@v6
-        with:
-          context: ./starlore-back
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/starlore-back:latest
-
       - name: Build and Push starlore-py
         if: steps.changes.outputs.py == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/build-push-action@v6
@@ -97,7 +85,7 @@ jobs:
           target: "/opt/starlore"
 
       - name: Deploy to Server
-        if: steps.changes.outputs.front == 'true' || steps.changes.outputs.back == 'true' || steps.changes.outputs.py == 'true' || steps.changes.outputs.stack == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.changes.outputs.front == 'true' || steps.changes.outputs.py == 'true' || steps.changes.outputs.stack == 'true' || github.event_name == 'workflow_dispatch'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -110,10 +98,6 @@ jobs:
               docker-compose pull
               docker-compose up -d --remove-orphans
             else
-              if [ "${{ steps.changes.outputs.back }}" = "true" ]; then
-                docker-compose pull starlore-back
-                docker-compose up -d --no-deps starlore-back
-              fi
               if [ "${{ steps.changes.outputs.py }}" = "true" ]; then
                 docker-compose pull starlore-py
                 docker-compose up -d --no-deps starlore-py

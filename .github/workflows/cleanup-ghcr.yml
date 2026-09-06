@@ -21,7 +21,6 @@ jobs:
       matrix:
         package:
           - starlore/starlore-front
-          - starlore/starlore-back
           - starlore/starlore-py
           - starlore/starlore-pdf
 
