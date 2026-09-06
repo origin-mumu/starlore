@@ -46,7 +46,6 @@ __screenshots__/
 
 # 后端独立仓库（已迁移至 https://github.com/origin-mumu/star-back.git）
 starlore-back/
-migrate-star-back.bat
 
 # Blog-back相关
 blog-back/.env
