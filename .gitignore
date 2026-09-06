@@ -44,11 +44,9 @@ __screenshots__/
 .env.test.local
 .env.production.local
 
-# Spring Boot 配置文件（含数据库密码、API Key 等敏感信息）
-application*.yaml
-!starlore-back/src/main/resources/application.yaml
-!starlore-back/src/main/resources/application-prod.yaml
-!starlore-back/src/main/resources/application-dev.yaml
+# 后端独立仓库（已迁移至 https://github.com/origin-mumu/star-back.git）
+starlore-back/
+migrate-star-back.bat
 
 # Blog-back相关
 blog-back/.env
