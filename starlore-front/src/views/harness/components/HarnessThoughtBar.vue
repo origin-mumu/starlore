@@ -17,15 +17,15 @@ const isExpanded = ref(true)
 
 const durationText = computed(() => {
   if (!props.durationMs || props.durationMs <= 0) {
-    return props.isRunning ? '思考中...' : '用时 1s'
+    return props.isRunning ? '正在思考与生成中...' : '用时 1s'
   }
   const totalSec = Math.floor(props.durationMs / 1000)
   if (totalSec < 60) {
-    return `用时 ${totalSec}s`
+    return props.isRunning ? `正在生成 (${totalSec}s)...` : `用时 ${totalSec}s`
   }
   const mins = Math.floor(totalSec / 60)
   const secs = totalSec % 60
-  return `用时 ${mins}m ${secs}s`
+  return props.isRunning ? `正在生成 (${mins}m ${secs}s)...` : `用时 ${mins}m ${secs}s`
 })
 
 const validSteps = computed(() => {

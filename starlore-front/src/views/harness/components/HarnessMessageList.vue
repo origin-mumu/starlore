@@ -42,7 +42,14 @@ function scrollToBottom(smooth = true) {
 }
 
 watch(
-  [() => props.messages.length, () => props.streamingMessage?.content, () => props.streamingMessage?.reasoning_content],
+  [
+    () => props.messages.length,
+    () => props.streamingMessage?.content,
+    () => props.streamingMessage?.reasoning_content,
+    () => props.streamingMessage?.tool_calls?.length,
+    () => props.streamingMessage?.artifacts?.length,
+    () => props.isRunning,
+  ],
   async () => {
     if (!userHasScrolledUp) {
       await nextTick()
