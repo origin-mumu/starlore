@@ -22,10 +22,19 @@ import yaml
 from docx import Document
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor as DocxRGBColor
-from pptx import Presentation
-from pptx.dml.color import RGBColor as PptxRGBColor
-from pptx.enum.text import PP_ALIGN
-from pptx.util import Inches as PptxInches, Pt as PptxPt
+try:
+    from pptx import Presentation
+    from pptx.dml.color import RGBColor as PptxRGBColor
+    from pptx.enum.text import PP_ALIGN
+    from pptx.util import Inches as PptxInches, Pt as PptxPt
+    HAS_PPTX = True
+except ImportError:
+    HAS_PPTX = False
+    Presentation = None  # type: ignore
+    PptxRGBColor = None  # type: ignore
+    PP_ALIGN = None  # type: ignore
+    PptxInches = None  # type: ignore
+    PptxPt = None  # type: ignore
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -404,6 +413,8 @@ def _build_pptd_project(
 
 def _generate_fallback_pptx(title: str, subtitle: str, slides_data: list[dict]) -> bytes:
     """使用 python-pptx 作为兜底生成器。"""
+    if not HAS_PPTX or Presentation is None:
+        raise RuntimeError("python-pptx 依赖尚未安装，无法生成演示文稿")
     prs = Presentation()
     prs.slide_width = PptxInches(13.333)
     prs.slide_height = PptxInches(7.5)
