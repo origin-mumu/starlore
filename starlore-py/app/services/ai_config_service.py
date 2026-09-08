@@ -74,7 +74,7 @@ async def get_config_by_id(db: AsyncSession, config_id: int) -> AiConfig:
     return config
 
 
-async def get_config_by_key(db: AsyncSession, model_key: str) -> AiConfig | None:
+async def get_config_by_key(db: AsyncSession, model_key: str, fallback: bool = False) -> AiConfig | None:
     result = await db.execute(
         select(AiConfig).where(
             (AiConfig.modelKey == model_key) | (AiConfig.modelName == model_key)
@@ -85,9 +85,9 @@ async def get_config_by_key(db: AsyncSession, model_key: str) -> AiConfig | None
         return res
     all_cfgs = await get_all_configs(db)
     for c in all_cfgs:
-        if c.modelKey.lower() == model_key.lower() or (c.modelName and c.modelName.lower() == model_key.lower()):
+        if (c.modelKey and c.modelKey.lower() == model_key.lower()) or (c.modelName and c.modelName.lower() == model_key.lower()):
             return c
-    return all_cfgs[0] if all_cfgs else None
+    return all_cfgs[0] if (fallback and all_cfgs) else None
 
 
 async def create_config(db: AsyncSession, req: AIConfigRequest) -> AiConfig:

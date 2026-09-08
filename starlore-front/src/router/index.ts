@@ -86,6 +86,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/harness',
+      name: 'harness',
+      component: () => import('../views/harness/HarnessView.vue'),
+      meta: {
+        title: '云端智能体 - Starlore',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/knowledge-memory',
       name: 'knowledgeMemory',
       component: () => import('../views/KnowledgeMemoryView.vue'),

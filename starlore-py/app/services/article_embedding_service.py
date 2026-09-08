@@ -82,7 +82,8 @@ class _ZhipuEmbeddings(Embeddings):
                         time.sleep(1.0)
 
                 if last_err is not None:
-                    raise last_err
+                    logger.warning("[RAG Embedding] 接口调用未成功: %s", last_err)
+                    return []
 
         return all_embeddings
 
@@ -94,16 +95,23 @@ class _ZhipuEmbeddings(Embeddings):
 async def _get_embeddings(db: AsyncSession) -> Embeddings | None:
     """获取 Embedding 实例（从数据库配置）。"""
     global _embeddings
-    config = await ai_config_service.get_config_by_key(db, "zhipu-embedding")
+    config = await ai_config_service.get_config_by_key(db, "zhipu-embedding", fallback=False)
     if not config or not config.enabled or not config.apiKey:
-        logger.warning("[RAG] 未找到可用的 Embedding 配置（zhipu-embedding），语义搜索已禁用")
+        all_cfgs = await ai_config_service.get_all_configs(db)
+        for c in all_cfgs:
+            if c.enabled and c.apiKey and ("embedding" in (c.modelKey or "").lower() or "embedding" in (c.modelId or "").lower()):
+                config = c
+                break
+
+    if not config or not config.enabled or not config.apiKey:
+        logger.info("[RAG] 未找到专门的 Embedding 配置，语义搜索已禁用并使用关键词搜索")
         return None
 
     base_url = config.apiUrl or "https://open.bigmodel.cn/api/paas/v4"
     model_id = config.modelId or "embedding-2"
 
     _embeddings = _ZhipuEmbeddings(base_url, config.apiKey, model_id)
-    logger.info("[RAG] 使用智谱 Embedding: %s, model: %s", base_url, model_id)
+    logger.info("[RAG] 使用 Embedding 配置: %s, model: %s", base_url, model_id)
     return _embeddings
 
 
@@ -286,15 +294,24 @@ async def search_similar(
     tag: str | None = None,
 ) -> list[Article]:
     """根据 Agent 调优参数（Top-K、相似度阈值、BM25 Rerank）真正执行检索。"""
-    store = await _ensure_vector_store(db)
+    try:
+        store = await _ensure_vector_store(db)
+    except Exception as e:
+        logger.warning("[RAG] 初始化向量存储失败: %s", e)
+        return []
+
     if store is None:
         return []
 
     try:
         results_with_scores = store.similarity_search_with_score(query, k=top_k * 4)
     except Exception:
-        results = store.similarity_search(query, k=top_k * 2)
-        results_with_scores = [(doc, 0.0) for doc in results]
+        try:
+            results = store.similarity_search(query, k=top_k * 2)
+            results_with_scores = [(doc, 0.0) for doc in results]
+        except Exception as e:
+            logger.warning("[RAG] 向量搜索失败: %s", e)
+            return []
 
     article_ids = []
     seen = set()

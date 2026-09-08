@@ -27,37 +27,46 @@ async def search_articles_impl(
 
     # 1. 尝试语义搜索（支持 category 和 tag 筛选）
     if keyword:
-        similar = await article_embedding_service.search_similar(
-            db, keyword, user_id, top_k=10, category=category, tag=tag
-        )
-        if similar:
-            articles = similar
+        try:
+            similar = await article_embedding_service.search_similar(
+                db, keyword, user_id, top_k=10, category=category, tag=tag
+            )
+            if similar:
+                articles = similar
+        except Exception as e:
+            logger.warning("[RAG] 语义检索异常，自动降级为关键词/最新文章检索: %s", e)
 
     # 2. 语义搜索未命中（或过滤后为空），回退到关键词搜索
     if not articles and keyword:
-        conditions = [
-            Article.user_id == user_id,
-            Article.status == "published",
-            or_(
-                Article.title.ilike(f"%{keyword}%"),
-                Article.description.ilike(f"%{keyword}%"),
-            ),
-        ]
-        if category:
-            conditions.append(Article.category == category)
-        result = await db.execute(
-            select(Article).where(*conditions).order_by(Article.createdAt.desc()).limit(10)
-        )
-        articles = list(result.scalars().all())
+        try:
+            conditions = [
+                Article.user_id == user_id,
+                Article.status == "published",
+                or_(
+                    Article.title.ilike(f"%{keyword}%"),
+                    Article.description.ilike(f"%{keyword}%"),
+                ),
+            ]
+            if category:
+                conditions.append(Article.category == category)
+            result = await db.execute(
+                select(Article).where(*conditions).order_by(Article.createdAt.desc()).limit(10)
+            )
+            articles = list(result.scalars().all())
+        except Exception as e:
+            logger.warning("[RAG] 关键词检索异常: %s", e)
 
-    # 3. 兜底搜索
+    # 3. 兜底搜索（最新文章）
     if not articles:
-        query = select(Article).where(Article.user_id == user_id, Article.status == "published")
-        if category:
-            query = query.where(Article.category == category)
-        query = query.order_by(Article.createdAt.desc()).limit(10)
-        result = await db.execute(query)
-        articles = list(result.scalars().all())
+        try:
+            query = select(Article).where(Article.user_id == user_id, Article.status == "published")
+            if category:
+                query = query.where(Article.category == category)
+            query = query.order_by(Article.createdAt.desc()).limit(10)
+            result = await db.execute(query)
+            articles = list(result.scalars().all())
+        except Exception as e:
+            logger.warning("[RAG] 兜底检索最新文章异常: %s", e)
 
     items = []
     for a in articles:

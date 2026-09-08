@@ -27,6 +27,7 @@ from app.routers import (
     resume,
     sync,
     upload,
+    harness,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -75,6 +76,7 @@ app.include_router(projects.router)
 app.include_router(admin.router)
 app.include_router(upload.router)
 app.include_router(sync.router)
+app.include_router(harness.router)
 
 
 if __name__ == "__main__":

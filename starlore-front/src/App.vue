@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="app-container"
-    :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' }"
+    :class="{ 'app-container--echobot': route.path === '/echobot' || route.path === '/vr' || route.path === '/harness' }"
   >
     <!-- 全局背景装饰 - 模糊气泡 -->
     <BlurredBubbles />
@@ -83,14 +83,14 @@ onBeforeUnmount(() => {
     <navbar v-show="route.path !== '/vr' && route.path !== '/login'" />
     <div
       class="router-outlet"
-      :class="{ 'router-outlet--echobot': route.path === '/echobot' || route.path === '/vr' }"
+      :class="{ 'router-outlet--echobot': route.path === '/echobot' || route.path === '/vr' || route.path === '/harness' }"
     >
       <RouterView />
     </div>
     <footer
-      v-show="route.path !== '/vr' && route.path !== '/diverge'"
+      v-show="route.path !== '/vr' && route.path !== '/diverge' && route.path !== '/harness'"
       class="site-footer"
-      :class="{ 'site-footer--echobot': route.path === '/echobot' }"
+      :class="{ 'site-footer--echobot': route.path === '/echobot' || route.path === '/harness' }"
     >
       <div class="footer-beian">
         <a :href="MIIT_URL" target="_blank" rel="noopener noreferrer">

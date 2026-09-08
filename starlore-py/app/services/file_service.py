@@ -35,10 +35,29 @@ def _get_client() -> Minio:
     return _client
 
 
-async def upload_file(filename: str, data: bytes, content_type: str) -> str:
-    """上传文件到 MinIO，返回公开访问 URL。使用线程池避免阻塞事件循环。"""
+async def upload_file(
+    filename: str,
+    data: bytes,
+    content_type: str,
+    user_id: int | None = None,
+    folder: str = "harness",
+) -> str:
+    """上传文件到 MinIO，返回公开访问 URL。支持按用户 ID 隔离目录。使用线程池避免阻塞事件循环。"""
+    import re
+    from urllib.parse import quote
+
     ext = Path(filename).suffix or ".bin"
-    object_name = f"{uuid.uuid4().hex}{ext}"
+    stem = Path(filename).stem
+    safe_stem = re.sub(r'[\\/*?:"<>| ]', '_', stem)[:30] or "file"
+    safe_uuid = uuid.uuid4().hex[:8]
+    final_file_name = f"{safe_stem}_{safe_uuid}{ext}"
+
+    if user_id:
+        object_name = f"users/{user_id}/{folder}/{final_file_name}"
+    else:
+        object_name = f"{final_file_name}"
+
+    encoded_name = quote(filename)
 
     def _upload() -> str:
         client = _get_client()
@@ -48,8 +67,15 @@ async def upload_file(filename: str, data: bytes, content_type: str) -> str:
             io.BytesIO(data),
             length=len(data),
             content_type=content_type,
+            metadata={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"
+            },
         )
-        return f"{settings.minio_public_url}/{object_name}"
+        public_base = settings.minio_public_url.rstrip("/")
+        # 确保包含 bucket 名称，以兼容 MinIO 路径规范与 Nginx 反向代理
+        if not public_base.endswith(settings.minio_bucket):
+            return f"{public_base}/{settings.minio_bucket}/{object_name}"
+        return f"{public_base}/{object_name}"
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _upload)

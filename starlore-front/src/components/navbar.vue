@@ -20,7 +20,7 @@ const navItems = computed(() => {
     { name: '星域', path: '/categories' },
     { name: '探索', path: '/vr' },
     { name: '灵感', path: '/diverge' },
-    { name: 'AI', path: '/echobot' }
+    { name: 'AI', path: '/harness' }
   )
   return items
 })
@@ -53,7 +53,7 @@ const mobileMainTabs = [
   { name: '首页', path: '/' },
   { name: '星记', path: '/articles' },
   { name: '记忆', path: '/knowledge-memory' },
-  { name: 'AI', path: '/echobot' },
+  { name: 'AI', path: '/harness' },
 ]
 
 const mobileMoreItems = computed(() => {
