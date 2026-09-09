@@ -12,30 +12,30 @@ import type {
 } from '@/views/harness/types'
 
 export async function fetchHarnessModels(): Promise<HarnessModelItem[]> {
-  const res = await request.get<{ items: HarnessModelItem[] }>('/harness/models')
-  return res.items || []
+  const res = (await request.get('/harness/models')) as { items: HarnessModelItem[] }
+  return res?.items || []
 }
 
 export async function fetchHarnessSessions(): Promise<HarnessSession[]> {
-  const res = await request.get<{ items: HarnessSession[] }>('/harness/sessions')
-  return res.items || []
+  const res = (await request.get('/harness/sessions')) as { items: HarnessSession[] }
+  return res?.items || []
 }
 
 export async function createHarnessSession(
   title?: string,
   modelId?: string
 ): Promise<HarnessSession> {
-  return await request.post<HarnessSession>('/harness/sessions', {
+  return (await request.post('/harness/sessions', {
     title: title || '新会话',
     model_id: modelId,
-  })
+  })) as HarnessSession
 }
 
 export async function updateHarnessSession(
   sessionId: number,
   payload: { title?: string; pinned?: boolean; model_id?: string }
 ): Promise<HarnessSession> {
-  return await request.patch<HarnessSession>(`/harness/sessions/${sessionId}`, payload)
+  return (await request.patch(`/harness/sessions/${sessionId}`, payload)) as HarnessSession
 }
 
 export async function deleteHarnessSession(sessionId: number): Promise<boolean> {
@@ -44,7 +44,7 @@ export async function deleteHarnessSession(sessionId: number): Promise<boolean> 
 }
 
 export async function fetchHarnessMessages(sessionId: number): Promise<HarnessMessage[]> {
-  const res = await request.get<HarnessMessage[]>(`/harness/sessions/${sessionId}/messages`)
+  const res = (await request.get(`/harness/sessions/${sessionId}/messages`)) as HarnessMessage[]
   return Array.isArray(res) ? res : []
 }
 

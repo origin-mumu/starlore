@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, Loader2 } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import { ChevronDown, ChevronRight, Loader2, Brain } from '@lucide/vue'
 import HarnessToolActionRow from './HarnessToolActionRow.vue'
 import type { HarnessStepDetail, HarnessToolCall } from '../types'
 
@@ -12,20 +12,51 @@ const props = defineProps<{
   isRunning?: boolean
 }>()
 
-// 思考过程默认展开
-const isExpanded = ref(true)
+// 思考总栏：生成中默认展开，生成完成之后自动折叠起来
+const isExpanded = ref(Boolean(props.isRunning))
+
+watch(
+  () => props.isRunning,
+  (running, oldRunning) => {
+    if (oldRunning && !running) {
+      // 生成结束时自动折叠
+      isExpanded.value = false
+    } else if (running) {
+      isExpanded.value = true
+    }
+  },
+  { immediate: true }
+)
+
+// 各分段小思考的展开/折叠状态，默认全部折叠
+const expandedThoughts = ref<Record<string, boolean>>({})
+
+function toggleThought(key: string) {
+  expandedThoughts.value[key] = !expandedThoughts.value[key]
+}
+
+function isThoughtExpanded(key: string) {
+  return Boolean(expandedThoughts.value[key])
+}
+
+function getPreviewText(text: string, maxLen = 24): string {
+  if (!text) return ''
+  const clean = text.replace(/[\r\n\t]+/g, ' ').trim()
+  if (clean.length <= maxLen) return clean
+  return `${clean.slice(0, maxLen)}...`
+}
 
 const durationText = computed(() => {
   if (!props.durationMs || props.durationMs <= 0) {
-    return props.isRunning ? '正在思考与生成中...' : '用时 1s'
+    return props.isRunning ? '正在思考与生成中...' : '已深度思考 (1s)'
   }
   const totalSec = Math.floor(props.durationMs / 1000)
   if (totalSec < 60) {
-    return props.isRunning ? `正在生成 (${totalSec}s)...` : `用时 ${totalSec}s`
+    return props.isRunning ? `正在生成 (${totalSec}s)...` : `已深度思考 (${totalSec}s)`
   }
   const mins = Math.floor(totalSec / 60)
   const secs = totalSec % 60
-  return props.isRunning ? `正在生成 (${mins}m ${secs}s)...` : `用时 ${mins}m ${secs}s`
+  return props.isRunning ? `正在生成 (${mins}m ${secs}s)...` : `已深度思考 (${mins}m ${secs}s)`
 })
 
 const validSteps = computed(() => {
@@ -49,35 +80,68 @@ const hasContent = computed(() => {
 
 <template>
   <div v-if="hasContent || isRunning" class="thought-bar-wrapper">
-    <!-- Codex 极简用时折叠顶栏 -->
+    <!-- 极简用时折叠顶栏（生成中展开，生成完成自动折叠） -->
     <button
       type="button"
       class="duration-btn"
       @click="isExpanded = !isExpanded"
     >
       <Loader2 v-if="isRunning" class="icon-xs spin" />
+      <Brain v-else class="icon-xs brain-icon" />
       <span>{{ durationText }}</span>
       <ChevronDown v-if="isExpanded" class="icon-xs chevron" />
       <ChevronRight v-else class="icon-xs chevron" />
     </button>
 
-    <!-- 展开后的思考过程与各步骤内嵌工具动作 -->
+    <!-- 展开后的细分链条：小思考(折叠前几个字) -> 工具调用(折叠) -> 再次思考(折叠) -->
     <div v-if="isExpanded" class="thought-expanded">
-      <!-- 方案 A：具有明确内容步骤时，按时序顺畅呈现（去除冗余的步骤标签） -->
+      <!-- 结构化步骤列表 -->
       <div v-if="validSteps.length > 0" class="step-details-container">
         <div
           v-for="(st, idx) in validSteps"
           :key="st.step || idx"
           class="step-block"
         >
-          <!-- 该步骤的深度思维链 -->
-          <div v-if="st.reasoning" class="step-reasoning">
-            {{ st.reasoning }}
+          <!-- 该步骤的深度思维链（折叠前几个字，点击展开） -->
+          <div v-if="st.reasoning && st.reasoning.trim().length > 0" class="sub-thought-item">
+            <div
+              class="sub-thought-header"
+              @click="toggleThought(`step_r_${idx}`)"
+            >
+              <span class="sub-thought-tag">
+                {{ idx === 0 ? '思考' : '再次思考' }}
+              </span>
+              <span class="sub-thought-preview">
+                {{ getPreviewText(st.reasoning) }}
+              </span>
+              <ChevronDown v-if="isThoughtExpanded(`step_r_${idx}`)" class="icon-tiny chevron" />
+              <ChevronRight v-else class="icon-tiny chevron" />
+            </div>
+
+            <!-- 展开后的完整推导正文 -->
+            <div v-if="isThoughtExpanded(`step_r_${idx}`)" class="sub-thought-body">
+              {{ st.reasoning }}
+            </div>
           </div>
 
-          <!-- 该步骤中间规划与阐述 -->
-          <div v-if="st.scratchpad" class="step-scratchpad">
-            {{ st.scratchpad }}
+          <!-- 该步骤中间规划草稿（若有） -->
+          <div v-if="st.scratchpad && st.scratchpad.trim().length > 0" class="sub-thought-item">
+            <div
+              class="sub-thought-header"
+              @click="toggleThought(`step_s_${idx}`)"
+            >
+              <span class="sub-thought-tag tag-scratch">
+                规划草稿
+              </span>
+              <span class="sub-thought-preview">
+                {{ getPreviewText(st.scratchpad) }}
+              </span>
+              <ChevronDown v-if="isThoughtExpanded(`step_s_${idx}`)" class="icon-tiny chevron" />
+              <ChevronRight v-else class="icon-tiny chevron" />
+            </div>
+            <div v-if="isThoughtExpanded(`step_s_${idx}`)" class="sub-thought-body scratch-body">
+              {{ st.scratchpad }}
+            </div>
           </div>
 
           <!-- 该步骤内执行的工具动作：紧嵌于思考推导后方展示 -->
@@ -91,11 +155,25 @@ const hasContent = computed(() => {
         </div>
       </div>
 
-      <!-- 方案 B：无结构化步骤时的平稳兼容兜底展现（保证历史消息完整展示） -->
+      <!-- 兜底呈现（单个长思考链分段折叠） -->
       <template v-else>
-        <div v-if="reasoningContent" class="step-reasoning">
-          {{ reasoningContent }}
+        <div v-if="reasoningContent" class="sub-thought-item">
+          <div
+            class="sub-thought-header"
+            @click="toggleThought('flat_reasoning')"
+          >
+            <span class="sub-thought-tag">思考</span>
+            <span class="sub-thought-preview">
+              {{ getPreviewText(reasoningContent) }}
+            </span>
+            <ChevronDown v-if="isThoughtExpanded('flat_reasoning')" class="icon-tiny chevron" />
+            <ChevronRight v-else class="icon-tiny chevron" />
+          </div>
+          <div v-if="isThoughtExpanded('flat_reasoning')" class="sub-thought-body">
+            {{ reasoningContent }}
+          </div>
         </div>
+
         <div v-if="toolCalls && toolCalls.length > 0" class="step-tools">
           <HarnessToolActionRow
             v-for="tc in toolCalls"
@@ -118,12 +196,12 @@ const hasContent = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--ink-muted, #71717a);
   background: var(--surface, rgba(0, 0, 0, 0.03));
   border: 1px solid rgba(0, 0, 0, 0.08);
-  padding: 4px 10px;
+  padding: 4px 11px;
   border-radius: var(--radius-full, 9999px);
   transition: all 0.2s ease;
   cursor: pointer;
@@ -146,17 +224,28 @@ const hasContent = computed(() => {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.brain-icon {
+  color: #8b5cf6;
+}
+
 .thought-expanded {
   margin-top: 6px;
   margin-bottom: 8px;
-  padding-left: 4px;
-  background: transparent;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+}
+
+[data-theme="dark"] .thought-expanded {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .step-details-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .step-block {
@@ -165,38 +254,97 @@ const hasContent = computed(() => {
   gap: 6px;
 }
 
-.step-reasoning {
-  font-size: 13px;
+/* 细分子思考单项 */
+.sub-thought-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sub-thought-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  max-width: fit-content;
+}
+
+.sub-thought-header:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .sub-thought-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sub-thought-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.1);
+  color: #7c3aed;
+}
+
+.tag-scratch {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+[data-theme="dark"] .sub-thought-tag {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.sub-thought-preview {
+  font-size: 12.5px;
+  color: var(--ink-muted, #71717a);
+}
+
+[data-theme="dark"] .sub-thought-preview {
+  color: #a1a1aa;
+}
+
+.sub-thought-body {
+  font-size: 12.5px;
   line-height: 1.65;
   color: var(--ink-muted, #71717a);
   white-space: pre-wrap;
   word-break: break-word;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 2.5px solid #8b5cf6;
+  border-radius: 0 8px 8px 0;
+  margin-top: 2px;
+  margin-left: 4px;
 }
 
-[data-theme="dark"] .step-reasoning {
-  color: #a1a1aa;
-}
-
-.step-scratchpad {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--ink-soft, #52525b);
+.scratch-body {
+  border-left-color: #3b82f6;
   font-style: italic;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
-[data-theme="dark"] .step-scratchpad {
-  color: #d4d4d8;
+[data-theme="dark"] .sub-thought-body {
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .step-tools {
-  margin-top: 4px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 .icon-xs {
   width: 13px;
   height: 13px;
+}
+
+.icon-tiny {
+  width: 11px;
+  height: 11px;
 }
 
 .chevron {
