@@ -274,7 +274,6 @@ async function handleSend(userText: string) {
           streamingMessage.value.artifacts = streamingMessage.value.artifacts || []
           streamingMessage.value.artifacts.push(ev.data)
         } else if (ev.event === 'done') {
-          flushSmoothContent()
           if (ev.data.duration_ms) {
             streamingMessage.value.duration_ms = ev.data.duration_ms
           }
@@ -300,6 +299,19 @@ async function handleSend(userText: string) {
       }
     }
   } finally {
+    // 等待打字机平滑流出剩余尾部字词，避免流关闭瞬间闪现
+    if (typingTimer) {
+      await new Promise<void>((resolve) => {
+        let maxWait = 40
+        const check = setInterval(() => {
+          maxWait--
+          if (!typingTimer || maxWait <= 0 || (streamingMessage.value?.content || '').length >= targetContent.length) {
+            clearInterval(check)
+            resolve()
+          }
+        }, 25)
+      })
+    }
     flushSmoothContent()
     // 归档当前流式消息
     if (streamingMessage.value && (streamingMessage.value.content || streamingMessage.value.reasoning_content || (streamingMessage.value.tool_calls && streamingMessage.value.tool_calls.length > 0))) {

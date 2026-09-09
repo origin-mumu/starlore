@@ -127,6 +127,9 @@ async def run_harness_turn(
                 current_step_reasoning = ""
                 current_step_content = ""
                 tool_calls_accumulator: dict[int, dict[str, Any]] = {}
+                has_detected_tool_calls = False
+                pending_content_buffer: list[str] = []
+                content_stream_active = False
                 last_token_time = time.time()
 
                 async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
@@ -164,35 +167,54 @@ async def run_harness_turn(
                         delta = choices[0].get("delta", {})
                         last_token_time = time.time()
 
-                        # 1. 思考链增量
+                        # 1. 思考链增量：逐 Token 实时推送给客户端
                         r_delta = delta.get("reasoning_content") or delta.get("reasoning")
                         if r_delta:
                             current_step_reasoning += r_delta
                             collected_reasoning.append(r_delta)
-                            yield _format_sse("reasoning", {"delta": r_delta})
+                            yield _format_sse("reasoning", {"delta": r_delta, "step": step})
 
-                        # 2. 文本累积（中间过渡话术仅保存在当前步骤中，绝不污染正文通道）
+                        # 2. 工具调用增量检测
+                        tc_delta_list = delta.get("tool_calls", [])
+                        if tc_delta_list:
+                            has_detected_tool_calls = True
+                            for tc_chunk in tc_delta_list:
+                                idx = tc_chunk.get("index", 0)
+                                if idx not in tool_calls_accumulator:
+                                    tool_calls_accumulator[idx] = {
+                                        "id": tc_chunk.get("id", f"call_{idx}_{int(time.time())}"),
+                                        "name": "",
+                                        "arguments": "",
+                                    }
+                                if "id" in tc_chunk and tc_chunk["id"]:
+                                    tool_calls_accumulator[idx]["id"] = tc_chunk["id"]
+                                func_chunk = tc_chunk.get("function", {})
+                                if "name" in func_chunk and func_chunk["name"]:
+                                    tool_calls_accumulator[idx]["name"] += func_chunk["name"]
+                                if "arguments" in func_chunk and func_chunk["arguments"]:
+                                    tool_calls_accumulator[idx]["arguments"] += func_chunk["arguments"]
+
+                        # 3. 文本回答增量（实时逐词打字机流式输出）
                         c_delta = delta.get("content")
                         if c_delta:
                             current_step_content += c_delta
-
-                        # 3. 工具调用增量
-                        tc_delta_list = delta.get("tool_calls", [])
-                        for tc_chunk in tc_delta_list:
-                            idx = tc_chunk.get("index", 0)
-                            if idx not in tool_calls_accumulator:
-                                tool_calls_accumulator[idx] = {
-                                    "id": tc_chunk.get("id", f"call_{idx}_{int(time.time())}"),
-                                    "name": "",
-                                    "arguments": "",
-                                }
-                            if "id" in tc_chunk and tc_chunk["id"]:
-                                tool_calls_accumulator[idx]["id"] = tc_chunk["id"]
-                            func_chunk = tc_chunk.get("function", {})
-                            if "name" in func_chunk and func_chunk["name"]:
-                                tool_calls_accumulator[idx]["name"] += func_chunk["name"]
-                            if "arguments" in func_chunk and func_chunk["arguments"]:
-                                tool_calls_accumulator[idx]["arguments"] += func_chunk["arguments"]
+                            if has_detected_tool_calls:
+                                # 本步已检测到工具调用，该过渡文本纯属内部思考规划，不推向正文
+                                pass
+                            else:
+                                # 尚未出现工具调用：若已激活实时正文流，逐 Token 实时推送
+                                if content_stream_active:
+                                    collected_content.append(c_delta)
+                                    yield _format_sse("content", {"delta": c_delta, "step": step})
+                                else:
+                                    pending_content_buffer.append(c_delta)
+                                    # 累积超过 20 个字符且无 tool_calls，确认本步为最终回答，激活实时流
+                                    if len("".join(pending_content_buffer)) >= 20:
+                                        content_stream_active = True
+                                        for p_chunk in pending_content_buffer:
+                                            collected_content.append(p_chunk)
+                                            yield _format_sse("content", {"delta": p_chunk, "step": step})
+                                        pending_content_buffer.clear()
 
                         # 统计 Token
                         usage = chunk.get("usage")
@@ -202,9 +224,14 @@ async def run_harness_turn(
 
                 # 判断本步是否有工具调用
                 if not tool_calls_accumulator:
-                    # 没有发起工具调用，本步即为最终解答！此时才向正文通道推送真正的回答成果
+                    # 没有发起工具调用，本步为最终回答！若有少量余留 buffer，立即推送
+                    if pending_content_buffer:
+                        for p_chunk in pending_content_buffer:
+                            collected_content.append(p_chunk)
+                            yield _format_sse("content", {"delta": p_chunk, "step": step})
+                        pending_content_buffer.clear()
+
                     final_content = current_step_content
-                    yield _format_sse("content", {"delta": current_step_content})
                     recorded_steps.append({
                         "step": step,
                         "title": f"步骤 {step}：总结回答",

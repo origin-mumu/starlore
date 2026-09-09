@@ -35,8 +35,20 @@ function toggleThought(key: string) {
   expandedThoughts.value[key] = !expandedThoughts.value[key]
 }
 
-function isThoughtExpanded(key: string) {
-  return Boolean(expandedThoughts.value[key])
+function isThoughtExpanded(key: string, idx?: number) {
+  if (expandedThoughts.value[key] !== undefined) {
+    return expandedThoughts.value[key]
+  }
+  // 正在生成中且为当前最新活跃步骤时：默认展开推导内容，让用户看到文字实时流淌
+  if (props.isRunning) {
+    if (idx !== undefined && idx === validSteps.value.length - 1) {
+      return true
+    }
+    if (key === 'flat_reasoning') {
+      return true
+    }
+  }
+  return false
 }
 
 function getPreviewText(text: string, maxLen = 24): string {
@@ -114,12 +126,12 @@ const hasContent = computed(() => {
               <span class="sub-thought-preview">
                 {{ getPreviewText(st.reasoning) }}
               </span>
-              <ChevronDown v-if="isThoughtExpanded(`step_r_${idx}`)" class="icon-tiny chevron" />
+              <ChevronDown v-if="isThoughtExpanded(`step_r_${idx}`, idx)" class="icon-tiny chevron" />
               <ChevronRight v-else class="icon-tiny chevron" />
             </div>
 
             <!-- 展开后的完整推导正文 -->
-            <div v-if="isThoughtExpanded(`step_r_${idx}`)" class="sub-thought-body">
+            <div v-if="isThoughtExpanded(`step_r_${idx}`, idx)" class="sub-thought-body">
               {{ st.reasoning }}
             </div>
           </div>
@@ -136,10 +148,10 @@ const hasContent = computed(() => {
               <span class="sub-thought-preview">
                 {{ getPreviewText(st.scratchpad) }}
               </span>
-              <ChevronDown v-if="isThoughtExpanded(`step_s_${idx}`)" class="icon-tiny chevron" />
+              <ChevronDown v-if="isThoughtExpanded(`step_s_${idx}`, idx)" class="icon-tiny chevron" />
               <ChevronRight v-else class="icon-tiny chevron" />
             </div>
-            <div v-if="isThoughtExpanded(`step_s_${idx}`)" class="sub-thought-body scratch-body">
+            <div v-if="isThoughtExpanded(`step_s_${idx}`, idx)" class="sub-thought-body scratch-body">
               {{ st.scratchpad }}
             </div>
           </div>
