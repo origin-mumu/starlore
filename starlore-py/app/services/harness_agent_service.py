@@ -179,19 +179,20 @@ async def run_harness_turn(
                         if tc_delta_list:
                             has_detected_tool_calls = True
                             for tc_chunk in tc_delta_list:
-                                idx = tc_chunk.get("index", 0)
+                                raw_idx = tc_chunk.get("index")
+                                idx = 0 if raw_idx is None else int(raw_idx)
                                 if idx not in tool_calls_accumulator:
                                     tool_calls_accumulator[idx] = {
-                                        "id": tc_chunk.get("id", f"call_{idx}_{int(time.time())}"),
+                                        "id": tc_chunk.get("id") or f"call_{idx}_{int(time.time())}",
                                         "name": "",
                                         "arguments": "",
                                     }
-                                if "id" in tc_chunk and tc_chunk["id"]:
+                                if tc_chunk.get("id"):
                                     tool_calls_accumulator[idx]["id"] = tc_chunk["id"]
-                                func_chunk = tc_chunk.get("function", {})
-                                if "name" in func_chunk and func_chunk["name"]:
+                                func_chunk = tc_chunk.get("function") or {}
+                                if func_chunk.get("name"):
                                     tool_calls_accumulator[idx]["name"] += func_chunk["name"]
-                                if "arguments" in func_chunk and func_chunk["arguments"]:
+                                if func_chunk.get("arguments"):
                                     tool_calls_accumulator[idx]["arguments"] += func_chunk["arguments"]
 
                         # 3. 文本回答增量（实时逐词打字机流式输出）
@@ -250,10 +251,18 @@ async def run_harness_turn(
 
                 assistant_tool_calls_payload = []
                 tool_executions = []
-                for idx, tc in sorted(tool_calls_accumulator.items()):
+                seen_signatures = set()
+                for idx, tc in sorted(tool_calls_accumulator.items(), key=lambda x: str(x[0])):
                     call_id = tc["id"]
-                    fn_name = tc["name"]
-                    args_raw = tc["arguments"]
+                    fn_name = tc["name"].strip()
+                    args_raw = tc["arguments"].strip()
+
+                    if not fn_name:
+                        continue
+                    sig = (call_id, fn_name, args_raw)
+                    if sig in seen_signatures:
+                        continue
+                    seen_signatures.add(sig)
 
                     assistant_tool_calls_payload.append({
                         "id": call_id,
