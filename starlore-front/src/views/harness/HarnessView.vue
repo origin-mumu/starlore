@@ -163,6 +163,41 @@ async function handleSend(userText: string) {
   const startTime = Date.now()
   let currentStepNum = 1
 
+  let targetContent = ''
+  let typingTimer: number | null = null
+
+  const appendSmoothContent = (delta: string) => {
+    targetContent += delta
+    if (!typingTimer) {
+      typingTimer = window.setInterval(() => {
+        if (!streamingMessage.value) {
+          clearInterval(typingTimer!)
+          typingTimer = null
+          return
+        }
+        const current = streamingMessage.value.content || ''
+        if (current.length < targetContent.length) {
+          const diff = targetContent.length - current.length
+          const step = diff > 80 ? 4 : diff > 30 ? 2 : 1
+          streamingMessage.value.content = targetContent.slice(0, current.length + step)
+        } else {
+          clearInterval(typingTimer!)
+          typingTimer = null
+        }
+      }, 20)
+    }
+  }
+
+  const flushSmoothContent = () => {
+    if (typingTimer) {
+      clearInterval(typingTimer)
+      typingTimer = null
+    }
+    if (streamingMessage.value && targetContent) {
+      streamingMessage.value.content = targetContent
+    }
+  }
+
   try {
     await streamHarnessChat(
       currentSessionId.value,
@@ -202,8 +237,8 @@ async function handleSend(userText: string) {
           const st = getOrCreateStep(ev.data.step || currentStepNum)
           st.scratchpad = ev.data.text || ''
         } else if (ev.event === 'content') {
-          streamingMessage.value.content =
-            (streamingMessage.value.content || '') + (ev.data.delta || '')
+          const delta = ev.data.delta || ''
+          appendSmoothContent(delta)
           streamingMessage.value.duration_ms = Date.now() - startTime
         } else if (ev.event === 'tool_start') {
           const stepNum = ev.data.step || currentStepNum
@@ -239,6 +274,7 @@ async function handleSend(userText: string) {
           streamingMessage.value.artifacts = streamingMessage.value.artifacts || []
           streamingMessage.value.artifacts.push(ev.data)
         } else if (ev.event === 'done') {
+          flushSmoothContent()
           if (ev.data.duration_ms) {
             streamingMessage.value.duration_ms = ev.data.duration_ms
           }
@@ -264,6 +300,7 @@ async function handleSend(userText: string) {
       }
     }
   } finally {
+    flushSmoothContent()
     // 归档当前流式消息
     if (streamingMessage.value && (streamingMessage.value.content || streamingMessage.value.reasoning_content || (streamingMessage.value.tool_calls && streamingMessage.value.tool_calls.length > 0))) {
       streamingMessage.value.duration_ms = Date.now() - startTime

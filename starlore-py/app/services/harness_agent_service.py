@@ -171,12 +171,10 @@ async def run_harness_turn(
                             collected_reasoning.append(r_delta)
                             yield _format_sse("reasoning", {"delta": r_delta})
 
-                        # 2. 正文增量
+                        # 2. 文本累积（中间过渡话术仅保存在当前步骤中，绝不污染正文通道）
                         c_delta = delta.get("content")
                         if c_delta:
                             current_step_content += c_delta
-                            collected_content.append(c_delta)
-                            yield _format_sse("content", {"delta": c_delta})
 
                         # 3. 工具调用增量
                         tc_delta_list = delta.get("tool_calls", [])
@@ -204,8 +202,9 @@ async def run_harness_turn(
 
                 # 判断本步是否有工具调用
                 if not tool_calls_accumulator:
-                    # 没有发起工具调用，本步即为最终解答
+                    # 没有发起工具调用，本步即为最终解答！此时才向正文通道推送真正的回答成果
                     final_content = current_step_content
+                    yield _format_sse("content", {"delta": current_step_content})
                     recorded_steps.append({
                         "step": step,
                         "title": f"步骤 {step}：总结回答",
@@ -215,11 +214,12 @@ async def run_harness_turn(
                     })
                     break
 
-                # 本步发起了工具调用：该步的 current_step_content 视为思考过程规划/草稿
-                yield _format_sse("step_thought", {
-                    "step": step,
-                    "text": current_step_content,
-                })
+                # 本步发起了工具调用：该步的 current_step_content 纯属思考规划/中间草稿，仅呈现在思考折叠框内
+                if current_step_content.strip():
+                    yield _format_sse("step_thought", {
+                        "step": step,
+                        "text": current_step_content,
+                    })
 
                 assistant_tool_calls_payload = []
                 tool_executions = []

@@ -101,17 +101,18 @@ const renderedContent = computed(() => {
         :is-running="isRunning"
       />
 
-      <!-- 正文纯文字 Markdown 排版 -->
-      <div
-        v-if="message.content"
-        class="ai-markdown"
-        v-html="renderedContent"
-      />
+      <!-- 正文纯文字 Markdown 排版（流式输出时带轻量跳动光标） -->
+      <div v-if="message.content" class="ai-markdown-wrap">
+        <div
+          class="ai-markdown"
+          v-html="renderedContent"
+        />
+        <span v-if="isRunning" class="streaming-inline-cursor">▌</span>
+      </div>
 
-      <!-- 生成中的动态状态（工具调用进行中 / 文本生成中） -->
-      <div v-if="isRunning" class="generating-status-container">
-        <!-- 场景 1：当前有具体工具（如生成 PPT、生成 Word 文档、检索知识库）正在后台执行中 -->
-        <div v-if="activeRunningTool" class="active-tool-badge">
+      <!-- 工具执行中提示卡片（仅当具体工具在执行时展示） -->
+      <div v-if="isRunning && activeRunningTool" class="generating-status-container">
+        <div class="active-tool-badge">
           <div class="active-tool-spin">
             <Loader2 class="icon-sm spin" />
           </div>
@@ -124,14 +125,6 @@ const renderedContent = computed(() => {
               {{ activeRunningTool.summary && activeRunningTool.summary !== '正在执行...' ? activeRunningTool.summary : 'AI 正在处理与排版产物，即将生成' }}
             </span>
           </div>
-        </div>
-
-        <!-- 场景 2：正文流式输出中 -->
-        <div v-else class="generating-typing-indicator">
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-          <span class="typing-text">正在生成中...</span>
         </div>
       </div>
 
@@ -445,53 +438,24 @@ const renderedContent = computed(() => {
   color: var(--ink-muted, #71717a);
 }
 
-/* 正在输出文本的小圆点加载指示器 */
-.generating-typing-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.04);
+/* 流式输出轻量闪烁光标 */
+.ai-markdown-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
 }
 
-[data-theme="dark"] .generating-typing-indicator {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.typing-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent, #DE4331);
-  animation: typingBounce 1.4s infinite ease-in-out;
-}
-
-.typing-dot:nth-child(1) {
-  animation-delay: 0s;
-}
-.typing-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.typing-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typingBounce {
-  0%, 60%, 100% {
-    transform: translateY(0);
-    opacity: 0.4;
-  }
-  30% {
-    transform: translateY(-4px);
-    opacity: 1;
-  }
-}
-
-.typing-text {
-  font-size: 12px;
-  color: var(--ink-muted, #71717a);
+.streaming-inline-cursor {
+  display: inline-block;
+  color: var(--accent, #DE4331);
+  font-weight: 700;
   margin-left: 2px;
+  animation: cursorBlink 0.9s infinite ease-in-out;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .artifacts-container {
