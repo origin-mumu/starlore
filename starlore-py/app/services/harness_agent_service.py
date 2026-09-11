@@ -49,6 +49,7 @@ async def run_harness_turn(
     session_id: int,
     user_id: int,
     user_input: str,
+    images: list[str] | None = None,
     override_model_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """执行一轮 ReAct 多步智能体生产循环，持续产出 SSE 事件流。"""
@@ -68,6 +69,7 @@ async def run_harness_turn(
         user_id=user_id,
         role="user",
         content=user_input,
+        artifacts={"images": images} if images else None,
     )
     db.add(user_msg)
     # 更新会话标题（若是新会话，自动截取前 20 字作为标题）
@@ -86,8 +88,24 @@ async def run_harness_turn(
     ]
     # 保留最近 10 条历史消息作为上下文
     for m in past_messages[-10:]:
-        if m.role == "user" and m.content:
-            context_messages.append({"role": "user", "content": m.content})
+        if m.role == "user":
+            user_imgs: list[str] = []
+            if m.artifacts and isinstance(m.artifacts, dict) and "images" in m.artifacts:
+                user_imgs = m.artifacts.get("images") or []
+
+            if user_imgs:
+                # 按照 OpenAI / DeepSeek 多模态视觉标准格式组装
+                content_parts: list[dict[str, Any]] = []
+                if m.content:
+                    content_parts.append({"type": "text", "text": m.content})
+                for img_url in user_imgs:
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": img_url},
+                    })
+                context_messages.append({"role": "user", "content": content_parts})
+            elif m.content:
+                context_messages.append({"role": "user", "content": m.content})
         elif m.role == "assistant" and m.content:
             context_messages.append({"role": "assistant", "content": m.content})
 

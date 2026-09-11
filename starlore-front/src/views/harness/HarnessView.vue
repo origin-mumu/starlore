@@ -138,13 +138,14 @@ function handleSelectPrompt(prompt: string) {
 }
 
 // 发送消息核心逻辑
-async function handleSend(userText: string) {
+async function handleSend(userText: string, images?: string[]) {
   if (!currentSessionId.value || isRunning.value) return
 
   // 1. 本地立即追加用户消息
   const userMsg: HarnessMessage = {
     role: 'user',
     content: userText,
+    images: images && images.length > 0 ? [...images] : undefined,
   }
   messages.value.push(userMsg)
 
@@ -201,7 +202,7 @@ async function handleSend(userText: string) {
   try {
     await streamHarnessChat(
       currentSessionId.value,
-      { message: userText, model_id: currentModelId.value },
+      { message: userText, model_id: currentModelId.value, images },
       (ev: StreamEventPayload) => {
         if (!streamingMessage.value) return
 

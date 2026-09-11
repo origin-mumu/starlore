@@ -50,7 +50,7 @@ export async function fetchHarnessMessages(sessionId: number): Promise<HarnessMe
 
 export async function streamHarnessChat(
   sessionId: number,
-  payload: { message: string; model_id?: string },
+  payload: { message: string; model_id?: string; images?: string[] },
   onEvent: (event: StreamEventPayload) => void,
   signal?: AbortSignal
 ): Promise<void> {

@@ -43,6 +43,7 @@ class HarnessMessageResponse(BaseModel):
     reasoning_content: str | None = None
     tool_calls: Any | None = None
     artifacts: Any | None = None
+    images: list[str] | None = None
     step_details: Any | None = None
     tokens_prompt: int = 0
     tokens_completion: int = 0
@@ -52,6 +53,7 @@ class HarnessMessageResponse(BaseModel):
 
 class HarnessChatRequest(BaseModel):
     message: str
+    images: list[str] | None = None
     model_id: str | None = None
 
 

@@ -24,16 +24,35 @@ const isUserLongExpanded = ref(false)
 
 const isUser = computed(() => props.message.role === 'user')
 
+const messageImages = computed(() => {
+  if (props.message.images && props.message.images.length > 0) {
+    return props.message.images
+  }
+  if (
+    props.message.artifacts &&
+    typeof props.message.artifacts === 'object' &&
+    Array.isArray((props.message.artifacts as any).images)
+  ) {
+    return (props.message.artifacts as any).images as string[]
+  }
+  return []
+})
+
 // 用户超长消息折叠判断 (> 400 字符)
 const shouldTruncateUser = computed(() => {
-  return isUser.value && props.message.content.length > 400
+  return isUser.value && (props.message.content?.length || 0) > 400
 })
 
 const displayUserContent = computed(() => {
-  if (shouldTruncateUser.value && !isUserLongExpanded.value) {
-    return props.message.content.slice(0, 380) + '...'
+  let content = props.message.content || ''
+  // 过滤掉冗余的前缀如 【图片附件: ...】
+  if (messageImages.value.length > 0 || content.startsWith('【图片附件:')) {
+    content = content.replace(/^【图片附件:[^】]+】\s*/g, '').trim()
   }
-  return props.message.content
+  if (shouldTruncateUser.value && !isUserLongExpanded.value) {
+    return content.slice(0, 380) + '...'
+  }
+  return content
 })
 
 // 当前处于执行中的具体工具调用（如生成文档、生成PPT、检索知识库等）
@@ -73,7 +92,20 @@ const renderedContent = computed(() => {
     <!-- 用户消息：右侧浅灰圆角气泡 -->
     <div v-if="isUser" class="user-row">
       <div class="user-bubble">
-        <div class="user-text">
+        <!-- 用户上传的真实图片展示 -->
+        <div v-if="messageImages.length > 0" class="user-images-grid">
+          <el-image
+            v-for="(img, idx) in messageImages"
+            :key="idx"
+            :src="img"
+            :preview-src-list="messageImages"
+            :initial-index="idx"
+            preview-teleported
+            fit="cover"
+            class="user-bubble-image"
+          />
+        </div>
+        <div v-if="displayUserContent" class="user-text">
           {{ displayUserContent }}
         </div>
         <!-- 截断时展开/收起按钮 -->
@@ -167,6 +199,29 @@ const renderedContent = computed(() => {
 [data-theme="dark"] .user-bubble {
   background: #27272a;
   color: #f4f4f5;
+}
+
+.user-images-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.user-bubble-image {
+  max-width: 280px;
+  max-height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  display: block;
+}
+
+.user-bubble-image:hover {
+  transform: scale(1.02);
 }
 
 .user-text {

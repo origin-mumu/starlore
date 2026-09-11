@@ -115,7 +115,13 @@ async def list_messages(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
     messages = await harness_service.list_messages(db, session_id, user.id)
-    return messages
+    results: list[HarnessMessageResponse] = []
+    for m in messages:
+        resp = HarnessMessageResponse.model_validate(m)
+        if m.artifacts and isinstance(m.artifacts, dict) and "images" in m.artifacts:
+            resp.images = m.artifacts.get("images")
+        results.append(resp)
+    return results
 
 
 @router.post("/sessions/{session_id}/chat")
@@ -135,6 +141,7 @@ async def chat_stream(
         session_id=session_id,
         user_id=user.id,
         user_input=payload.message,
+        images=payload.images,
         override_model_id=payload.model_id,
     )
 

@@ -27,7 +27,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  send: [text: string]
+  send: [text: string, images?: string[]]
   stop: []
   updateModel: [modelId: string]
 }>()
@@ -310,27 +310,30 @@ function handleSend() {
   const text = inputText.value.trim()
   if (!text && pendingAttachments.value.length === 0) return
 
-  let fullMessage = text
-  if (pendingAttachments.value.length > 0) {
-    const attachmentContexts: string[] = []
-    for (const att of pendingAttachments.value) {
-      if (att.type === 'image') {
-        attachmentContexts.push(`【图片附件: ${att.name}】`)
-      } else if (att.extractedText) {
-        const snippet =
-          att.extractedText.length > 30000
-            ? att.extractedText.slice(0, 30000) + '\n...(正文过长已截断)'
-            : att.extractedText
-        attachmentContexts.push(`【附件文档: ${att.name}】\n${snippet}`)
-      } else {
-        attachmentContexts.push(`【附件文档: ${att.name}】`)
-      }
+  const imageList: string[] = []
+  const docContexts: string[] = []
+
+  for (const att of pendingAttachments.value) {
+    if (att.type === 'image' && att.previewUrl) {
+      imageList.push(att.previewUrl)
+    } else if (att.extractedText) {
+      const snippet =
+        att.extractedText.length > 30000
+          ? att.extractedText.slice(0, 30000) + '\n...(正文过长已截断)'
+          : att.extractedText
+      docContexts.push(`【附件文档: ${att.name}】\n${snippet}`)
+    } else {
+      docContexts.push(`【附件文档: ${att.name}】`)
     }
-    const header = attachmentContexts.join('\n\n')
-    fullMessage = fullMessage ? `${header}\n\n${fullMessage}` : `${header}\n\n请分析处理上传的文件内容。`
   }
 
-  emit('send', fullMessage)
+  let fullMessage = text
+  if (docContexts.length > 0) {
+    const docHeader = docContexts.join('\n\n')
+    fullMessage = fullMessage ? `${docHeader}\n\n${fullMessage}` : `${docHeader}\n\n请分析处理上传的文档内容。`
+  }
+
+  emit('send', fullMessage, imageList.length > 0 ? imageList : undefined)
   inputText.value = ''
   pendingAttachments.value = []
 }

@@ -52,6 +52,7 @@ export interface HarnessMessage {
   tokens_completion?: number
   duration_ms?: number
   created_at?: string
+  images?: string[]
 }
 
 export interface HarnessModelItem {
