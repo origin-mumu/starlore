@@ -22,7 +22,7 @@ import { useUserStore } from '@/stores/user'
 import { useCompanionStore } from '@/stores/companion'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { getAuthToken } from '@/utils/authToken'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ThumbsUp,
   ThumbsDown,
@@ -36,9 +36,11 @@ import {
   X,
   Paperclip,
   Activity,
+  Sparkles,
 } from '@lucide/vue'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 
 type ChatMsg = {
@@ -750,6 +752,15 @@ function shouldShowMessage(msg: ChatMsg) {
         >
           <Settings :size="13" class="imm-tab-icon" />
           <span>设置</span>
+        </button>
+        <button
+          type="button"
+          class="imm-tab imm-tab-harness"
+          title="进入 Harness 云端智能体"
+          @click="router.push('/harness')"
+        >
+          <Sparkles :size="13" class="imm-tab-icon" />
+          <span>Harness</span>
         </button>
         <button type="button" class="imm-tab imm-tab-action" @click="emit('newSession')">
           <span>＋ 新会话</span>

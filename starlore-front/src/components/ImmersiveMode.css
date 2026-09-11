@@ -390,6 +390,18 @@
   border-color: var(--ink);
 }
 
+.imm-tab-harness {
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+  background: var(--accent-soft, rgba(222, 67, 49, 0.08));
+}
+.imm-tab-harness:hover {
+  background: var(--accent);
+  color: #FFFFFF !important;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
 .imm-panel-chat {
   flex: 1;
   display: flex;

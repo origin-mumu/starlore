@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   ArrowUp,
   Square,
@@ -7,8 +7,17 @@ import {
   Building2,
   ChevronDown,
   Check,
-  ShieldCheck,
+  Plus,
+  Image,
+  FileText,
+  FileCode,
+  AlignLeft,
+  Files,
+  X,
+  Loader2,
 } from '@lucide/vue'
+import { ElMessage } from 'element-plus'
+import { parseFile } from '@/api/ai'
 import type { HarnessModelItem } from '../types'
 
 const props = defineProps<{
@@ -26,8 +35,64 @@ const emit = defineEmits<{
 const inputText = ref('')
 const isVendorOpen = ref(false)
 const isModelOpen = ref(false)
+const isUploadOpen = ref(false)
 const vendorWrapRef = ref<HTMLElement | null>(null)
 const modelWrapRef = ref<HTMLElement | null>(null)
+const uploadWrapRef = ref<HTMLElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const currentAccept = ref('*')
+
+export interface PendingAttachment {
+  id: string
+  file: File
+  name: string
+  size: number
+  type: 'image' | 'pdf' | 'doc' | 'text' | 'other'
+  previewUrl?: string
+  extractedText?: string
+  status: 'parsing' | 'ready' | 'error'
+  error?: string
+}
+
+const pendingAttachments = ref<PendingAttachment[]>([])
+
+const uploadOptions = [
+  {
+    type: 'image',
+    name: '图片文件',
+    desc: 'PNG, JPG, JPEG, WebP, GIF',
+    accept: 'image/png,image/jpeg,image/webp,image/gif',
+    icon: Image,
+  },
+  {
+    type: 'pdf',
+    name: 'PDF 文档',
+    desc: '.pdf 电子文档格式',
+    accept: '.pdf,application/pdf',
+    icon: FileText,
+  },
+  {
+    type: 'doc',
+    name: 'Word 文档',
+    desc: '.doc, .docx 规范文档',
+    accept: '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    icon: FileCode,
+  },
+  {
+    type: 'text',
+    name: '纯文本 / Markdown',
+    desc: '.txt, .md 标记文件',
+    accept: '.txt,.md,.markdown,text/plain,text/markdown',
+    icon: AlignLeft,
+  },
+  {
+    type: 'all',
+    name: '全部支持格式',
+    desc: '图片、PDF、DOCX、TXT、MD',
+    accept: 'image/*,.pdf,.doc,.docx,.txt,.md',
+    icon: Files,
+  },
+]
 
 // 提取所有唯一厂商列表
 const vendors = computed(() => {
@@ -82,11 +147,19 @@ const currentModelDisplayName = computed(() => {
 function toggleVendorMenu() {
   isVendorOpen.value = !isVendorOpen.value
   isModelOpen.value = false
+  isUploadOpen.value = false
 }
 
 function toggleModelMenu() {
   isModelOpen.value = !isModelOpen.value
   isVendorOpen.value = false
+  isUploadOpen.value = false
+}
+
+function toggleUploadMenu() {
+  isUploadOpen.value = !isUploadOpen.value
+  isVendorOpen.value = false
+  isModelOpen.value = false
 }
 
 function selectVendor(v: string) {
@@ -106,6 +179,99 @@ function selectModel(mId: string) {
   isModelOpen.value = false
 }
 
+function selectUploadType(opt: (typeof uploadOptions)[number]) {
+  isUploadOpen.value = false
+  currentAccept.value = opt.accept
+  nextTick(() => {
+    if (fileInputRef.value) {
+      fileInputRef.value.accept = opt.accept
+      fileInputRef.value.value = ''
+      fileInputRef.value.click()
+    }
+  })
+}
+
+async function onFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    await addPendingFile(file)
+  }
+  input.value = ''
+}
+
+async function addPendingFile(file: File) {
+  const name = file.name
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')).toLowerCase() : ''
+  let fileType: PendingAttachment['type'] = 'other'
+
+  if (file.type.startsWith('image/') || ['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
+    fileType = 'image'
+  } else if (ext === '.pdf') {
+    fileType = 'pdf'
+  } else if (['.doc', '.docx'].includes(ext)) {
+    fileType = 'doc'
+  } else if (['.txt', '.md', '.markdown'].includes(ext)) {
+    fileType = 'text'
+  }
+
+  const attachment: PendingAttachment = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    file,
+    name,
+    size: file.size,
+    type: fileType,
+    status: 'parsing',
+  }
+  pendingAttachments.value.push(attachment)
+  const target = pendingAttachments.value[pendingAttachments.value.length - 1]
+
+  if (fileType === 'image') {
+    const reader = new FileReader()
+    reader.onload = () => {
+      target.previewUrl = reader.result as string
+      target.status = 'ready'
+    }
+    reader.onerror = () => {
+      target.status = 'error'
+      target.error = '图片读取失败'
+    }
+    reader.readAsDataURL(file)
+  } else if (fileType === 'text') {
+    try {
+      const text = await file.text()
+      target.extractedText = text
+      target.status = 'ready'
+    } catch {
+      target.status = 'error'
+      target.error = '文本读取失败'
+    }
+  } else {
+    try {
+      const res = await parseFile(file)
+      if (res && res.success && res.text) {
+        target.extractedText = res.text
+        target.status = 'ready'
+      } else {
+        target.status = 'ready'
+        if (res && res.error) {
+          ElMessage.warning(`文档提取提示: ${res.error}`)
+        }
+      }
+    } catch (err: any) {
+      console.warn('文档解析失败:', err)
+      target.status = 'ready'
+    }
+  }
+}
+
+function removeAttachment(id: string) {
+  pendingAttachments.value = pendingAttachments.value.filter((a) => a.id !== id)
+}
+
 function handleGlobalClick(e: MouseEvent) {
   const target = e.target as Node
   if (vendorWrapRef.value && !vendorWrapRef.value.contains(target)) {
@@ -113,6 +279,9 @@ function handleGlobalClick(e: MouseEvent) {
   }
   if (modelWrapRef.value && !modelWrapRef.value.contains(target)) {
     isModelOpen.value = false
+  }
+  if (uploadWrapRef.value && !uploadWrapRef.value.contains(target)) {
+    isUploadOpen.value = false
   }
 }
 
@@ -133,10 +302,37 @@ function handleKeyDown(e: KeyboardEvent) {
 
 function handleSend() {
   if (props.isRunning) return
+  if (pendingAttachments.value.some((a) => a.status === 'parsing')) {
+    ElMessage.info('附件正在解析中，请稍候...')
+    return
+  }
+
   const text = inputText.value.trim()
-  if (!text) return
-  emit('send', text)
+  if (!text && pendingAttachments.value.length === 0) return
+
+  let fullMessage = text
+  if (pendingAttachments.value.length > 0) {
+    const attachmentContexts: string[] = []
+    for (const att of pendingAttachments.value) {
+      if (att.type === 'image') {
+        attachmentContexts.push(`【图片附件: ${att.name}】`)
+      } else if (att.extractedText) {
+        const snippet =
+          att.extractedText.length > 30000
+            ? att.extractedText.slice(0, 30000) + '\n...(正文过长已截断)'
+            : att.extractedText
+        attachmentContexts.push(`【附件文档: ${att.name}】\n${snippet}`)
+      } else {
+        attachmentContexts.push(`【附件文档: ${att.name}】`)
+      }
+    }
+    const header = attachmentContexts.join('\n\n')
+    fullMessage = fullMessage ? `${header}\n\n${fullMessage}` : `${header}\n\n请分析处理上传的文件内容。`
+  }
+
+  emit('send', fullMessage)
   inputText.value = ''
+  pendingAttachments.value = []
 }
 
 function setInput(text: string) {
@@ -151,6 +347,51 @@ defineExpose({
 <template>
   <div class="input-area-wrapper">
     <div class="input-card">
+      <!-- 隐藏的文件选择 input -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        :accept="currentAccept"
+        style="display: none"
+        multiple
+        @change="onFileSelected"
+      />
+
+      <!-- 选中的附件预览条 -->
+      <div v-if="pendingAttachments.length > 0" class="attachments-preview-list">
+        <div
+          v-for="att in pendingAttachments"
+          :key="att.id"
+          class="attachment-chip"
+          :class="{ 'is-parsing': att.status === 'parsing', 'is-error': att.status === 'error' }"
+        >
+          <img
+            v-if="att.type === 'image' && att.previewUrl"
+            :src="att.previewUrl"
+            class="attachment-thumb"
+            alt="图片预览"
+          />
+          <component
+            :is="att.type === 'pdf' ? FileText : att.type === 'doc' ? FileCode : att.type === 'image' ? Image : AlignLeft"
+            v-else
+            class="icon-tiny attachment-chip-icon"
+          />
+          <span class="attachment-name" :title="att.name">{{ att.name }}</span>
+          <span v-if="att.status === 'parsing'" class="attachment-tag">
+            <Loader2 class="icon-tiny spin-icon" />
+            <span>解析中</span>
+          </span>
+          <button
+            type="button"
+            class="attachment-remove-btn"
+            title="移除附件"
+            @click.stop="removeAttachment(att.id)"
+          >
+            <X class="icon-tiny" />
+          </button>
+        </div>
+      </div>
+
       <!-- 输入文本域 -->
       <textarea
         v-model="inputText"
@@ -162,8 +403,45 @@ defineExpose({
 
       <!-- 底部控制工具栏 -->
       <div class="input-footer">
-        <!-- 左侧：厂商优先联动模型选择器 -->
+        <!-- 左侧：加号上传按钮 + 厂商优先联动模型选择器 -->
         <div class="footer-left">
+          <!-- 加号上传按钮与自定义上拉弹窗 -->
+          <div ref="uploadWrapRef" class="custom-select-wrap">
+            <button
+              type="button"
+              class="upload-plus-btn"
+              :class="{ active: isUploadOpen }"
+              title="上传文件 (图片/PDF/Word/TXT/MD)"
+              @click.stop="toggleUploadMenu"
+            >
+              <Plus class="icon-sm" />
+            </button>
+
+            <!-- 文件类型上拉弹窗 -->
+            <Transition name="dropdown-pop">
+              <div v-if="isUploadOpen" class="custom-popover upload-popover">
+                <div class="popover-header">
+                  <span>上传附件</span>
+                  <span class="popover-badge">多格式支持</span>
+                </div>
+                <div class="popover-list">
+                  <div
+                    v-for="opt in uploadOptions"
+                    :key="opt.type"
+                    class="popover-item upload-item"
+                    @click="selectUploadType(opt)"
+                  >
+                    <component :is="opt.icon" class="icon-xs upload-item-icon" />
+                    <div class="upload-item-text">
+                      <span class="item-name">{{ opt.name }}</span>
+                      <span class="item-sub-id">{{ opt.desc }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
           <!-- 1. 厂商选择胶囊与自定义上拉弹窗 -->
           <div ref="vendorWrapRef" class="custom-select-wrap">
             <button
@@ -240,12 +518,6 @@ defineExpose({
               </div>
             </Transition>
           </div>
-
-          <!-- 完全访问状态胶囊 -->
-          <span class="access-pill">
-            <ShieldCheck class="icon-tiny" />
-            <span>完全访问</span>
-          </span>
         </div>
 
         <!-- 右侧：发送/停止按钮 -->
@@ -265,9 +537,9 @@ defineExpose({
           <button
             v-else
             type="button"
-            :disabled="!inputText.trim()"
+            :disabled="!inputText.trim() && pendingAttachments.length === 0"
             class="send-btn"
-            :class="{ active: inputText.trim() }"
+            :class="{ active: inputText.trim() || pendingAttachments.length > 0 }"
             title="发送指令 (Enter)"
             @click="handleSend"
           >
@@ -558,24 +830,163 @@ defineExpose({
   transform: translateY(6px) scale(0.97);
 }
 
-/* 权限胶囊 */
-.access-pill {
+/* 上传加号按钮 */
+.upload-plus-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-full, 9999px);
-  background: rgba(245, 158, 11, 0.1);
-  color: #b45309;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: var(--ink-soft, #5C4D3D);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
-[data-theme="dark"] .access-pill {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.3);
+.upload-plus-btn:hover,
+.upload-plus-btn.active {
+  color: var(--accent, #DE4331);
+  border-color: rgba(222, 67, 49, 0.35);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 2px 8px rgba(222, 67, 49, 0.12);
+  transform: scale(1.04);
+}
+
+[data-theme="dark"] .upload-plus-btn {
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .upload-plus-btn:hover,
+[data-theme="dark"] .upload-plus-btn.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.upload-popover {
+  min-width: 220px;
+}
+
+.upload-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.upload-item-icon {
+  color: var(--accent, #DE4331);
+  flex-shrink: 0;
+}
+
+.upload-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 附件预览列表 */
+.attachments-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  color: var(--ink, #1A1410);
+  max-width: 260px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .attachment-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
+
+.attachment-chip.is-parsing {
+  opacity: 0.85;
+  border-style: dashed;
+}
+
+.attachment-chip.is-error {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.attachment-thumb {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.attachment-chip-icon {
+  color: var(--accent, #DE4331);
+  flex-shrink: 0;
+}
+
+.attachment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.attachment-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--ink-muted, #8A7A6A);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.attachment-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted, #8A7A6A);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.attachment-remove-btn:hover {
+  background: rgba(222, 67, 49, 0.15);
+  color: var(--accent, #DE4331);
 }
 
 .footer-right {
