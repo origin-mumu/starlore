@@ -308,18 +308,28 @@ async function refreshSessions() {
 
 async function loadSession(id: number) {
   if (!userStore.isLoggedIn) return
-  const res = await getSessionMessages(id)
-  currentSessionId.value = id
-  selectedCharacterKey.value = res.session.characterKey || 'default'
-  messages.value = res.messages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => {
-      const msg: ChatMsg = { role: m.role as 'user' | 'assistant', content: m.content }
-      if (m.agentTrace) {
-        try { msg.agentTrace = JSON.parse(m.agentTrace) } catch { /* ignore */ }
-      }
-      return msg
-    })
+  try {
+    const res = await getSessionMessages(id)
+    currentSessionId.value = id
+    selectedCharacterKey.value = res?.session?.characterKey || 'default'
+    messages.value = (res?.messages || [])
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => {
+        const msg: ChatMsg = { role: m.role as 'user' | 'assistant', content: m.content }
+        if (m.agentTrace) {
+          try {
+            const parsed = typeof m.agentTrace === 'string' ? JSON.parse(m.agentTrace) : m.agentTrace
+            if (parsed && typeof parsed === 'object') {
+              if (!Array.isArray(parsed.subtasks)) parsed.subtasks = []
+              msg.agentTrace = parsed
+            }
+          } catch { /* ignore */ }
+        }
+        return msg
+      })
+  } catch {
+    messages.value = []
+  }
   activeTab.value = 'chat'
 }
 
@@ -643,7 +653,7 @@ async function sendMessage() {
       toolStatus.value = trace.ragContexts?.length ? '正在自动评估 RAG 回答质量...' : null
       await runAutomaticRagEvaluation(trace, userContent, assistantContent)
     }
-    const agentTraceStr = trace && (trace.planSummary || trace.subtasks.length > 0 || trace.reviewDecision) ? JSON.stringify(trace) : undefined
+    const agentTraceStr = trace && (trace.planSummary || (trace.subtasks && trace.subtasks.length > 0) || trace.reviewDecision) ? JSON.stringify(trace) : undefined
     if (assistantContent && !assistantContent.startsWith('错误：')) {
       await appendChatPair(sid, userContent, assistantContent, agentTraceStr)
       await refreshSessions()
@@ -1073,7 +1083,7 @@ onMounted(async () => {
   await refreshQuota()
   await refreshSessions()
   initMediaRecorder()
-  if (sessions.value.length > 0) {
+  if (sessions.value && sessions.value.length > 0) {
     await loadSession(sessions.value[0].id)
   } else {
     await newSession()

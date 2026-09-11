@@ -712,7 +712,12 @@ function shouldShowMessage(msg: ChatMsg) {
   ) {
     return true
   }
-  return isLocalSending.value && msg === props.messages[props.messages.length - 1]
+  return (
+    isLocalSending.value &&
+    props.messages &&
+    props.messages.length > 0 &&
+    msg === props.messages[props.messages.length - 1]
+  )
 }
 </script>
 
@@ -785,7 +790,7 @@ function shouldShowMessage(msg: ChatMsg) {
           >
             <!-- Agent 追踪信息（流式步骤节点） -->
             <AgentTraceStepper
-              v-if="msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks.length || msg.agentTrace.reviewDecision)"
+              v-if="msg.agentTrace && (msg.agentTrace.planSummary || msg.agentTrace.subtasks?.length || msg.agentTrace.reviewDecision)"
               :agent-trace="msg.agentTrace"
               :has-content="Boolean(msg.content)"
               :tool-label-map="toolLabelMap"
@@ -1000,7 +1005,7 @@ function shouldShowMessage(msg: ChatMsg) {
 
       <!-- 会话历史列表 -->
       <div v-show="activeTab === 'sessions'" class="imm-panel-sessions">
-        <ul v-if="sessions.length" class="imm-sess-list">
+        <ul v-if="sessions && sessions.length" class="imm-sess-list">
           <li
             v-for="s in sessions"
             :key="s.id"
@@ -1036,7 +1041,7 @@ function shouldShowMessage(msg: ChatMsg) {
             </button>
           </li>
         </ul>
-        <p v-if="!sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
+        <p v-if="!sessions || !sessions.length" class="imm-sess-empty">暂无会话，点「新会话」开始</p>
       </div>
     </div>
   </div>

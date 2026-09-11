@@ -63,18 +63,20 @@ const toggleExpand = () => {
 
 const isRunning = computed(() => {
   if (props.hasContent) return false
-  const hasPendingOrRunning = props.agentTrace.subtasks.some(
+  const subtasks = props.agentTrace?.subtasks || []
+  const hasPendingOrRunning = subtasks.some(
     (s) => s.status === 'running' || s.status === 'pending'
   )
-  return hasPendingOrRunning || !props.agentTrace.reviewDecision
+  return hasPendingOrRunning || !props.agentTrace?.reviewDecision
 })
 
 const completedSubtasksCount = computed(() => {
-  return props.agentTrace.subtasks.filter((s) => s.status === 'done').length
+  const subtasks = props.agentTrace?.subtasks || []
+  return subtasks.filter((s) => s.status === 'done').length
 })
 
 const summaryText = computed(() => {
-  const total = props.agentTrace.subtasks.length
+  const total = props.agentTrace?.subtasks?.length || 0
   if (isRunning.value) {
     if (total > 0) {
       return `思考中 · 正在执行步骤 (${completedSubtasksCount.value}/${total})`
@@ -82,7 +84,7 @@ const summaryText = computed(() => {
     return '思考中 · 正在规划任务...'
   }
   if (total > 0) {
-    const latency = props.agentTrace.metrics?.latencyMs
+    const latency = props.agentTrace?.metrics?.latencyMs
       ? ` · 耗时 ${(props.agentTrace.metrics.latencyMs / 1000).toFixed(1)}s`
       : ''
     return `已完成思考与步骤执行 (共 ${total} 步${latency})`
@@ -96,7 +98,7 @@ const summaryText = computed(() => {
     v-if="
       agentTrace &&
       (agentTrace.planSummary ||
-        agentTrace.subtasks.length ||
+        agentTrace.subtasks?.length ||
         agentTrace.reviewDecision)
     "
     class="ai-tree-wrapper"
