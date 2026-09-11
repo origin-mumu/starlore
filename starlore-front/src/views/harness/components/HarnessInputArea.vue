@@ -60,37 +60,42 @@ const uploadOptions = [
   {
     type: 'image',
     name: '图片文件',
-    desc: 'PNG, JPG, JPEG, WebP, GIF',
+    badge: 'JPG, PNG, WebP',
     accept: 'image/png,image/jpeg,image/webp,image/gif',
     icon: Image,
+    colorClass: 'item-color-image',
   },
   {
     type: 'pdf',
     name: 'PDF 文档',
-    desc: '.pdf 电子文档格式',
+    badge: '.pdf',
     accept: '.pdf,application/pdf',
     icon: FileText,
+    colorClass: 'item-color-pdf',
   },
   {
     type: 'doc',
     name: 'Word 文档',
-    desc: '.doc, .docx 规范文档',
+    badge: '.doc, .docx',
     accept: '.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     icon: FileCode,
+    colorClass: 'item-color-doc',
   },
   {
     type: 'text',
-    name: '纯文本 / Markdown',
-    desc: '.txt, .md 标记文件',
+    name: '文本 / Markdown',
+    badge: '.txt, .md',
     accept: '.txt,.md,.markdown,text/plain,text/markdown',
     icon: AlignLeft,
+    colorClass: 'item-color-text',
   },
   {
     type: 'all',
     name: '全部支持格式',
-    desc: '图片、PDF、DOCX、TXT、MD',
+    badge: '任意格式',
     accept: 'image/*,.pdf,.doc,.docx,.txt,.md',
     icon: Files,
+    colorClass: 'item-color-all',
   },
 ]
 
@@ -423,22 +428,22 @@ defineExpose({
             <!-- 文件类型上拉弹窗 -->
             <Transition name="dropdown-pop">
               <div v-if="isUploadOpen" class="custom-popover upload-popover">
-                <div class="popover-header">
+                <div class="upload-popover-header">
                   <span>上传附件</span>
-                  <span class="popover-badge">多格式支持</span>
                 </div>
-                <div class="popover-list">
+                <div class="upload-popover-list">
                   <div
                     v-for="opt in uploadOptions"
                     :key="opt.type"
-                    class="popover-item upload-item"
+                    class="upload-item"
+                    :class="{ 'has-divider': opt.type === 'all' }"
                     @click="selectUploadType(opt)"
                   >
-                    <component :is="opt.icon" class="icon-xs upload-item-icon" />
-                    <div class="upload-item-text">
-                      <span class="item-name">{{ opt.name }}</span>
-                      <span class="item-sub-id">{{ opt.desc }}</span>
+                    <div class="upload-item-icon-box" :class="opt.colorClass">
+                      <component :is="opt.icon" class="icon-xs" />
                     </div>
+                    <span class="upload-item-label">{{ opt.name }}</span>
+                    <span class="upload-item-badge">{{ opt.badge }}</span>
                   </div>
                 </div>
               </div>
@@ -871,27 +876,137 @@ defineExpose({
   border-color: rgba(255, 255, 255, 0.22);
 }
 
+/* ── 上传浮窗全新现代设计 ── */
 .upload-popover {
-  min-width: 220px;
+  width: 228px;
+  padding: 6px;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+  bottom: calc(100% + 8px);
+}
+
+.upload-popover-header {
+  padding: 3px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-muted, #8A7A6A);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 3px;
+  letter-spacing: 0.2px;
+}
+
+[data-theme="dark"] .upload-popover-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa;
+}
+
+.upload-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .upload-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 9px;
   cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-.upload-item-icon {
-  color: var(--accent, #DE4331);
+.upload-item:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+}
+
+[data-theme="dark"] .upload-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.upload-item.has-divider {
+  margin-top: 3px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding-top: 6px;
+}
+
+[data-theme="dark"] .upload-item.has-divider {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.upload-item-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   flex-shrink: 0;
 }
 
-.upload-item-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.upload-item-icon-box.item-color-image {
+  background: rgba(249, 115, 22, 0.1);
+  color: #ea580c;
+}
+.upload-item-icon-box.item-color-pdf {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+.upload-item-icon-box.item-color-doc {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+.upload-item-icon-box.item-color-text {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+.upload-item-icon-box.item-color-all {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+}
+
+[data-theme="dark"] .upload-item-icon-box.item-color-image {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+}
+[data-theme="dark"] .upload-item-icon-box.item-color-pdf {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+[data-theme="dark"] .upload-item-icon-box.item-color-doc {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+[data-theme="dark"] .upload-item-icon-box.item-color-text {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+[data-theme="dark"] .upload-item-icon-box.item-color-all {
+  background: rgba(156, 163, 175, 0.18);
+  color: #9ca3af;
+}
+
+.upload-item-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink, #1A1410);
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .upload-item-label {
+  color: #e4e4e7;
+}
+
+.upload-item-badge {
+  font-size: 11px;
+  color: var(--ink-muted, #8A7A6A);
+  margin-left: auto;
+  font-family: inherit;
+}
+
+[data-theme="dark"] .upload-item-badge {
+  color: #71717a;
 }
 
 /* 附件预览列表 */
