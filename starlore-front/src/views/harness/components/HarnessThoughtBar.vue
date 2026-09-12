@@ -170,6 +170,23 @@ function renderMarkdown(content: string) {
 
 .codex-thought-chain {
   margin: 4px 0 8px 0;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 4px;
+}
+
+.codex-thought-chain::-webkit-scrollbar {
+  width: 4px;
+}
+
+.codex-thought-chain::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .codex-thought-chain::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .steps-flow {
