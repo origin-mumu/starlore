@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import {
   ArrowUp,
   Square,
   Cpu,
-  Building2,
   ChevronDown,
   Check,
   Plus,
@@ -33,10 +32,8 @@ const emit = defineEmits<{
 }>()
 
 const inputText = ref('')
-const isVendorOpen = ref(false)
 const isModelOpen = ref(false)
 const isUploadOpen = ref(false)
-const vendorWrapRef = ref<HTMLElement | null>(null)
 const modelWrapRef = ref<HTMLElement | null>(null)
 const uploadWrapRef = ref<HTMLElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -99,47 +96,6 @@ const uploadOptions = [
   },
 ]
 
-// 提取所有唯一厂商列表
-const vendors = computed(() => {
-  const list: string[] = []
-  for (const m of props.models) {
-    const v = m.vendor || '通用厂商'
-    if (!list.includes(v)) {
-      list.push(v)
-    }
-  }
-  return list
-})
-
-const selectedVendor = ref('')
-
-// 同步厂商与选中模型
-watch(
-  [() => props.currentModelId, () => props.models],
-  ([curId, allModels]) => {
-    if (curId && allModels.length > 0) {
-      const found = allModels.find((m) => m.id === curId)
-      if (found?.vendor) {
-        selectedVendor.value = found.vendor
-        return
-      }
-    }
-    if (!selectedVendor.value && vendors.value.length > 0) {
-      selectedVendor.value = vendors.value[0]
-    }
-  },
-  { immediate: true }
-)
-
-// 当前厂商下的模型：严格截取前五个
-const currentVendorModels = computed(() => {
-  if (!selectedVendor.value) return []
-  const list = props.models.filter(
-    (m) => (m.vendor || '通用厂商') === selectedVendor.value
-  )
-  return list.slice(0, 5)
-})
-
 // 当前模型显示名称
 const currentModelDisplayName = computed(() => {
   const found = props.models.find((m) => m.id === props.currentModelId)
@@ -149,34 +105,14 @@ const currentModelDisplayName = computed(() => {
   return props.currentModelId || '选择模型'
 })
 
-function toggleVendorMenu() {
-  isVendorOpen.value = !isVendorOpen.value
-  isModelOpen.value = false
-  isUploadOpen.value = false
-}
-
 function toggleModelMenu() {
   isModelOpen.value = !isModelOpen.value
-  isVendorOpen.value = false
   isUploadOpen.value = false
 }
 
 function toggleUploadMenu() {
   isUploadOpen.value = !isUploadOpen.value
-  isVendorOpen.value = false
   isModelOpen.value = false
-}
-
-function selectVendor(v: string) {
-  selectedVendor.value = v
-  isVendorOpen.value = false
-  // 切换厂商后，自动默认选中该厂商前 5 个模型中的首个
-  const available = props.models
-    .filter((m) => (m.vendor || '通用厂商') === v)
-    .slice(0, 5)
-  if (available.length > 0) {
-    emit('updateModel', available[0].id)
-  }
 }
 
 function selectModel(mId: string) {
@@ -286,9 +222,6 @@ function formatFileSize(bytes: number): string {
 
 function handleGlobalClick(e: MouseEvent) {
   const target = e.target as Node
-  if (vendorWrapRef.value && !vendorWrapRef.value.contains(target)) {
-    isVendorOpen.value = false
-  }
   if (modelWrapRef.value && !modelWrapRef.value.contains(target)) {
     isModelOpen.value = false
   }
@@ -483,50 +416,14 @@ defineExpose({
             </Transition>
           </div>
 
-          <!-- 1. 厂商选择胶囊与自定义上拉弹窗 -->
-          <div ref="vendorWrapRef" class="custom-select-wrap">
-            <button
-              type="button"
-              class="selector-pill"
-              :class="{ active: isVendorOpen }"
-              title="切换 AI 厂商"
-              @click.stop="toggleVendorMenu"
-            >
-              <Building2 class="icon-xs pill-icon" />
-              <span class="pill-label">{{ selectedVendor || '厂商' }}</span>
-              <ChevronDown class="icon-xs arrow-icon" :class="{ 'is-open': isVendorOpen }" />
-            </button>
-
-            <!-- 厂商上拉弹窗 -->
-            <Transition name="dropdown-pop">
-              <div v-if="isVendorOpen" class="custom-popover vendor-popover">
-                <div class="popover-header">
-                  <span>AI 厂商 (Provider)</span>
-                </div>
-                <div class="popover-list">
-                  <div
-                    v-for="v in vendors"
-                    :key="v"
-                    class="popover-item"
-                    :class="{ selected: selectedVendor === v }"
-                    @click="selectVendor(v)"
-                  >
-                    <span class="item-name">{{ v }}</span>
-                    <Check v-if="selectedVendor === v" class="icon-xs check-mark" />
-                  </div>
-                </div>
-              </div>
-            </Transition>
-          </div>
-
-          <!-- 2. 模型选择胶囊 (截取前5个) 与自定义上拉弹窗 -->
+          <!-- 模型选择胶囊与自定义上拉弹窗 -->
           <div ref="modelWrapRef" class="custom-select-wrap">
             <button
               type="button"
               class="selector-pill"
               :class="{ active: isModelOpen }"
-              :disabled="currentVendorModels.length === 0"
-              title="切换模型 (前 5 个)"
+              :disabled="models.length === 0"
+              title="切换模型"
               @click.stop="toggleModelMenu"
             >
               <Cpu class="icon-xs pill-icon" />
@@ -537,22 +434,15 @@ defineExpose({
             <!-- 模型上拉弹窗 -->
             <Transition name="dropdown-pop">
               <div v-if="isModelOpen" class="custom-popover model-popover">
-                <div class="popover-header">
-                  <span>{{ selectedVendor }} · 可用模型</span>
-                  <span class="popover-badge">Top 5</span>
-                </div>
                 <div class="popover-list">
                   <div
-                    v-for="m in currentVendorModels"
+                    v-for="m in models"
                     :key="m.id"
                     class="popover-item model-item"
                     :class="{ selected: currentModelId === m.id }"
                     @click="selectModel(m.id)"
                   >
-                    <div class="model-info-col">
-                      <span class="item-name">{{ m.name }}</span>
-                      <span class="item-sub-id">{{ m.id }}</span>
-                    </div>
+                    <span class="item-name">{{ m.name || m.id }}</span>
                     <Check v-if="currentModelId === m.id" class="icon-xs check-mark" />
                   </div>
                 </div>
@@ -763,49 +653,40 @@ defineExpose({
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
 }
 
-.vendor-popover {
-  min-width: 180px;
-}
-
 .model-popover {
-  min-width: 260px;
-  max-width: 320px;
-}
-
-.popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-muted, #8A7A6A);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  margin-bottom: 4px;
-}
-
-.popover-badge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: var(--radius-full, 9999px);
-  background: var(--accent-soft, rgba(222, 67, 49, 0.08));
-  color: var(--accent, #DE4331);
+  min-width: 180px;
+  max-width: 260px;
+  padding: 6px;
 }
 
 .popover-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 240px;
+  max-height: 260px;
   overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.popover-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.popover-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .popover-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .popover-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
   font-size: 12.5px;
   color: var(--ink, #1A1410);
   cursor: pointer;
@@ -833,22 +714,7 @@ defineExpose({
   color: #ff7865;
 }
 
-.model-info-col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .item-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.item-sub-id {
-  font-size: 10.5px;
-  color: var(--ink-muted, #8A7A6A);
-  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -857,6 +723,7 @@ defineExpose({
 .check-mark {
   color: var(--accent, #DE4331);
   flex-shrink: 0;
+  margin-left: 8px;
 }
 
 /* 下拉菜单淡入弹出动效 */
