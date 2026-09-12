@@ -28,6 +28,8 @@ from app.services.blog_tools import (
     get_all_tags_impl,
     get_articles_by_category_impl,
     create_category_impl,
+    get_user_resumes_impl,
+    get_resume_detail_impl,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,6 +120,16 @@ def _create_tools(db, user_id):
         """创建新分类。"""
         return await create_category_impl(db, user_id, name, description, color)
 
+    @tool
+    async def get_user_resumes() -> str:
+        """获取当前用户的简历列表概要。"""
+        return await get_user_resumes_impl(db, user_id)
+
+    @tool
+    async def get_resume_detail(resume_id: int = 0) -> str:
+        """获取指定简历的完整详情。如果不传或传0则默认获取最近一份。"""
+        return await get_resume_detail_impl(db, user_id, resume_id or None)
+
     return [
         search_articles,
         get_article_detail,
@@ -130,6 +142,8 @@ def _create_tools(db, user_id):
         get_all_tags,
         get_articles_by_category,
         create_category,
+        get_user_resumes,
+        get_resume_detail,
     ]
 
 

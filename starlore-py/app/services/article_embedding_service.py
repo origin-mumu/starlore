@@ -19,16 +19,19 @@ _vector_store: FAISS | None = None
 _embeddings: Embeddings | None = None
 
 
-class _ZhipuEmbeddings(Embeddings):
-    """智谱 Embedding 封装，兼容 LangChain Embeddings 接口。"""
+class _OpenAICompatibleEmbeddings(Embeddings):
+    """OpenAI / New API 兼容的 Embedding 封装，兼容 LangChain Embeddings 接口。"""
 
     def __init__(self, base_url: str, api_key: str, model: str):
-        url = base_url.rstrip("/")
+        url = (base_url or "").strip().rstrip("/")
         if not url.endswith("/embeddings"):
-            url += "/embeddings"
+            if url.endswith("/v1"):
+                url += "/embeddings"
+            else:
+                url += "/v1/embeddings"
         self._url = url
-        self._api_key = api_key
-        self._model = model or "embedding-2"
+        self._api_key = (api_key or "").strip()
+        self._model = (model or "qwen3.7-text-embedding-flash").strip()
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         import httpx
@@ -36,7 +39,7 @@ class _ZhipuEmbeddings(Embeddings):
         if not texts:
             return []
 
-        batch_size = 8
+        batch_size = 16
         all_embeddings: list[list[float]] = []
 
         with httpx.Client(timeout=60.0) as client:
@@ -55,13 +58,13 @@ class _ZhipuEmbeddings(Embeddings):
                         )
                         if resp.status_code == 401:
                             logger.error(
-                                "[RAG Embedding 异常] 智谱 API 身份验证失败 (HTTP 401)，请在数据库或环境变量中检查 Zhipu API Key"
+                                "[RAG Embedding 异常] API 身份验证失败 (HTTP 401)，请在后台或数据库中检查 API Key"
                             )
-                            last_err = RuntimeError("智谱 API 身份验证失败 (HTTP 401)")
+                            last_err = RuntimeError("API 身份验证失败 (HTTP 401)")
                             break
                         if resp.status_code >= 400:
                             logger.error(
-                                "[RAG Embedding 异常] 智谱 API 返回 HTTP %d: %s (URL: %s, Model: %s)",
+                                "[RAG Embedding 异常] API 返回 HTTP %d: %s (URL: %s, Model: %s)",
                                 resp.status_code,
                                 resp.text,
                                 self._url,
@@ -92,26 +95,46 @@ class _ZhipuEmbeddings(Embeddings):
         return results[0] if results else []
 
 
+_current_config_sig: str | None = None
+
+
 async def _get_embeddings(db: AsyncSession) -> Embeddings | None:
-    """获取 Embedding 实例（从数据库配置）。"""
-    global _embeddings
-    config = await ai_config_service.get_config_by_key(db, "zhipu-embedding", fallback=False)
-    if not config or not config.enabled or not config.apiKey:
-        all_cfgs = await ai_config_service.get_all_configs(db)
-        for c in all_cfgs:
-            if c.enabled and c.apiKey and ("embedding" in (c.modelKey or "").lower() or "embedding" in (c.modelId or "").lower()):
-                config = c
-                break
+    """获取 Embedding 实例（从数据库配置，支持热感知更新）。"""
+    global _embeddings, _current_config_sig, _vector_store
+    all_cfgs = await ai_config_service.get_all_configs(db)
+
+    # 查找启用的 embedding 配置，优先匹配 qwen，其次通配任意 embedding 配置
+    config = None
+    embedding_cfgs = [
+        c for c in all_cfgs
+        if c.enabled and c.apiKey and (
+            "embedding" in (c.modelKey or "").lower() or "embedding" in (c.modelId or "").lower()
+        )
+    ]
+    for c in embedding_cfgs:
+        if "qwen" in (c.modelKey or "").lower() or "qwen" in (c.modelId or "").lower():
+            config = c
+            break
+    if not config and embedding_cfgs:
+        config = embedding_cfgs[0]
 
     if not config or not config.enabled or not config.apiKey:
-        logger.info("[RAG] 未找到专门的 Embedding 配置，语义搜索已禁用并使用关键词搜索")
+        logger.info("[RAG] 未找到启用的 Embedding 配置，语义搜索已禁用并使用关键词搜索")
         return None
 
-    base_url = config.apiUrl or "https://open.bigmodel.cn/api/paas/v4"
-    model_id = config.modelId or "embedding-2"
+    base_url = config.apiUrl or "https://api.deepseek.com/v1"
+    model_id = config.modelId or "qwen3.7-text-embedding-flash"
+    sig = f"{base_url}_{model_id}_{config.apiKey[:8] if config.apiKey else ''}"
 
-    _embeddings = _ZhipuEmbeddings(base_url, config.apiKey, model_id)
-    logger.info("[RAG] 使用 Embedding 配置: %s, model: %s", base_url, model_id)
+    # 若配置发生变更，热重置缓存对象
+    if _current_config_sig != sig:
+        logger.info("[RAG] Embedding 配置变更为: %s (model: %s)", base_url, model_id)
+        _current_config_sig = sig
+        _embeddings = _OpenAICompatibleEmbeddings(base_url, config.apiKey, model_id)
+        _vector_store = None
+    elif _embeddings is None:
+        _embeddings = _OpenAICompatibleEmbeddings(base_url, config.apiKey, model_id)
+
     return _embeddings
 
 
@@ -233,15 +256,28 @@ async def remove_article(article_id: int, db: AsyncSession | None = None) -> Non
 
 
 async def reindex_all(db: AsyncSession, user_id: int) -> int:
-    """重新索引用户的所有已发布文章。"""
+    """重新索引用户的所有已发布文章（清空旧向量并使用当前 Embedding 模型重建）。"""
+    global _vector_store
+    embeddings = await _get_embeddings(db)
+    if embeddings is None:
+        logger.warning("[RAG] 未找到可用 Embedding 配置，无法全量重建索引")
+        return 0
+
+    # 重新构建干净的空索引
+    _vector_store = FAISS.from_texts(["placeholder"], embeddings, metadatas=[{"placeholder": True}])
+
     result = await db.execute(
         select(Article).where(Article.user_id == user_id, Article.status == "published")
     )
     articles = result.scalars().all()
     count = 0
     for article in articles:
-        await index_article(db, article)
+        chunks = await knowledge_chunk_service.rebuild_chunks(db, article)
+        await _add_chunk_documents(_vector_store, article, chunks)
         count += 1
+
+    _save_vector_store()
+    logger.info("[RAG] 全量重索引完成: 用户 %d, 共计 %d 篇文章", user_id, count)
     return count
 
 

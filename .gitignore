@@ -44,8 +44,9 @@ __screenshots__/
 .env.test.local
 .env.production.local
 
-# 后端独立仓库（已迁移至 https://github.com/origin-mumu/star-back.git）
+# 独立仓库（已分别迁移至独立仓库维护）
 starlore-back/
+starlore-app-next/
 
 # Blog-back相关
 blog-back/.env

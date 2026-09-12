@@ -122,8 +122,13 @@ class KnowledgeSearchTool(BaseHarnessTool):
                         if title_clean and len(title_clean) > 2:
                             citations.append(title_clean)
 
-            citations = citations[:5]
-            summary = f"命中 {len(citations)} 篇相关文章" if citations else "未命中相关文章"
+            if citations:
+                summary = f"命中 {len(citations)} 篇相关文章"
+            else:
+                summary = "未检索到相关文章"
+                if not content or content == "[]":
+                    content = "知识库中未检索到与该关键词相关的文章内容"
+
             return ToolResult(
                 success=True,
                 label="检索了知识库",
@@ -814,11 +819,433 @@ class DocGeneratorTool(BaseHarnessTool):
             )
 
 
+class ArticleDetailTool(BaseHarnessTool):
+    """获取指定文章的完整内容与元数据。"""
+    name = "get_article_detail"
+    description = "获取指定文章的完整正文内容与元数据详情。当搜索摘要信息不够详实、需要深入研读全文时调用。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "article_id": {
+                "type": "integer",
+                "description": "文章 ID",
+            },
+        },
+        "required": ["article_id"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        article_id = kwargs.get("article_id")
+        try:
+            raw_str = await blog_tools.get_article_detail_impl(db, user_id, int(article_id))
+            data = json.loads(raw_str)
+            if "error" in data:
+                return ToolResult(
+                    success=False,
+                    label="读取文章详情失败",
+                    summary=data.get("error", "文章不存在"),
+                    data=data.get("error", "文章不存在"),
+                )
+            title = data.get("title", f"文章 {article_id}")
+            return ToolResult(
+                success=True,
+                label="读取了文章详情",
+                summary=f"已读取《{title}》完整正文",
+                data=raw_str,
+                citations=[title],
+            )
+        except Exception as e:
+            logger.exception("ArticleDetailTool execute failed: %s", e)
+            return ToolResult(success=False, label="读取文章异常", summary=str(e), data=f"读取失败: {e}")
+
+
+class BlogStatsTool(BaseHarnessTool):
+    """获取知识库全局统计指标。"""
+    name = "get_blog_stats"
+    description = "获取知识库全局统计指标，包括总文章数、分类数、总浏览量、热门文章及热门分类等全局大盘数据。"
+    parameters = {"type": "object", "properties": {}}
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        try:
+            raw_str = await blog_tools.get_blog_stats_impl(db, user_id)
+            stats = json.loads(raw_str)
+            total_articles = stats.get("totalArticles", 0)
+            total_categories = stats.get("totalCategories", 0)
+            total_views = stats.get("totalViews", 0)
+            summary = f"文章: {total_articles} 篇 | 分类: {total_categories} 个 | 浏览: {total_views} 次"
+            return ToolResult(
+                success=True,
+                label="统计了知识库指标",
+                summary=summary,
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("BlogStatsTool execute failed: %s", e)
+            return ToolResult(success=False, label="统计知识库异常", summary=str(e), data=f"统计失败: {e}")
+
+
+class MissingMetadataTool(BaseHarnessTool):
+    """扫描缺失摘要或标签的文章。"""
+    name = "get_articles_missing_metadata"
+    description = "知识库治理工具：扫描并列出 description（摘要）或 tags（标签）为空的文章，供智能体主动审查并补充元数据。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "description": "最多扫描返回篇数，默认 20，最多 100"}
+        },
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        limit = kwargs.get("limit", 20)
+        try:
+            raw_str = await blog_tools.get_articles_missing_metadata_impl(db, user_id, limit=limit)
+            items = json.loads(raw_str)
+            citations = [it.get("title", "") for it in items if it.get("title")][:5]
+            summary = f"发现 {len(items)} 篇待补充摘要或标签的文章"
+            return ToolResult(
+                success=True,
+                label="扫描了待治理文章",
+                summary=summary,
+                data=raw_str,
+                citations=citations,
+            )
+        except Exception as e:
+            logger.exception("MissingMetadataTool execute failed: %s", e)
+            return ToolResult(success=False, label="扫描待治理文章异常", summary=str(e), data=f"扫描失败: {e}")
+
+
+class WriteArticleTool(BaseHarnessTool):
+    """创建并发布新文章。"""
+    name = "write_article"
+    description = "在知识库中创建并发布新文章，系统会自动对文章进行切片并写入向量库以备检索。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "文章标题"},
+            "content": {"type": "string", "description": "Markdown 格式文章正文"},
+            "category": {"type": "string", "description": "所属分类名称，默认'随笔'"},
+            "tags": {"type": "string", "description": "标签 JSON 数组字符串，例如 '[\"DevOps\", \"Docker\"]'"},
+            "description": {"type": "string", "description": "文章概要或描述"},
+            "status": {"type": "string", "enum": ["published", "draft"], "description": "发布状态，默认 published"},
+        },
+        "required": ["title", "content"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        title = kwargs.get("title", "未命名文章").strip()
+        content = kwargs.get("content", "").strip()
+        category = kwargs.get("category", "随笔")
+        tags = kwargs.get("tags", "[]")
+        description = kwargs.get("description", "")
+        status = kwargs.get("status", "published")
+        try:
+            raw_str = await blog_tools.write_article_impl(
+                db=db,
+                user_id=user_id,
+                title=title,
+                content=content,
+                category=category,
+                tags=tags,
+                description=description,
+                status=status,
+            )
+            res = json.loads(raw_str)
+            return ToolResult(
+                success=True,
+                label="创建了新文章",
+                summary=f"文章《{title}》创建成功 (ID: {res.get('id')}) 并已向量化",
+                data=raw_str,
+                citations=[title],
+            )
+        except Exception as e:
+            logger.exception("WriteArticleTool execute failed: %s", e)
+            return ToolResult(success=False, label="创建文章异常", summary=str(e), data=f"创建失败: {e}")
+
+
+class UpdateArticleTool(BaseHarnessTool):
+    """更新已有文章。"""
+    name = "update_article"
+    description = "更新知识库已有文章的标题、正文、分类、标签或摘要，自动同步更新向量索引。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "article_id": {"type": "integer", "description": "目标文章 ID"},
+            "title": {"type": "string", "description": "新标题"},
+            "content": {"type": "string", "description": "新正文内容"},
+            "category": {"type": "string", "description": "新分类名称"},
+            "tags": {"type": "string", "description": "新标签 JSON 数组字符串"},
+            "description": {"type": "string", "description": "新摘要"},
+            "status": {"type": "string", "enum": ["published", "draft"], "description": "新状态"},
+        },
+        "required": ["article_id"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        article_id = kwargs.get("article_id")
+        try:
+            raw_str = await blog_tools.update_article_impl(
+                db=db,
+                user_id=user_id,
+                article_id=int(article_id),
+                title=kwargs.get("title"),
+                content=kwargs.get("content"),
+                category=kwargs.get("category"),
+                tags=kwargs.get("tags"),
+                description=kwargs.get("description"),
+                status=kwargs.get("status"),
+            )
+            return ToolResult(
+                success=True,
+                label="更新了文章",
+                summary=f"文章 ID {article_id} 更新完成并已刷新向量",
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("UpdateArticleTool execute failed: %s", e)
+            return ToolResult(success=False, label="更新文章异常", summary=str(e), data=f"更新失败: {e}")
+
+
+class DeleteArticleTool(BaseHarnessTool):
+    """删除知识库文章。"""
+    name = "delete_article"
+    description = "从知识库删除指定文章，并同步清理其在向量库中的切片索引。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "article_id": {"type": "integer", "description": "要删除的文章 ID"},
+        },
+        "required": ["article_id"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        article_id = kwargs.get("article_id")
+        try:
+            raw_str = await blog_tools.delete_article_impl(db, user_id, int(article_id))
+            return ToolResult(
+                success=True,
+                label="删除了文章",
+                summary=f"文章 ID {article_id} 已成功删除",
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("DeleteArticleTool execute failed: %s", e)
+            return ToolResult(success=False, label="删除文章异常", summary=str(e), data=f"删除失败: {e}")
+
+
+class CategoriesTool(BaseHarnessTool):
+    """获取分类列表。"""
+    name = "get_categories"
+    description = "获取知识库当前所有的文章分类及其包含的文章数量。"
+    parameters = {"type": "object", "properties": {}}
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        try:
+            raw_str = await blog_tools.get_categories_impl(db, user_id)
+            items = json.loads(raw_str)
+            return ToolResult(
+                success=True,
+                label="获取了所有分类",
+                summary=f"共获取到 {len(items)} 个分类",
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("CategoriesTool execute failed: %s", e)
+            return ToolResult(success=False, label="获取分类异常", summary=str(e), data=f"获取失败: {e}")
+
+
+class CreateCategoryTool(BaseHarnessTool):
+    """创建分类。"""
+    name = "create_category"
+    description = "在知识库中创建新的文章分类。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "分类名称"},
+            "description": {"type": "string", "description": "分类描述"},
+            "color": {"type": "string", "description": "分类颜色标识"},
+        },
+        "required": ["name"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        name = kwargs.get("name", "").strip()
+        try:
+            raw_str = await blog_tools.create_category_impl(
+                db=db,
+                user_id=user_id,
+                name=name,
+                description=kwargs.get("description", ""),
+                color=kwargs.get("color", ""),
+            )
+            return ToolResult(
+                success=True,
+                label="创建了新分类",
+                summary=f"分类【{name}】创建成功",
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("CreateCategoryTool execute failed: %s", e)
+            return ToolResult(success=False, label="创建分类异常", summary=str(e), data=f"创建失败: {e}")
+
+
+class AllTagsTool(BaseHarnessTool):
+    """获取所有标签。"""
+    name = "get_all_tags"
+    description = "获取知识库已发布文章中现存的所有标签集合。"
+    parameters = {"type": "object", "properties": {}}
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        try:
+            raw_str = await blog_tools.get_all_tags_impl(db, user_id)
+            items = json.loads(raw_str)
+            return ToolResult(
+                success=True,
+                label="获取了所有标签",
+                summary=f"共获取到 {len(items)} 个标签",
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("AllTagsTool execute failed: %s", e)
+            return ToolResult(success=False, label="获取标签异常", summary=str(e), data=f"获取失败: {e}")
+
+
+class ArticlesByCategoryTool(BaseHarnessTool):
+    """按分类获取文章。"""
+    name = "get_articles_by_category"
+    description = "按分类名称筛选获取该分类下的文章列表。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string", "description": "分类名称"},
+        },
+        "required": ["category"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        category = kwargs.get("category", "")
+        try:
+            raw_str = await blog_tools.get_articles_by_category_impl(db, user_id, category)
+            items = json.loads(raw_str)
+            citations = [it.get("title", "") for it in items if it.get("title")][:5]
+            return ToolResult(
+                success=True,
+                label="按分类筛选了文章",
+                summary=f"分类【{category}】下共 {len(items)} 篇文章",
+                data=raw_str,
+                citations=citations,
+            )
+        except Exception as e:
+            logger.exception("ArticlesByCategoryTool execute failed: %s", e)
+            return ToolResult(success=False, label="筛选文章异常", summary=str(e), data=f"筛选失败: {e}")
+
+
+class RecentArticlesTool(BaseHarnessTool):
+    """获取最新发布的文章列表。"""
+    name = "get_recent_articles"
+    description = "获取最近发布的知识库文章列表。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "description": "返回文章数量，默认 5，最大 20"},
+        },
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        limit = kwargs.get("limit", 5)
+        try:
+            raw_str = await blog_tools.get_recent_articles_impl(db, user_id, limit)
+            items = json.loads(raw_str)
+            citations = [it.get("title", "") for it in items if it.get("title")][:5]
+            return ToolResult(
+                success=True,
+                label="获取了最新文章",
+                summary=f"已拉取最近 {len(items)} 篇发布文章",
+                data=raw_str,
+                citations=citations,
+            )
+        except Exception as e:
+            logger.exception("RecentArticlesTool execute failed: %s", e)
+            return ToolResult(success=False, label="获取最新文章异常", summary=str(e), data=f"获取失败: {e}")
+
+
+class UserResumesTool(BaseHarnessTool):
+    """获取用户的简历概要列表。"""
+    name = "get_user_resumes"
+    description = "获取当前用户的简历档案概要列表（含简历标题、岗位、姓名、更新时间）。用于快速了解用户的履历与求职意向。"
+    parameters = {"type": "object", "properties": {}}
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        try:
+            raw_str = await blog_tools.get_user_resumes_impl(db, user_id)
+            items = json.loads(raw_str)
+            summary = f"找到 {len(items)} 份简历档案" if items else "暂无简历档案"
+            return ToolResult(
+                success=True,
+                label="查看了用户简历列表",
+                summary=summary,
+                data=raw_str,
+            )
+        except Exception as e:
+            logger.exception("UserResumesTool execute failed: %s", e)
+            return ToolResult(success=False, label="查询简历列表异常", summary=str(e), data=f"查询失败: {e}")
+
+
+class ResumeDetailTool(BaseHarnessTool):
+    """获取用户的具体简历完整详情。"""
+    name = "get_resume_detail"
+    description = "获取当前用户的具体简历完整结构化内容（教育经历、工作经历、实战项目、技能清单、求职岗位等）。在生成高度匹配个人背景的 PPT、求职报告、技术总结时必调。"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "resume_id": {"type": "integer", "description": "简历 ID，不传则默认读取最近一份有效简历"},
+        },
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        resume_id = kwargs.get("resume_id")
+        try:
+            raw_str = await blog_tools.get_resume_detail_impl(db, user_id, resume_id)
+            data = json.loads(raw_str)
+            if "error" in data:
+                return ToolResult(
+                    success=False,
+                    label="读取简历失败",
+                    summary=data.get("error", "简历不存在"),
+                    data=data.get("error", "简历不存在"),
+                )
+            name = data.get("name") or "用户"
+            job_title = data.get("job_title") or "个人简历"
+            return ToolResult(
+                success=True,
+                label="读取了简历详细档案",
+                summary=f"已读取《{name} - {job_title}》完整档案",
+                data=raw_str,
+                citations=[f"简历: {name} ({job_title})"],
+            )
+        except Exception as e:
+            logger.exception("ResumeDetailTool execute failed: %s", e)
+            return ToolResult(success=False, label="读取简历详情异常", summary=str(e), data=f"读取失败: {e}")
+
+
 # 工具统一注册实例列表
 HARNESS_TOOLS: list[BaseHarnessTool] = [
     KnowledgeSearchTool(),
+    ArticleDetailTool(),
+    BlogStatsTool(),
+    MissingMetadataTool(),
+    WriteArticleTool(),
+    UpdateArticleTool(),
+    DeleteArticleTool(),
+    CategoriesTool(),
+    CreateCategoryTool(),
+    AllTagsTool(),
+    ArticlesByCategoryTool(),
+    RecentArticlesTool(),
+    UserResumesTool(),
+    ResumeDetailTool(),
     PPTGeneratorTool(),
     DocGeneratorTool(),
 ]
 
 HARNESS_TOOL_MAP: dict[str, BaseHarnessTool] = {tool.name: tool for tool in HARNESS_TOOLS}
+

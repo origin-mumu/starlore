@@ -2,6 +2,7 @@
 
 > Last updated: 2026-07-30
 
+
 ## 设计哲学
 
 Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认主题）与**深空科幻美学**（暗黑/VR 场景）。核心原则是——界面如同漂浮在无限空间中的磨砂玻璃面板，光从半透明层间渗出，以光与影组织信息。
@@ -16,6 +17,7 @@ Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认�
 |------|------|------|
 | 框架 | Vue 3 (Composition API + `<script setup lang="ts">`) | 3.5 |
 | 构建 | Vite | 7.3 |
+| 样式 | Tailwind CSS v4 (@tailwindcss/vite) | 4.3 |
 | 语言 | TypeScript | 5.9 |
 | 路由 | vue-router | 4.6 |
 | 状态 | Pinia (Composition API style) | 3.0 |
@@ -28,7 +30,7 @@ Starlore 的设计语言融合了两个世界：**温暖文学气质**（默认�
 | 虚拟滚动 | vue-virtual-scroller | 2.0-beta |
 | 富文本 | @wangeditor/editor-for-vue | - |
 | 代码高亮 | highlight.js | 11.11 |
-| 移动端 | Capacitor (Android) | 8.3 |
+| 移动封装 | Capacitor (Android) | 8.3 |
 
 ---
 
@@ -241,11 +243,24 @@ Layer 4: 发光效果（box-shadow 穿透各层）
 - 选中态：带色调背景 + 彩色边框 + 微妙光晕
 - 未选中态：玻璃背景，muted 文字
 
+### 云端智能体 (Cloud Content Harness) 组件规范
+
+- **纯文字工具动作流 (`HarnessToolActionRow`)**：
+  - 拒绝带边框卡片噪点，统一采用 Codex 样式的纯文本操作记录行；
+  - 规格：`text-xs text-gray-500 leading-relaxed`，配合 14px Lucide 单色矢量图标与动宾短语；
+  - 详细结果通过灰色缩进树形展开（`ChevronDown` 驱动，无边框包裹）。
+- **思考链耗时折叠 (`HarnessThoughtBar`)**：
+  - 实时展示“已思考 Xs”，点击展开灰度思维链正文；完成推导后自动收敛为微型时间胶囊。
+- **产物交付卡片 (`HarnessArtifactCard`)**：
+  - 位于答复末尾，整个长文本中唯一的显性结构化卡片；
+  - 采用 `rounded-2xl` 大圆角、极轻微边框与微妙阴影，包含文件类型图标、文件大小、一键【立即下载】（MinIO 签名直链）与【复制链接】。
+
 ---
 
 ## 动效系统
 
 ### CSS 动画
+
 
 | 动画名 | 效果 | 用途 |
 |--------|------|------|

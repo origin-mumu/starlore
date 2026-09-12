@@ -22,29 +22,30 @@ async def search_articles_impl(
     category: str | None = None,
     tag: str | None = None,
 ) -> str:
-    """搜索文章，优先语义搜索，回退关键词搜索。"""
+    """搜索文章，优先语义搜索，回退智能分词关键词搜索。未命中时不假冒命中。"""
     articles = []
+    clean_kw = (keyword or "").strip()
 
-    # 1. 尝试语义搜索（支持 category 和 tag 筛选）
-    if keyword:
+    # 1. 尝试语义向量搜索（支持 category 和 tag 筛选）
+    if clean_kw:
         try:
             similar = await article_embedding_service.search_similar(
-                db, keyword, user_id, top_k=10, category=category, tag=tag
+                db, clean_kw, user_id, top_k=10, category=category, tag=tag
             )
             if similar:
                 articles = similar
         except Exception as e:
-            logger.warning("[RAG] 语义检索异常，自动降级为关键词/最新文章检索: %s", e)
+            logger.warning("[RAG] 语义检索异常，自动降级为关键词检索: %s", e)
 
-    # 2. 语义搜索未命中（或过滤后为空），回退到关键词搜索
-    if not articles and keyword:
+    # 2. 语义搜索未命中（或过滤后为空），回退到整句模糊匹配
+    if not articles and clean_kw:
         try:
             conditions = [
                 Article.user_id == user_id,
                 Article.status == "published",
                 or_(
-                    Article.title.ilike(f"%{keyword}%"),
-                    Article.description.ilike(f"%{keyword}%"),
+                    Article.title.ilike(f"%{clean_kw}%"),
+                    Article.description.ilike(f"%{clean_kw}%"),
                 ),
             ]
             if category:
@@ -54,23 +55,44 @@ async def search_articles_impl(
             )
             articles = list(result.scalars().all())
         except Exception as e:
-            logger.warning("[RAG] 关键词检索异常: %s", e)
+            logger.warning("[RAG] 整句关键词检索异常: %s", e)
 
-    # 3. 兜底搜索（最新文章）
-    if not articles:
+    # 3. 若整句未命中（用户长句提问），提取核心关键词元进行联合模糊召回
+    if not articles and clean_kw:
         try:
-            query = select(Article).where(Article.user_id == user_id, Article.status == "published")
-            if category:
-                query = query.where(Article.category == category)
-            query = query.order_by(Article.createdAt.desc()).limit(10)
-            result = await db.execute(query)
-            articles = list(result.scalars().all())
+            import re
+            # 过滤标点符号与提问虚词
+            raw_tokens = re.split(r"[\s,:：、，。！？_—\-\(\)\[\]]+", clean_kw)
+            stop_words = {"文章", "讲的", "内容", "什么", "关于", "这个", "知识库", "一篇", "看看", "请问", "帮我", "系统", "介绍"}
+            tokens = [t.strip() for t in raw_tokens if len(t.strip()) >= 2 and t.strip().lower() not in stop_words]
+
+            if tokens:
+                token_conditions = []
+                for t in tokens[:6]:
+                    token_conditions.append(Article.title.ilike(f"%{t}%"))
+                    token_conditions.append(Article.description.ilike(f"%{t}%"))
+
+                query = select(Article).where(
+                    Article.user_id == user_id,
+                    Article.status == "published",
+                    or_(*token_conditions),
+                )
+                if category:
+                    query = query.where(Article.category == category)
+                query = query.order_by(Article.createdAt.desc()).limit(10)
+                result = await db.execute(query)
+                articles = list(result.scalars().all())
+                if articles:
+                    logger.info("[RAG] 通过关键词元分词召回 %d 篇文章: %s", len(articles), tokens[:4])
         except Exception as e:
-            logger.warning("[RAG] 兜底检索最新文章异常: %s", e)
+            logger.warning("[RAG] 分词模糊检索异常: %s", e)
+
+    # ⚠️ 彻底消除旧版“兜底检索最新文章”的假命中逻辑：
+    # 检索未找到就明确返回空，杜绝拿无关文章欺骗大模型产生幻觉。
 
     items = []
     for a in articles:
-        content_preview = (a.content or "")[:800]
+        content_preview = (a.content or "")[:1500]
         items.append({
             "id": a.id,
             "title": a.title,
@@ -335,3 +357,50 @@ async def create_category_impl(db: AsyncSession, user_id: int, name: str, descri
     db.add(category)
     await db.flush()
     return json.dumps({"success": True, "id": category.id, "message": "分类创建成功"}, ensure_ascii=False)
+
+
+async def get_user_resumes_impl(db: AsyncSession, user_id: int) -> str:
+    """获取当前用户的简历概要列表。"""
+    from app.services import resume_service
+    resumes = await resume_service.list_by_user(db, user_id)
+    summary_list = []
+    for r in resumes:
+        summary_list.append({
+            "id": r.id,
+            "title": r.title or "个人简历",
+            "name": r.name,
+            "job_title": r.job_title,
+            "updated_at": r.updated_at.strftime("%Y-%m-%d %H:%M") if r.updated_at else None,
+        })
+    return json.dumps(summary_list, ensure_ascii=False)
+
+
+async def get_resume_detail_impl(db: AsyncSession, user_id: int, resume_id: int | None = None) -> str:
+    """获取具体简历的完整结构化详情（若不传 resume_id 则返回最近一份简历）。"""
+    from app.services import resume_service
+    target_resume = None
+    if resume_id:
+        try:
+            target_resume = await resume_service.get_by_id(db, resume_id, user_id)
+        except Exception:
+            target_resume = None
+    if not target_resume:
+        resumes = await resume_service.list_by_user(db, user_id)
+        if resumes:
+            target_resume = resumes[0]
+
+    if not target_resume:
+        return json.dumps({"error": "未找到任何简历信息"}, ensure_ascii=False)
+
+    detail = {
+        "id": target_resume.id,
+        "title": target_resume.title,
+        "name": target_resume.name,
+        "job_title": target_resume.job_title,
+        "phone": target_resume.phone,
+        "email": target_resume.email,
+        "content": target_resume.content,
+        "updated_at": target_resume.updated_at.strftime("%Y-%m-%d %H:%M") if target_resume.updated_at else None,
+    }
+    return json.dumps(detail, ensure_ascii=False)
+

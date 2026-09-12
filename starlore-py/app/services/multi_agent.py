@@ -38,6 +38,8 @@ from app.services.blog_tools import (
     get_all_tags_impl,
     get_articles_by_category_impl,
     create_category_impl,
+    get_user_resumes_impl,
+    get_resume_detail_impl,
 )
 
 logger = logging.getLogger(__name__)
@@ -201,6 +203,8 @@ async def _execute_tool(tool_name: str, db, user_id: int, **kwargs) -> str:
         "getAllTags": lambda: get_all_tags_impl(db, user_id),
         "getArticlesByCategory": lambda: get_articles_by_category_impl(db, user_id, kwargs.get("category", "")),
         "createCategory": lambda: create_category_impl(db, user_id, kwargs.get("name", ""), kwargs.get("description", ""), kwargs.get("color", "")),
+        "getUserResumes": lambda: get_user_resumes_impl(db, user_id),
+        "getResumeDetail": lambda: get_resume_detail_impl(db, user_id, kwargs.get("resume_id")),
     }
 
     fn = tool_map.get(tool_name)
@@ -243,6 +247,10 @@ def _executor_tool_specs() -> list[dict]:
             "tags": string("JSON 数组字符串，例如 [\"Python\",\"后端\"]"),
             "description": string("文章摘要"), "status": string(),
         }, ["article_id"]),
+        spec("getUserResumes", "获取当前用户的简历列表概要", {}),
+        spec("getResumeDetail", "获取指定简历完整详情", {
+            "resume_id": integer("简历ID，不传则默认最近一份"),
+        }),
     ]
 
 
