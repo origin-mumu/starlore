@@ -148,6 +148,7 @@ async def run_harness_turn(
                 has_detected_tool_calls = False
                 pending_content_buffer: list[str] = []
                 content_stream_active = False
+                in_think_tag = False
                 last_token_time = time.time()
 
                 async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
@@ -196,6 +197,8 @@ async def run_harness_turn(
                         tc_delta_list = delta.get("tool_calls", [])
                         if tc_delta_list:
                             has_detected_tool_calls = True
+                            # 只要检测到工具调用，清空任何暂存正文，严防中间草稿泄漏到正文
+                            pending_content_buffer.clear()
                             for tc_chunk in tc_delta_list:
                                 raw_idx = tc_chunk.get("index")
                                 idx = 0 if raw_idx is None else int(raw_idx)
@@ -213,22 +216,62 @@ async def run_harness_turn(
                                 if func_chunk.get("arguments"):
                                     tool_calls_accumulator[idx]["arguments"] += func_chunk["arguments"]
 
-                        # 3. 文本回答增量（实时逐词打字机流式输出）
+                        # 3. 文本回答增量（处理 <think> 分流，严防思考内容泄漏到正文）
                         c_delta = delta.get("content")
                         if c_delta:
+                            # 3.1 兼容部分推理模型输出 <think>...</think> 标签，将其剥离并路由至 reasoning 思考流
+                            if "<think>" in c_delta or in_think_tag:
+                                text_rem = c_delta
+                                while text_rem:
+                                    if not in_think_tag:
+                                        if "<think>" in text_rem:
+                                            before, after = text_rem.split("<think>", 1)
+                                            if before:
+                                                current_step_content += before
+                                                if not has_detected_tool_calls and (step > 1 or content_stream_active):
+                                                    collected_content.append(before)
+                                                    yield _format_sse("content", {"delta": before, "step": step})
+                                                elif not has_detected_tool_calls:
+                                                    pending_content_buffer.append(before)
+                                            in_think_tag = True
+                                            text_rem = after
+                                        else:
+                                            current_step_content += text_rem
+                                            if not has_detected_tool_calls and (step > 1 or content_stream_active):
+                                                collected_content.append(text_rem)
+                                                yield _format_sse("content", {"delta": text_rem, "step": step})
+                                            elif not has_detected_tool_calls:
+                                                pending_content_buffer.append(text_rem)
+                                            text_rem = ""
+                                    else:
+                                        if "</think>" in text_rem:
+                                            thought_chunk, after_think = text_rem.split("</think>", 1)
+                                            if thought_chunk:
+                                                current_step_reasoning += thought_chunk
+                                                collected_reasoning.append(thought_chunk)
+                                                yield _format_sse("reasoning", {"delta": thought_chunk, "step": step})
+                                            in_think_tag = False
+                                            text_rem = after_think
+                                        else:
+                                            current_step_reasoning += text_rem
+                                            collected_reasoning.append(text_rem)
+                                            yield _format_sse("reasoning", {"delta": text_rem, "step": step})
+                                            text_rem = ""
+                                continue
+
                             current_step_content += c_delta
                             if has_detected_tool_calls:
-                                # 本步已检测到工具调用，该过渡文本纯属内部思考规划，不推向正文
+                                # 本步已检测到工具调用，该过渡文本纯属内部思考规划，绝不推向正文
                                 pass
                             else:
-                                # 尚未出现工具调用：若已激活实时正文流，逐 Token 实时推送
-                                if content_stream_active:
+                                # 若是后续总结步 (step > 1) 或已确认为非工具纯文本回答，逐 Token 实时推送正文
+                                if step > 1 or content_stream_active:
                                     collected_content.append(c_delta)
                                     yield _format_sse("content", {"delta": c_delta, "step": step})
                                 else:
+                                    # step == 1 且有工具声明时，缓存文本，等待确认是否有 tool_calls 触发
                                     pending_content_buffer.append(c_delta)
-                                    # 累积超过 20 个字符且无 tool_calls，确认本步为最终回答，激活实时流
-                                    if len("".join(pending_content_buffer)) >= 20:
+                                    if len("".join(pending_content_buffer)) >= 120:
                                         content_stream_active = True
                                         for p_chunk in pending_content_buffer:
                                             collected_content.append(p_chunk)
@@ -259,6 +302,9 @@ async def run_harness_turn(
                         "tool_calls": [],
                     })
                     break
+
+                # 本步发起了工具调用：清空任何未推送的正文缓存，严防草稿泄漏
+                pending_content_buffer.clear()
 
                 # 本步发起了工具调用：该步的 current_step_content 纯属思考规划/中间草稿，仅呈现在思考折叠框内
                 if current_step_content.strip():
