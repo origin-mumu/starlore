@@ -46,8 +46,8 @@ const shouldTruncateUser = computed(() => {
 const displayUserContent = computed(() => {
   let content = props.message.content || ''
   // 过滤掉冗余的前缀如 【图片附件: ...】
-  if (messageImages.value.length > 0 || content.startsWith('【图片附件:')) {
-    content = content.replace(/^【图片附件:[^】]+】\s*/g, '').trim()
+  if (messageImages.value.length > 0 || content.includes('【图片附件:')) {
+    content = content.replace(/(?:【图片附件:[^】]+】\s*)+/g, '').trim()
   }
   if (shouldTruncateUser.value && !isUserLongExpanded.value) {
     return content.slice(0, 380) + '...'
@@ -89,36 +89,44 @@ const renderedContent = computed(() => {
 
 <template>
   <div class="message-wrapper">
-    <!-- 用户消息：右侧浅灰圆角气泡 -->
+    <!-- 用户消息：右侧排布，上方小图横向排布，下方为独立文字气泡 (类似 ChatGPT) -->
     <div v-if="isUser" class="user-row">
-      <div class="user-bubble">
-        <!-- 用户上传的真实图片展示 -->
-        <div v-if="messageImages.length > 0" class="user-images-grid">
-          <el-image
+      <div class="user-message-container">
+        <!-- 1. 用户上传的真实图片展示：小图横向排布，独立于文本气泡之外 -->
+        <div v-if="messageImages.length > 0" class="user-images-row">
+          <div
             v-for="(img, idx) in messageImages"
             :key="idx"
-            :src="img"
-            :preview-src-list="messageImages"
-            :initial-index="idx"
-            preview-teleported
-            fit="cover"
-            class="user-bubble-image"
-          />
+            class="user-image-card"
+          >
+            <el-image
+              :src="img"
+              :preview-src-list="messageImages"
+              :initial-index="idx"
+              preview-teleported
+              fit="cover"
+              class="user-thumb-image"
+            />
+          </div>
         </div>
-        <div v-if="displayUserContent" class="user-text">
-          {{ displayUserContent }}
+
+        <!-- 2. 用户文字气泡 (仅在有文字内容时渲染) -->
+        <div v-if="displayUserContent" class="user-bubble">
+          <div class="user-text">
+            {{ displayUserContent }}
+          </div>
+          <!-- 截断时展开/收起按钮 -->
+          <button
+            v-if="shouldTruncateUser"
+            type="button"
+            class="user-more-btn"
+            @click="isUserLongExpanded = !isUserLongExpanded"
+          >
+            <span>{{ isUserLongExpanded ? '收起' : '显示更多' }}</span>
+            <ChevronUp v-if="isUserLongExpanded" class="icon-xs" />
+            <ChevronDown v-else class="icon-xs" />
+          </button>
         </div>
-        <!-- 截断时展开/收起按钮 -->
-        <button
-          v-if="shouldTruncateUser"
-          type="button"
-          class="user-more-btn"
-          @click="isUserLongExpanded = !isUserLongExpanded"
-        >
-          <span>{{ isUserLongExpanded ? '收起' : '显示更多' }}</span>
-          <ChevronUp v-if="isUserLongExpanded" class="icon-xs" />
-          <ChevronDown v-else class="icon-xs" />
-        </button>
       </div>
     </div>
 
@@ -183,6 +191,61 @@ const renderedContent = computed(() => {
 .user-row {
   display: flex;
   justify-content: flex-end;
+  width: 100%;
+}
+
+.user-message-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 580px;
+}
+
+/* 小图横向排布 */
+.user-images-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.user-image-card {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f4f4f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.user-image-card:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .user-image-card {
+  background: #27272a;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.user-thumb-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.user-thumb-image :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .user-bubble {
@@ -190,38 +253,15 @@ const renderedContent = computed(() => {
   color: #18181b;
   border-radius: 18px;
   padding: 10px 16px;
-  max-width: 580px;
   font-size: 14px;
   line-height: 1.6;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  word-break: break-word;
 }
 
 [data-theme="dark"] .user-bubble {
   background: #27272a;
   color: #f4f4f5;
-}
-
-.user-images-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.user-bubble-image {
-  max-width: 280px;
-  max-height: 220px;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  transition: transform 0.2s ease;
-  display: block;
-}
-
-.user-bubble-image:hover {
-  transform: scale(1.02);
 }
 
 .user-text {
