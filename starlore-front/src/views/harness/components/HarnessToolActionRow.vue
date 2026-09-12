@@ -4,6 +4,8 @@ import {
   BookOpen,
   Presentation,
   FileText,
+  FileEdit,
+  Globe,
   Sparkles,
   ChevronRight,
   ChevronDown,
@@ -26,9 +28,12 @@ function toggleExpand() {
 }
 
 function getIcon(toolName: string) {
-  if (toolName.includes('knowledge') || toolName.includes('search')) return BookOpen
-  if (toolName.includes('ppt') || toolName.includes('presentation')) return Presentation
-  if (toolName.includes('doc') || toolName.includes('file')) return FileText
+  const lower = toolName.toLowerCase()
+  if (lower.includes('knowledge') || lower.includes('search')) return BookOpen
+  if (lower.includes('ppt') || lower.includes('presentation')) return Presentation
+  if (lower.includes('browser') || lower.includes('web') || lower.includes('url')) return Globe
+  if (lower.includes('edit') || lower.includes('write')) return FileEdit
+  if (lower.includes('doc') || lower.includes('file')) return FileText
   return Sparkles
 }
 </script>
@@ -98,9 +103,9 @@ function getIcon(toolName: string) {
 
 <style scoped>
 .tool-row-container {
-  margin: 3px 0;
-  font-size: 12px;
-  color: #71717a;
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--ink-muted, #71717a);
   user-select: none;
 }
 
@@ -112,8 +117,8 @@ function getIcon(toolName: string) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
   transition: all 0.15s ease;
 }
 
@@ -121,19 +126,19 @@ function getIcon(toolName: string) {
   cursor: pointer;
 }
 
-.tool-label-row.clickable:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: #18181b;
+.tool-label-row:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  color: var(--ink, #18181b);
 }
 
-[data-theme="dark"] .tool-label-row.clickable:hover {
+[data-theme="dark"] .tool-label-row:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
 }
 
 .tool-name {
   font-weight: 500;
-  color: #52525b;
+  color: var(--ink-soft, #3f3f46);
 }
 
 [data-theme="dark"] .tool-name {
@@ -141,7 +146,7 @@ function getIcon(toolName: string) {
 }
 
 .tool-summary {
-  color: #a1a1aa;
+  color: var(--ink-muted, #8a7a6a);
 }
 
 .chevron-wrap {
