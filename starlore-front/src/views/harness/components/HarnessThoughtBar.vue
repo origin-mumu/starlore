@@ -14,8 +14,30 @@ const props = defineProps<{
   isRunning?: boolean
 }>()
 
-// 思考与执行链折叠状态：默认展开，与正文融为一体，用户可随时点击顶栏收起/展开
+// 思考总栏折叠状态：默认展开，用户可随时点击“用时 21s”一键折叠全部
 const isExpanded = ref(true)
+
+// 每个小思考的独立折叠状态，默认展开（带高度限制与滚动条）
+const expandedThoughts = ref<Record<string, boolean>>({})
+
+function toggleThought(key: string) {
+  expandedThoughts.value[key] = !isThoughtExpanded(key)
+}
+
+function isThoughtExpanded(key: string): boolean {
+  if (expandedThoughts.value[key] !== undefined) {
+    return expandedThoughts.value[key]
+  }
+  // 默认小思考展开，若长则受到高度限制并出现滚动条
+  return true
+}
+
+function getPreviewText(text: string, maxLen = 30): string {
+  if (!text) return ''
+  const clean = text.replace(/[\r\n\t]+/g, ' ').trim()
+  if (clean.length <= maxLen) return clean
+  return `${clean.slice(0, maxLen)}...`
+}
 
 const durationText = computed(() => {
   if (!props.durationMs || props.durationMs <= 0) {
@@ -61,7 +83,7 @@ function renderMarkdown(content: string) {
 
 <template>
   <div v-if="hasContent || isRunning" class="thought-bar-wrapper">
-    <!-- 极简用时顶栏 (Codex 原生风格：纯文字 + 微箭头，无卡片外框) -->
+    <!-- 极简用时顶栏 (Codex 原生风格：纯文字 + 微箭头，无卡片外框，点击一键展开/收起) -->
     <div class="timing-bar">
       <button
         type="button"
@@ -75,7 +97,7 @@ function renderMarkdown(content: string) {
       </button>
     </div>
 
-    <!-- 展开后的流式思考与工具链路 (Codex 极简风格：无外边框、无背景卡片、无紫色大标签，和正文无缝融合) -->
+    <!-- 展开后的流式思考与工具链路 (整体无高度限制，自然向下延展) -->
     <div v-if="isExpanded" class="codex-thought-chain">
       <!-- 结构化步骤列表 -->
       <div v-if="validSteps.length > 0" class="steps-flow">
@@ -84,19 +106,56 @@ function renderMarkdown(content: string) {
           :key="st.step || idx"
           class="step-flow-item"
         >
-          <!-- 思考与推导正文：原生 Markdown 排版，和正文风格完全统一 -->
+          <!-- 小思考：可折叠、加高度限制、灰色字体与正文区分 -->
           <div
             v-if="st.reasoning && st.reasoning.trim().length > 0"
-            class="thought-markdown"
-            v-html="renderMarkdown(st.reasoning)"
-          />
+            class="sub-thought-item"
+          >
+            <div
+              class="sub-thought-header"
+              @click="toggleThought(`step_r_${idx}`)"
+            >
+              <span class="sub-thought-label">{{ idx === 0 ? '思考' : '再次思考' }}</span>
+              <span class="sub-thought-preview">{{ getPreviewText(st.reasoning) }}</span>
+              <ChevronDown v-if="isThoughtExpanded(`step_r_${idx}`)" class="icon-tiny chevron" />
+              <ChevronRight v-else class="icon-tiny chevron" />
+            </div>
+            <!-- 小思考正文：带高度限制、微滚动条、灰色字体 -->
+            <div
+              v-if="isThoughtExpanded(`step_r_${idx}`)"
+              class="sub-thought-body"
+            >
+              <div
+                class="thought-markdown"
+                v-html="renderMarkdown(st.reasoning)"
+              />
+            </div>
+          </div>
 
-          <!-- 中间草稿与规划文本：同样原生纯文本排版自然呈现 -->
+          <!-- 中间规划草稿：同样支持折叠、高度限制、灰色字体 -->
           <div
             v-if="st.scratchpad && st.scratchpad.trim().length > 0"
-            class="thought-markdown"
-            v-html="renderMarkdown(st.scratchpad)"
-          />
+            class="sub-thought-item"
+          >
+            <div
+              class="sub-thought-header"
+              @click="toggleThought(`step_s_${idx}`)"
+            >
+              <span class="sub-thought-label">规划草稿</span>
+              <span class="sub-thought-preview">{{ getPreviewText(st.scratchpad) }}</span>
+              <ChevronDown v-if="isThoughtExpanded(`step_s_${idx}`)" class="icon-tiny chevron" />
+              <ChevronRight v-else class="icon-tiny chevron" />
+            </div>
+            <div
+              v-if="isThoughtExpanded(`step_s_${idx}`)"
+              class="sub-thought-body"
+            >
+              <div
+                class="thought-markdown"
+                v-html="renderMarkdown(st.scratchpad)"
+              />
+            </div>
+          </div>
 
           <!-- 步骤工具动作：单行极简内嵌行 (如 ✎ 编辑了文件、🌐 检索了知识库) -->
           <div v-if="st.tool_calls && st.tool_calls.length > 0" class="step-tools">
@@ -113,9 +172,27 @@ function renderMarkdown(content: string) {
       <template v-else>
         <div
           v-if="reasoningContent"
-          class="thought-markdown"
-          v-html="renderMarkdown(reasoningContent)"
-        />
+          class="sub-thought-item"
+        >
+          <div
+            class="sub-thought-header"
+            @click="toggleThought('flat_reasoning')"
+          >
+            <span class="sub-thought-label">思考</span>
+            <span class="sub-thought-preview">{{ getPreviewText(reasoningContent) }}</span>
+            <ChevronDown v-if="isThoughtExpanded('flat_reasoning')" class="icon-tiny chevron" />
+            <ChevronRight v-else class="icon-tiny chevron" />
+          </div>
+          <div
+            v-if="isThoughtExpanded('flat_reasoning')"
+            class="sub-thought-body"
+          >
+            <div
+              class="thought-markdown"
+              v-html="renderMarkdown(reasoningContent)"
+            />
+          </div>
+        </div>
         <div v-if="toolCalls && toolCalls.length > 0" class="step-tools">
           <HarnessToolActionRow
             v-for="tc in toolCalls"
@@ -168,25 +245,12 @@ function renderMarkdown(content: string) {
   color: #f4f4f5;
 }
 
+/* 整体思考链：不加高度限制，自然展开 */
 .codex-thought-chain {
   margin: 4px 0 8px 0;
-  max-height: 280px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding-right: 4px;
-}
-
-.codex-thought-chain::-webkit-scrollbar {
-  width: 4px;
-}
-
-.codex-thought-chain::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
-}
-
-[data-theme="dark"] .codex-thought-chain::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .steps-flow {
@@ -200,48 +264,132 @@ function renderMarkdown(content: string) {
   flex-direction: column;
 }
 
-/* 思考与草稿 Markdown 正文：与主回答文本字体、行高、间距完全一致，纯粹自然 */
+/* 小思考单项：支持折叠展开 */
+.sub-thought-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+.sub-thought-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  width: fit-content;
+  transition: background 0.15s ease;
+}
+
+.sub-thought-header:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+[data-theme="dark"] .sub-thought-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sub-thought-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted, #71717a);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .sub-thought-label {
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sub-thought-preview {
+  font-size: 12.5px;
+  color: #8a7a6a;
+  max-width: 480px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .sub-thought-preview {
+  color: #9ca3af;
+}
+
+/* 小思考正文容器：高度限制 + 滚动条 */
+.sub-thought-body {
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 6px 8px 6px 12px;
+  margin-top: 3px;
+  margin-left: 4px;
+  border-left: 2px solid rgba(100, 116, 139, 0.25);
+}
+
+[data-theme="dark"] .sub-thought-body {
+  border-left-color: rgba(148, 163, 184, 0.25);
+}
+
+.sub-thought-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sub-thought-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .sub-thought-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 小思考文字：颜色灰色一点，和正文纯黑明显区分 */
 .thought-markdown {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--ink, #1a1410);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #64748b;
   word-break: break-word;
 }
 
 [data-theme="dark"] .thought-markdown {
-  color: #e4e4e7;
+  color: #94a3b8;
 }
 
 .thought-markdown :deep(p) {
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
+  color: inherit;
 }
 
 .thought-markdown :deep(p:last-child) {
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .thought-markdown :deep(code) {
   font-family: var(--font-mono, monospace);
-  font-size: 12.5px;
-  padding: 1px 5px;
+  font-size: 12px;
+  padding: 1px 4px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--ink, #1a1410);
+  background: rgba(0, 0, 0, 0.04);
+  color: #475569;
 }
 
 [data-theme="dark"] .thought-markdown :deep(code) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
 }
 
 .thought-markdown :deep(ul),
 .thought-markdown :deep(ol) {
-  margin: 4px 0 8px 20px;
+  margin: 4px 0 6px 18px;
   padding: 0;
+  color: inherit;
 }
 
 .thought-markdown :deep(li) {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .step-tools {
