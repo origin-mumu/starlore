@@ -247,11 +247,27 @@ const hasContent = computed(() => {
   background: rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.thought-expanded::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thought-expanded::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
 }
 
 [data-theme="dark"] .thought-expanded {
   background: rgba(255, 255, 255, 0.03);
   border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .thought-expanded::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .step-details-container {
@@ -332,6 +348,22 @@ const hasContent = computed(() => {
   border-radius: 0 8px 8px 0;
   margin-top: 2px;
   margin-left: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sub-thought-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sub-thought-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .sub-thought-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .scratch-body {

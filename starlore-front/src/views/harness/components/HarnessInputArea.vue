@@ -277,6 +277,13 @@ function removeAttachment(id: string) {
   pendingAttachments.value = pendingAttachments.value.filter((a) => a.id !== id)
 }
 
+function formatFileSize(bytes: number): string {
+  if (!bytes || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function handleGlobalClick(e: MouseEvent) {
   const target = e.target as Node
   if (vendorWrapRef.value && !vendorWrapRef.value.contains(target)) {
@@ -365,34 +372,60 @@ defineExpose({
         @change="onFileSelected"
       />
 
-      <!-- 选中的附件预览条 -->
+      <!-- 选中的附件预览横向列表 (ChatGPT 风格：小图横向排布) -->
       <div v-if="pendingAttachments.length > 0" class="attachments-preview-list">
         <div
           v-for="att in pendingAttachments"
           :key="att.id"
-          class="attachment-chip"
-          :class="{ 'is-parsing': att.status === 'parsing', 'is-error': att.status === 'error' }"
+          class="attachment-card"
+          :class="{
+            'is-image': att.type === 'image',
+            'is-doc': att.type !== 'image',
+            'is-parsing': att.status === 'parsing',
+            'is-error': att.status === 'error',
+          }"
         >
-          <img
-            v-if="att.type === 'image' && att.previewUrl"
-            :src="att.previewUrl"
-            class="attachment-thumb"
-            alt="图片预览"
-          />
-          <component
-            :is="att.type === 'pdf' ? FileText : att.type === 'doc' ? FileCode : att.type === 'image' ? Image : AlignLeft"
-            v-else
-            class="icon-tiny attachment-chip-icon"
-          />
-          <span class="attachment-name" :title="att.name">{{ att.name }}</span>
-          <span v-if="att.status === 'parsing'" class="attachment-tag">
-            <Loader2 class="icon-tiny spin-icon" />
-            <span>解析中</span>
-          </span>
+          <!-- 图片小方卡片展示 (小图横向排布) -->
+          <div v-if="att.type === 'image'" class="attachment-image-box">
+            <img
+              v-if="att.previewUrl"
+              :src="att.previewUrl"
+              class="attachment-image-thumb"
+              :alt="att.name"
+            />
+            <div v-else class="attachment-image-placeholder">
+              <Image class="icon-sm" />
+            </div>
+            <!-- 解析中半透明遮罩 -->
+            <div v-if="att.status === 'parsing'" class="attachment-overlay">
+              <Loader2 class="icon-xs spin-icon" />
+            </div>
+          </div>
+
+          <!-- 文档卡片展示 -->
+          <div v-else class="attachment-doc-box">
+            <div class="doc-icon-wrap" :class="`doc-${att.type}`">
+              <component
+                :is="att.type === 'pdf' ? FileText : att.type === 'doc' ? FileCode : AlignLeft"
+                class="icon-sm"
+              />
+            </div>
+            <div class="doc-info">
+              <span class="doc-name" :title="att.name">{{ att.name }}</span>
+              <span class="doc-meta">
+                {{ att.status === 'parsing' ? '解析中...' : formatFileSize(att.size) }}
+              </span>
+            </div>
+            <div v-if="att.status === 'parsing'" class="doc-parsing-indicator">
+              <Loader2 class="icon-tiny spin-icon" />
+            </div>
+          </div>
+
+          <!-- 右上角悬浮黑色圆形关闭按钮 (ChatGPT 原生样式) -->
           <button
             type="button"
-            class="attachment-remove-btn"
-            title="移除附件"
+            class="attachment-close-badge"
+            title="移除"
             @click.stop="removeAttachment(att.id)"
           >
             <X class="icon-tiny" />
@@ -1009,71 +1042,196 @@ defineExpose({
   color: #71717a;
 }
 
-/* 附件预览列表 */
+/* ── 附件横向排布区域 (ChatGPT 风格：小图横向排布) ── */
 .attachments-preview-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding-bottom: 4px;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 6px 4px 10px 4px;
+  margin-bottom: 2px;
+  scrollbar-width: thin;
 }
 
-.attachment-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: var(--radius-sm, 8px);
+.attachments-preview-list::-webkit-scrollbar {
+  height: 4px;
+}
+
+.attachments-preview-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .attachments-preview-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.attachment-card {
+  position: relative;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* 图片小方卡 (58px x 58px 经典小图排布) */
+.attachment-card.is-image .attachment-image-box {
+  width: 58px;
+  height: 58px;
+  border-radius: 12px;
+  overflow: hidden;
   background: var(--surface-hover, rgba(0, 0, 0, 0.04));
   border: 1px solid rgba(0, 0, 0, 0.08);
-  font-size: 12px;
-  color: var(--ink, #1A1410);
-  max-width: 260px;
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-[data-theme="dark"] .attachment-chip {
-  background: rgba(255, 255, 255, 0.06);
+.attachment-card.is-image:hover .attachment-image-box {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .attachment-card.is-image .attachment-image-box {
   border-color: rgba(255, 255, 255, 0.1);
-  color: #e4e4e7;
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.attachment-chip.is-parsing {
-  opacity: 0.85;
-  border-style: dashed;
-}
-
-.attachment-chip.is-error {
-  border-color: #ef4444;
-  color: #ef4444;
-}
-
-.attachment-thumb {
-  width: 20px;
-  height: 20px;
+.attachment-image-thumb {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 4px;
+  display: block;
+}
+
+.attachment-image-placeholder {
+  color: var(--ink-muted, #8A7A6A);
+}
+
+.attachment-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+/* 文档小胶囊卡 */
+.attachment-card.is-doc .attachment-doc-box {
+  height: 56px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 200px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.attachment-card.is-doc:hover .attachment-doc-box {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .attachment-card.is-doc .attachment-doc-box {
+  background: #27272a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.doc-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.attachment-chip-icon {
-  color: var(--accent, #DE4331);
-  flex-shrink: 0;
+.doc-icon-wrap.doc-pdf {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
 }
 
-.attachment-name {
+.doc-icon-wrap.doc-doc {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.doc-icon-wrap.doc-text {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.doc-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink, #1A1410);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
 }
 
-.attachment-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+[data-theme="dark"] .doc-name {
+  color: #e4e4e7;
+}
+
+.doc-meta {
   font-size: 10.5px;
   color: var(--ink-muted, #8A7A6A);
+  margin-top: 2px;
+}
+
+.doc-parsing-indicator {
+  margin-left: auto;
+  color: var(--accent, #DE4331);
+}
+
+/* 右上角悬浮黑色圆形关闭按钮 (如同 ChatGPT 原生样式) */
+.attachment-close-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #18181b;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+  z-index: 5;
+}
+
+.attachment-close-badge:hover {
+  background: #ef4444;
+  transform: scale(1.15);
+}
+
+[data-theme="dark"] .attachment-close-badge {
+  background: #3f3f46;
+  border-color: #18181b;
+}
+
+[data-theme="dark"] .attachment-close-badge:hover {
+  background: #ef4444;
 }
 
 .spin-icon {
@@ -1087,24 +1245,6 @@ defineExpose({
   to {
     transform: rotate(360deg);
   }
-}
-
-.attachment-remove-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--ink-muted, #8A7A6A);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 50%;
-  transition: all 0.15s ease;
-}
-
-.attachment-remove-btn:hover {
-  background: rgba(222, 67, 49, 0.15);
-  color: var(--accent, #DE4331);
 }
 
 .footer-right {
