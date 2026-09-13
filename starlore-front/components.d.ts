@@ -12,10 +12,10 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AgentConfigDrawer: typeof import('./src/components/AgentConfigDrawer.vue')['default']
-    AgentTraceStepper: typeof import('./src/components/immersive/AgentTraceStepper.vue')['default']
     AICore: typeof import('./src/components/AICore.vue')['default']
     BlurredBubbles: typeof import('./src/components/BlurredBubbles.vue')['default']
-    CharacterCardPicker: typeof import('./src/components/immersive/CharacterCardPicker.vue')['default']
+    Carousel: typeof import('./src/components/Carousel.vue')['default']
+    CarouselCard: typeof import('./src/components/CarouselCard.vue')['default']
     ConfirmModal: typeof import('./src/components/ConfirmModal.vue')['default']
     DummyCard: typeof import('./src/components/dummyCard.vue')['default']
     ElDialog: typeof import('element-plus/es')['ElDialog']
@@ -27,17 +27,14 @@ declare module 'vue' {
     EmotionBall: typeof import('./src/components/EmotionBall.vue')['default']
     FloatingParticles: typeof import('./src/components/FloatingParticles.vue')['default']
     GeoNexusGlobe: typeof import('./src/components/GeoNexusGlobe.vue')['default']
-    ImmersiveMode: typeof import('./src/components/ImmersiveMode.vue')['default']
     MarkdownEditor: typeof import('./src/components/MarkdownEditor.vue')['default']
     Navbar: typeof import('./src/components/navbar.vue')['default']
     ParticleGlobe: typeof import('./src/components/ParticleGlobe.vue')['default']
-    RagFeedbackModal: typeof import('./src/components/immersive/RagFeedbackModal.vue')['default']
     RichEditor: typeof import('./src/components/RichEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SideBar: typeof import('./src/components/sideBar.vue')['default']
     StellarDotsBand: typeof import('./src/components/StellarDotsBand.vue')['default']
-    VoiceWaveStage: typeof import('./src/components/immersive/VoiceWaveStage.vue')['default']
     Wave: typeof import('./src/components/wave.vue')['default']
   }
 }

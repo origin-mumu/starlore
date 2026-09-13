@@ -507,8 +507,9 @@ defineExpose({
 }
 
 .input-card:focus-within {
-  border-color: var(--border-focus, rgba(222, 67, 49, 0.4));
-  box-shadow: 0 12px 40px rgba(222, 67, 49, 0.12);
+  border-color: rgba(0, 0, 0, 0.08);
+  outline: none;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] .input-card {
@@ -518,7 +519,8 @@ defineExpose({
 }
 
 [data-theme="dark"] .input-card:focus-within {
-  border-color: var(--accent, #DE4331);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
 .input-textarea {
@@ -533,6 +535,12 @@ defineExpose({
   color: var(--ink, #1A1410);
   max-height: 140px;
   display: block;
+}
+
+.input-textarea:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
 }
 
 .input-textarea::placeholder {

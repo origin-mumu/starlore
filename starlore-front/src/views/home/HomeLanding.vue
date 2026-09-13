@@ -4,122 +4,316 @@ import { gsap } from 'gsap'
 import StellarDotsBand from '@/components/StellarDotsBand.vue'
 import EmotionBall from '@/components/EmotionBall.vue'
 import {
-  ArrowRight,
   Zap,
   BrainCircuit,
   Eye,
   Workflow,
-  Database,
-  GraduationCap,
-  Code,
-  Microscope,
-  PenTool,
-  Sparkles,
-  Globe,
-  Link,
-  Mail,
   GitBranch,
-  Activity,
-  Terminal,
-  Code2,
   Cpu,
-  Search,
-  ArrowDown,
+  Layers,
+  CheckCircle2,
+  Presentation,
+  ArrowRight,
+  Sparkles,
+  Mail,
+  Database,
+  Activity,
+  ShieldCheck,
+  FileSpreadsheet,
+  FileText,
   Clock,
 } from '@lucide/vue'
 
 const guestVisual = ref<HTMLElement | null>(null)
 let guestVisualContext: gsap.Context | null = null
 
-const features = [
+const stats = [
+  { value: '3-Agent', label: '角色协同状态机' },
+  { value: '100%', label: '真实排版可交付' },
+  { value: '3D WebGL', label: '空间引力知识网络' },
+  { value: 'ms 级', label: '全链路可观测性' },
+]
+
+// ── 5 大核心能力卡片轮播 (同一样式、修长优雅、平滑滑动) ──
+const activeCardIndex = ref(0)
+let carouselTimer: number | null = null
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1200)
+
+const capabilityCards = [
   {
+    id: '01',
+    badge: '01 · MULTI-AGENT HARNESS',
+    title: 'Multi-Agent 协作调度',
+    desc: '原生基于 LangGraph 状态机打造。集成 Planner 意图规划、Executor 并行工具调用与 Reviewer 事实审计，任务执行中自主反思自纠偏，突破单模型幻觉瓶颈。',
+    chips: ['三角色闭环', 'LangGraph 状态机', 'Auto-Retry 自纠偏'],
     icon: GitBranch,
-    title: 'Multi-Agent 协作',
-    desc: 'Planner-Executor-Reviewer 三角色协作架构，自动拆解复杂任务、并行调用工具、结果自我纠错。',
-    tech: 'LangGraph · State Machine · Auto-Retry',
-    link: '/harness',
-    large: true,
-    glow: 'rgba(232, 93, 42, 0.15)',
+    themeClass: 'theme-blue',
   },
   {
+    id: '02',
+    badge: '02 · 3D VR GALAXY',
+    title: '3D VR 知识星图',
+    desc: 'Three.js 与 WebGL 驱动的全息可视化星系。将笔记根据语义相似度映射为具有引力牵引的星辰，在沉浸式星空中漫游与发散灵感。',
+    chips: ['Three.js 引擎', '空间引力星网', '粒子拓扑聚类'],
     icon: Eye,
-    title: 'VR 知识星图',
-    desc: 'Three.js 驱动的 3D 可视化，将知识映射为星辰，在沉浸式星域中探索。',
-    tech: 'WebGL · Three.js · Particle System',
-    link: '/vr',
-    large: false,
-    glow: 'rgba(59, 125, 216, 0.15)',
+    themeClass: 'theme-cyan',
   },
   {
-    icon: BrainCircuit,
-    title: '多模态 AI 对话',
-    desc: '支持文本、图片、语音多模态输入，DeepSeek & MiMo 大模型驱动，SSE 流式响应。',
-    tech: 'SSE Stream · Vision API · Tool Calling',
-    link: '/harness',
-    large: true,
-    glow: 'rgba(123, 154, 255, 0.15)',
+    id: '03',
+    badge: '03 · ARTIFACT DELIVERY',
+    title: '真实交付物 (Harness)',
+    desc: '坚决拒绝概念玩具。智能体提取长程思考切片，一键端到端编译为商业级演示文稿（PPTX）、Word 调研报告与高保真 PDF 简历。',
+    chips: ['PPTX 编译引擎', 'Word Docx 报告', '高保真矢量渲染'],
+    icon: Presentation,
+    themeClass: 'theme-purple',
   },
   {
+    id: '04',
+    badge: '04 · VECTOR RAG',
+    title: '精准向量 RAG 检索',
+    desc: '个人笔记高维向量索引与混合相似度检索。语义穿透全量知识切片，AI 基于你的个人第一手资料权威应答，告别胡编乱造。',
+    chips: ['高维 Embedding', '混合相似度检索', '权威溯源防幻觉'],
     icon: Database,
-    title: 'RAG 知识检索',
-    desc: '向量化知识库，语义检索你的所有星记，AI 基于你的知识回答问题。',
-    tech: 'Embedding · Vector Store · Semantic Search',
-    link: '/articles',
-    large: false,
-    glow: 'rgba(245, 166, 35, 0.15)',
+    themeClass: 'theme-amber',
   },
   {
-    icon: Workflow,
-    title: '创意发散引擎',
-    desc: 'AI 驱动的思维导图，从一个关键词发散出无限可能，辅助创意和决策。',
-    tech: 'Graph Layout · AI Generation · Real-time',
-    link: '/diverge',
-    large: false,
-    glow: 'rgba(74, 140, 92, 0.15)',
-  },
-  {
-    icon: Activity,
+    id: '05',
+    badge: '05 · OBSERVABILITY',
     title: '全链路可观测性',
-    desc: '搭建 Tracing 体系，追踪每次 LLM 调用的 Token 消耗、路由耗时与 Prompt 演进。',
-    tech: 'Trace · Observability · Bad Case Mining',
-    link: '/harness',
-    large: true,
-    glow: 'rgba(212, 99, 143, 0.15)',
+    desc: '毫秒级链路追踪（OpenTelemetry）。精准记录每次 LLM 调用的 Token 消耗、工具路由耗时与 Prompt 演进，Bad Case 自动沉淀反哺。',
+    chips: ['OpenTelemetry', 'Token 耗时遥测', 'Few-Shot 反哺'],
+    icon: Activity,
+    themeClass: 'theme-rose',
   },
 ]
 
-const stats = [
-  { value: '3-Agent', label: '多智能体协作' },
-  { value: '10+', label: 'Function 工具' },
-  { value: 'Trace', label: '全链路追踪' },
-  { value: '3D', label: '知识可视化' },
+const getCardOffset = (idx: number) => {
+  const total = capabilityCards.length
+  let offset = ((idx - activeCardIndex.value) % total + total) % total
+  if (offset > total / 2) offset -= total
+  return offset
+}
+
+// ── 鼠标拖拽、滚轮与手势转动手势 ──
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragCurrentOffset = ref(0)
+let hasMovedSignificantly = false
+
+const getCardStyle = (idx: number) => {
+  const offset = getCardOffset(idx)
+  const isCenter = offset === 0
+  const isNeighbor = Math.abs(offset) === 1
+  const isHidden = Math.abs(offset) > 1
+
+  const step = windowWidth.value < 640 ? 270 : windowWidth.value < 1024 ? 320 : 360
+
+  const liveDrag = isDragging.value ? dragCurrentOffset.value : 0
+  const translateX = Math.round(offset * step + liveDrag)
+  const scale = isCenter ? 1 : isNeighbor ? 0.9 : 0.8
+  const opacity = isCenter ? 1 : isNeighbor ? 0.65 : 0
+  const zIndex = isCenter ? 10 : isNeighbor ? 5 : 1
+  const pointerEvents = isHidden ? 'none' : 'auto'
+
+  return {
+    transform: `translateX(${translateX}px) scale(${scale})`,
+    opacity: String(opacity),
+    zIndex: String(zIndex),
+    pointerEvents,
+    transition: isDragging.value
+      ? 'none'
+      : 'transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.85s ease, box-shadow 0.85s ease, border-color 0.85s ease',
+  }
+}
+
+const nextCard = () => {
+  activeCardIndex.value = (activeCardIndex.value + 1) % capabilityCards.length
+}
+
+const prevCard = () => {
+  activeCardIndex.value =
+    (activeCardIndex.value - 1 + capabilityCards.length) % capabilityCards.length
+}
+
+const setCard = (index: number) => {
+  activeCardIndex.value = index
+}
+
+// ── 自动平滑转动 (Auto-Play) ──
+const startCarouselAutoPlay = () => {
+  stopCarouselAutoPlay()
+  carouselTimer = window.setInterval(() => {
+    nextCard()
+  }, 5000)
+}
+
+const stopCarouselAutoPlay = () => {
+  if (carouselTimer !== null) {
+    clearInterval(carouselTimer)
+    carouselTimer = null
+  }
+}
+
+// ── 鼠标拖拽转动 (Mouse Drag) ──
+const onMouseDown = (e: MouseEvent) => {
+  if (e.button !== 0) return
+  isDragging.value = true
+  dragStartX.value = e.clientX
+  dragCurrentOffset.value = 0
+  hasMovedSignificantly = false
+  stopCarouselAutoPlay()
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
+const onMouseMove = (e: MouseEvent) => {
+  if (!isDragging.value) return
+  const diff = e.clientX - dragStartX.value
+  if (Math.abs(diff) > 5) {
+    hasMovedSignificantly = true
+  }
+  dragCurrentOffset.value = diff * 0.8
+}
+
+const onMouseUp = () => {
+  if (!isDragging.value) return
+  isDragging.value = false
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+
+  const diff = dragCurrentOffset.value
+  dragCurrentOffset.value = 0
+
+  if (diff < -35) {
+    nextCard()
+  } else if (diff > 35) {
+    prevCard()
+  }
+  startCarouselAutoPlay()
+}
+
+// ── 鼠标滚轮转动 (Mouse Wheel) ──
+let wheelLock = false
+const onWheel = (e: WheelEvent) => {
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (Math.abs(delta) < 20 || wheelLock) return
+
+  wheelLock = true
+  stopCarouselAutoPlay()
+  if (delta > 0) {
+    nextCard()
+  } else {
+    prevCard()
+  }
+  setTimeout(() => {
+    wheelLock = false
+    startCarouselAutoPlay()
+  }, 380)
+}
+
+// ── 触摸滑动转动 (Touch Swipe) ──
+const onTouchStart = (e: TouchEvent) => {
+  isDragging.value = true
+  dragStartX.value = e.touches[0].clientX
+  dragCurrentOffset.value = 0
+  hasMovedSignificantly = false
+  stopCarouselAutoPlay()
+}
+
+const onTouchMove = (e: TouchEvent) => {
+  if (!isDragging.value) return
+  const diff = e.touches[0].clientX - dragStartX.value
+  if (Math.abs(diff) > 5) {
+    hasMovedSignificantly = true
+  }
+  dragCurrentOffset.value = diff * 0.8
+}
+
+const onTouchEnd = () => {
+  if (!isDragging.value) return
+  isDragging.value = false
+  const diff = dragCurrentOffset.value
+  dragCurrentOffset.value = 0
+
+  if (diff < -35) {
+    nextCard()
+  } else if (diff > 35) {
+    prevCard()
+  }
+  startCarouselAutoPlay()
+}
+
+const onCardClick = (idx: number) => {
+  if (hasMovedSignificantly) return
+  setCard(idx)
+}
+
+const onResize = () => {
+  windowWidth.value = window.innerWidth
+}
+
+// ── Agent 演练预设场景 ──
+const activePromptIndex = ref(0)
+const agentPrompts = [
+  {
+    label: 'RAG 性能优化研报',
+    query: '分析最近三篇关于 RAG 性能优化的星记，并输出一份集成报告',
+    subtasks: [
+      { id: '01', name: '加载目标星记', desc: '从底层检索并加载星记 ID: 104, 107, 112 知识切片' },
+      { id: '02', name: '向量混合检索', desc: '基于 Top-K 召回与语义相似度重排序获取优化策略' },
+      { id: '03', name: '综合推理排版', desc: '调用 DeepSeek 提炼工程建议并渲染学术标准版式' },
+    ],
+    execCards: [
+      { title: 'SQLite 知识抽取', desc: '从数据库安全提取三篇目标笔记的 Markdown 内容与元数据。', time: '0.4s', detail: '3 篇星记' },
+      { title: '高维向量相似度检索', desc: '召回最相关的前 5 段工程优化切片，完成语义对齐。', time: '0.8s', detail: '5 段切片' },
+      { title: 'DeepSeek 知识推理', desc: '综合多篇笔记上下文，生成无幻觉的结构化优化方案。', time: '2.1s', detail: '5,040 Tokens' },
+    ],
+    auditDiff: { old: '"100x retrieval speedup"', new: '"10x retrieval speedup (基准实测)"' },
+    auditCheck: '确认 ID: 104, 107, 112 三篇源星记的主旨均在最终交付报告中覆盖。',
+  },
+  {
+    label: '微服务架构演进 PPT',
+    query: '提取微服务高并发演进的 4 个关键阶段，自动生成结构化演讲幻灯片',
+    subtasks: [
+      { id: '01', name: '星图语义聚类', desc: '遍历微服务分类，抓取相关星记的架构拓扑与演进细节' },
+      { id: '02', name: '分镜大纲编排', desc: '构建 12 页结构化 PPT 分镜逻辑与压测数据指标' },
+      { id: '03', name: 'PPTX 矢量渲染', desc: '调用排版微服务，交付可直接演示的商业级幻灯片文件' },
+    ],
+    execCards: [
+      { title: '星图引力聚类', desc: '抓取微服务演进相关星记，生成架构拓扑关系网。', time: '0.6s', detail: '8 篇笔记' },
+      { title: '分镜逻辑编排', desc: '生成 12 页幻灯片脚本与对比图表数据结构。', time: '1.2s', detail: '12 页脚本' },
+      { title: 'PPTX 矢量编译', desc: '调用无头排版微服务编译为商业级演示文稿二进制文件。', time: '1.8s', detail: '4.8 MB 文件' },
+    ],
+    auditDiff: { old: '"单体直接切换为微服务"', new: '"渐进式服务拆分与分布式分库分表"' },
+    auditCheck: '校验幻灯片章节逻辑与压测基准数据前后一致性。',
+  },
+  {
+    label: '异步并发 Bug 诊断',
+    query: '诊断 FastAPI 异步连接池在高负载下的连接泄漏问题并提供防御性补丁',
+    subtasks: [
+      { id: '01', name: '可观测性追踪', desc: '抓取 OpenTelemetry 链路中的 504 超时异常堆栈' },
+      { id: '02', name: '隔离沙箱重现', desc: '在沙箱中重现 async with 连接池未安全释放边界' },
+      { id: '03', name: '生成安全补丁', desc: '生成带自动重试的修复补丁与回归测试用例' },
+    ],
+    execCards: [
+      { title: 'Trace 日志回放', desc: '抓取连接泄漏时刻前后 20 条异常堆栈与调用时序。', time: '0.3s', detail: 'Trace #8821' },
+      { title: '沙箱压力复现', desc: '隔离模拟 100 并发场景，精准定位异步死锁调用栈。', time: '1.5s', detail: '100 并发压测' },
+      { title: '单元测试生成', desc: '输出防护代码补丁，并执行并通过自动化回归测试。', time: '1.9s', detail: '用例通过率 100%' },
+    ],
+    auditDiff: { old: '"盲目扩容连接池到 1000"', new: '"重构上下文管理器确保异常时安全归还连接"' },
+    auditCheck: '回归压测通过，连接池连接泄漏漏洞已彻底修复。',
+  },
 ]
 
 const currentAgentStep = ref(0)
 const agentSteps = [
-  {
-    name: 'Planner 规划',
-    title: '任务拆解与路由规划',
-  },
-  {
-    name: 'Executor 执行',
-    title: '并行工具调用与信息提炼',
-  },
-  {
-    name: 'Reviewer 审查',
-    title: '结果校验与自我纠正',
-  },
+  { num: '01', name: 'Planner 任务规划', desc: '意图拆解与 DAG 路由' },
+  { num: '02', name: 'Executor 并行执行', desc: '工具调用与多维提炼' },
+  { num: '03', name: 'Reviewer 质量审计', desc: '自纠偏与交付验收' },
 ]
 
-const handleCardMouseMove = (e: MouseEvent) => {
-  const card = e.currentTarget as HTMLElement
-  const rect = card.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const y = e.clientY - rect.top
-  card.style.setProperty('--x', `${x}px`)
-  card.style.setProperty('--y', `${y}px`)
-}
-
+// 滚动显示监听
 const observeScroll = () => {
   const observer = new IntersectionObserver(
     (entries) => {
@@ -130,357 +324,351 @@ const observeScroll = () => {
         }
       })
     },
-    {
-      threshold: 0.08,
-      rootMargin: '0px 0px -40px 0px',
-    },
+    { threshold: 0.15 },
   )
 
-  const targets = document.querySelectorAll('.scroll-reveal')
-  targets.forEach((el) => observer.observe(el))
+  document.querySelectorAll('.scroll-reveal').forEach((el) => {
+    observer.observe(el)
+  })
 }
 
 onMounted(() => {
+  window.addEventListener('resize', onResize)
+  startCarouselAutoPlay()
+
   nextTick(() => {
     observeScroll()
-    if (!guestVisual.value) return
-    guestVisualContext = gsap.context(() => {
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        gsap.to('.reference-orb-ring', {
-          rotation: 360,
-          duration: 28,
-          repeat: -1,
-          ease: 'none',
-          transformOrigin: '50% 50%',
-        })
-      }
-    }, guestVisual.value)
+
+    if (guestVisual.value) {
+      guestVisualContext = gsap.context(() => {
+        gsap.fromTo(
+          guestVisual.value,
+          { opacity: 0, scale: 0.95 },
+          { opacity: 1, scale: 1, duration: 0.9, ease: 'power2.out' },
+        )
+      }, guestVisual.value)
+    }
   })
 })
 
 onUnmounted(() => {
-  guestVisualContext?.revert()
+  window.removeEventListener('resize', onResize)
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+  stopCarouselAutoPlay()
+  if (guestVisualContext) guestVisualContext.revert()
 })
 </script>
 
 <template>
   <div class="landing-page-wrap">
-    <!-- Hero Section -->
+    <!-- ════════ 1. HERO SECTION (星域启航首屏) ════════ -->
     <section class="landing-hero">
-      <div class="container hero-grid">
-        <!-- Left Text Content -->
-        <div class="hero-text-content">
-          <div class="kicker-pill fade-in-up">
-            <span class="pill-dot"></span>
-            <span class="pill-text">✦ 让知识形成自己的星系</span>
+      <div class="container hero-container">
+        <!-- Left: Brand Narrative -->
+        <div class="hero-left-content">
+          <div class="hero-pill-tag">
+            <span class="pill-pulse-dot"></span>
+            <span class="pill-text">AI-POWERED PERSONAL KNOWLEDGE UNIVERSE</span>
           </div>
 
-          <h1 class="hero-title fade-in-up" style="animation-delay: 0.1s">
-            <span class="hero-title-accent">Star</span>lore
+          <h1 class="hero-brand-title">
+            <span class="title-accent">Star</span>lore
           </h1>
-          <p class="hero-tagline fade-in-up" style="animation-delay: 0.2s">
-            AI-Powered Personal Knowledge Universe
+
+          <p class="hero-tagline">
+            让知识形成星系 · 让思考成为真实生产力
           </p>
-          <p class="hero-desc fade-in-up" style="animation-delay: 0.3s">
-            融合 Multi-Agent 协作、全链路可观测性、RAG 知识检索与 3D 可视化的智能知识系统。<br />
-            通过 Planner 规划 → Executor 执行 → Reviewer 审查，让 AI 真正深入理解您的碎片化知识。
+
+          <p class="hero-desc">
+            拒绝概念玩具。Starlore 融合 <strong>Multi-Agent 协同调度</strong>、<strong>3D VR 知识星图</strong> 与 <strong>全链路可观测性</strong>。<br />
+            通过 Planner 规划 → Executor 执行 → Reviewer 审查，将碎片星记升维为端到端交付的 PPT、研报与学术文档。
           </p>
-          <div class="hero-actions fade-in-up" style="animation-delay: 0.4s">
-            <router-link to="/login" class="hero-action-btn hero-action-btn--primary">
-              <Terminal :size="16" />
-              <span>开始探索</span>
+
+          <div class="hero-action-buttons">
+            <router-link to="/login" class="btn-primary-action">
+              <Zap :size="16" />
+              <span>立即开启探索</span>
             </router-link>
-            <a href="#features" class="hero-action-btn hero-action-btn--secondary">
-              <Code2 :size="16" />
-              <span>技术架构</span>
+
+            <a href="#features" class="btn-secondary-action">
+              <span>浏览核心能力</span>
+              <ArrowRight :size="15" />
             </a>
           </div>
 
-          <!-- Stats -->
-          <div class="hero-stats fade-in-up" style="animation-delay: 0.5s">
-            <div v-for="stat in stats" :key="stat.label" class="stat-item">
-              <span class="stat-value">{{ stat.value }}</span>
-              <span class="stat-label">{{ stat.label }}</span>
+          <!-- Stats Strip -->
+          <div class="hero-stats-row">
+            <div v-for="stat in stats" :key="stat.label" class="stat-pill-item">
+              <span class="stat-val">{{ stat.value }}</span>
+              <span class="stat-lbl">{{ stat.label }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Interactive Emotion Ball Hero Visual -->
-        <div
-          ref="guestVisual"
-          class="hero-visual-container fade-in-up"
-          style="animation-delay: 0.25s"
-        >
-          <div class="hero-emotion-ball-wrapper">
-            <div class="hero-ball-aura" aria-hidden="true"></div>
+        <!-- Right: Pure Hero Companion (舒展独立伴侣球，不再被生硬卡片遮挡) -->
+        <div ref="guestVisual" class="hero-right-visual">
+          <div class="companion-stage">
+            <div class="ambient-nebula-glow" aria-hidden="true"></div>
             <EmotionBall
-              :size="330"
+              :size="320"
               shape="blob"
               emotion="02"
               :show-rings="true"
               :show-style-toggle="true"
-              label="Starlore AI Companion"
+              label="Starlore Companion Core"
             />
-            <div class="hero-ball-caption">
-              <span class="hero-ball-tag">✦ STARLORE AI COMPANION</span>
-              <span class="hero-ball-sub">CAPTURE · CONNECT · REDISCOVER</span>
-            </div>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- Star Separation Band -->
     <div class="container">
       <StellarDotsBand />
     </div>
 
-    <!-- Features Section -->
-    <section id="features" class="section-parchment">
+    <!-- ════════ 2. 核心架构：现代便当盒网格 (Bento Grid) ════════ -->
+    <section id="features" class="section-architecture scroll-reveal">
       <div class="container">
-        <div class="section-header scroll-reveal">
-          <span class="section-tag">CORE FEATURES</span>
-          <h2 class="section-heading">核心能力</h2>
-          <p class="section-subtitle">六大技术模块，构建智能知识系统</p>
+        <div class="section-header">
+          <span class="section-tag">CORE CAPABILITIES</span>
+          <h2 class="section-heading">五大核心生产力引擎</h2>
+          <p class="section-subtitle">从离散知识切片到空间星辰，再到智能体端到端交付物的全流程架构</p>
         </div>
-        <div class="bento-grid">
-          <div
-            v-for="(feature, i) in features"
-            :key="feature.title"
-            class="feature-card starlore-spotlight scroll-reveal"
-            :class="{ 'feature-card--large': feature.large }"
-            :style="{
-              transitionDelay: `${i * 0.08}s`,
-              '--hover-glow-color': feature.glow,
-            }"
-            @mousemove="handleCardMouseMove"
-          >
-            <div class="feature-header">
-              <div class="feature-icon">
-                <component :is="feature.icon" :size="22" />
+
+        <!-- Modern Card Carousel (统一修长卡片 + 自动平滑轮播 + 鼠标拖拽/滚轮转动) -->
+        <div
+          class="cards-carousel-container"
+          :class="{ 'is-grabbing': isDragging }"
+          @mousedown="onMouseDown"
+          @wheel.passive="onWheel"
+          @touchstart.passive="onTouchStart"
+          @touchmove.passive="onTouchMove"
+          @touchend="onTouchEnd"
+          @mouseenter="stopCarouselAutoPlay"
+          @mouseleave="startCarouselAutoPlay"
+        >
+          <!-- Carousel Viewport & 3D/2D Smooth Stage -->
+          <div class="carousel-stage-viewport">
+            <div
+              v-for="(card, idx) in capabilityCards"
+              :key="card.id"
+              class="carousel-slide-card"
+              :class="{
+                'is-active': idx === activeCardIndex,
+                'is-neighbor': Math.abs(getCardOffset(idx)) === 1,
+              }"
+              :style="getCardStyle(idx)"
+              @click="onCardClick(idx)"
+            >
+              <div class="carousel-card-inner">
+                <!-- Top Badge Row -->
+                <div class="carousel-badge-bar">
+                  <span class="carousel-badge-tag" :class="card.themeClass">
+                    {{ card.badge }}
+                  </span>
+                  <span class="carousel-card-status">● Ready</span>
+                </div>
+
+                <!-- 52px Icon Box -->
+                <div class="carousel-icon-box" :class="card.themeClass">
+                  <component :is="card.icon" :size="26" />
+                </div>
+
+                <!-- Title & Description -->
+                <h3 class="carousel-card-title">{{ card.title }}</h3>
+                <p class="carousel-card-desc">{{ card.desc }}</p>
+
+                <!-- Tags Flow -->
+                <div class="carousel-tags-flow">
+                  <span
+                    v-for="chip in card.chips"
+                    :key="chip"
+                    class="carousel-chip-tag"
+                  >
+                    {{ chip }}
+                  </span>
+                </div>
               </div>
             </div>
-            <h3 class="feature-title">{{ feature.title }}</h3>
-            <p class="feature-desc">{{ feature.desc }}</p>
-            <div class="feature-footer">
-              <div class="feature-tech-chips">
-                <span
-                  v-for="tag in feature.tech.split(' · ')"
-                  :key="tag"
-                  class="tech-chip"
-                >{{ tag }}</span>
-              </div>
-              <router-link v-if="feature.link" :to="feature.link" class="feature-link">
-                探索 <ArrowRight :size="14" />
-              </router-link>
+          </div>
+
+          <!-- Bottom Control Dock (去除了左/右箭头，仅保留居中 5 个指示圆点) -->
+          <div class="carousel-control-dock">
+            <div class="dock-dots-track">
+              <button
+                v-for="(card, idx) in capabilityCards"
+                :key="card.id"
+                class="dock-dot-btn"
+                :class="{ 'is-active': idx === activeCardIndex }"
+                @click="setCard(idx)"
+                :aria-label="`切换到 ${card.title}`"
+              >
+                <span class="dock-dot-pill"></span>
+              </button>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Agent Showcase Section -->
-    <section class="agent-showcase-section scroll-reveal">
+    <!-- ════════ 3. 流线型流水线协作演练 (Streamlined Pipeline) ════════ -->
+    <section id="sandbox" class="section-pipeline-demo scroll-reveal">
       <div class="container">
         <div class="section-header">
-          <span class="section-tag">AGENT WORKFLOW</span>
+          <span class="section-tag">INTERACTIVE PIPELINE</span>
           <h2 class="section-heading">Multi-Agent 协作演练</h2>
-          <p class="section-subtitle">点击下方不同阶段，实时观测智能体如何拆解、执行和审计您的任务</p>
+          <p class="section-subtitle">切换不同任务场景与执行节点，实时体验智能体如何拆解意图、并行调用工具与自纠偏审计</p>
         </div>
 
-        <div class="showcase-container">
-          <!-- Left Steps Selector -->
-          <div class="showcase-nav">
+        <!-- Streamlined Pipeline Canvas -->
+        <div class="streamlined-canvas">
+          <!-- 1. Top Controls: Scenario Switcher -->
+          <div class="canvas-header-bar">
+            <div class="canvas-meta-status">
+              <span class="meta-dot"></span>
+              <span class="meta-text">PIPELINE TRACKER · LIVE</span>
+            </div>
+
+            <div class="scenario-pill-selector">
+              <button
+                v-for="(p, idx) in agentPrompts"
+                :key="p.label"
+                class="scenario-pill-btn"
+                :class="{ 'scenario-pill-btn--active': activePromptIndex === idx }"
+                @click="activePromptIndex = idx"
+              >
+                <Sparkles :size="12" />
+                <span>{{ p.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Horizontal 3-Step Flow Stepper -->
+          <div class="stepper-track">
             <button
               v-for="(step, idx) in agentSteps"
-              :key="step.name"
-              class="showcase-nav-btn"
-              :class="{ 'showcase-nav-btn--active': currentAgentStep === idx }"
+              :key="step.num"
+              class="step-track-node"
+              :class="{ 'step-track-node--active': currentAgentStep === idx }"
               @click="currentAgentStep = idx"
             >
-              <div class="step-num">0{{ idx + 1 }}</div>
-              <div class="step-meta">
-                <span class="step-name">{{ step.name }}</span>
-                <span class="step-title">{{ step.title }}</span>
+              <div class="node-num-badge">{{ step.num }}</div>
+              <div class="node-text-wrap">
+                <span class="node-main-name">{{ step.name }}</span>
+                <span class="node-sub-name">{{ step.desc }}</span>
               </div>
             </button>
           </div>
 
-          <!-- Right Visual Workflow Panel -->
-          <div class="showcase-terminal">
-            <div class="terminal-header">
-              <div class="terminal-dots">
-                <span class="dot-red"></span>
-                <span class="dot-yellow"></span>
-                <span class="dot-green"></span>
-              </div>
-              <div class="observatory-header-title">
-                <BrainCircuit :size="14" class="observatory-icon" />
-                <span>工作流观测台 · Pipeline Tracker</span>
-              </div>
-              <span class="terminal-status">ACTIVE PIPELINE</span>
-            </div>
-            <div class="observatory-content">
-              <!-- STEP 1: Planner -->
-              <div v-if="currentAgentStep === 0" class="pipeline-view" key="planner">
-                <div class="pipeline-step-title">意图拆解与子任务规划</div>
-
-                <div class="visual-intent-card">
-                  <div class="intent-card-header">
-                    <Zap :size="12" class="tag-icon" />
-                    <span>用户输入意图 (User Query)</span>
-                  </div>
-                  <div class="intent-card-body">
-                    "分析最近三篇关于 <span class="highlight-text">RAG 性能优化</span> 的星记，并输出一份集成报告"
-                  </div>
-                </div>
-
-                <div class="pipeline-connector">
-                  <ArrowDown :size="14" class="connector-arrow-icon" />
-                  <span class="connector-text">意图路由器 (Router Agent) 规划</span>
-                </div>
-
-                <div class="tasks-horizontal-flow">
-                  <div class="task-flow-node">
-                    <div class="node-badge node-db"><Database :size="14" /></div>
-                    <div class="node-info">
-                      <span class="node-name">子任务 01</span>
-                      <span class="node-desc">从数据库加载指定星记 (ID: 104, 107, 112)</span>
-                    </div>
-                  </div>
-
-                  <div class="task-flow-node">
-                    <div class="node-badge node-search"><Search :size="14" /></div>
-                    <div class="node-info">
-                      <span class="node-name">子任务 02</span>
-                      <span class="node-desc">召回向量数据库中 RAG 优化上下文片段</span>
-                    </div>
-                  </div>
-
-                  <div class="task-flow-node">
-                    <div class="node-badge node-llm"><Cpu :size="14" /></div>
-                    <div class="node-info">
-                      <span class="node-name">子任务 03</span>
-                      <span class="node-desc">调用 DeepSeek 提炼并学术化汇总生成报告</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="pipeline-connector">
-                  <ArrowDown :size="14" class="connector-arrow-icon" />
-                  <span class="connector-text">拓扑状态机初始化完成</span>
-                </div>
-
-                <div class="pipeline-status-badge">
-                  <Workflow :size="12" />
-                  <span>目标：路由任务流至 Executor 并行执行</span>
-                </div>
-              </div>
-
-              <!-- STEP 2: Executor -->
-              <div v-else-if="currentAgentStep === 1" class="pipeline-view" key="executor">
-                <div class="pipeline-step-title">并行工具调用与多维提炼</div>
-
-                <div class="executor-cards-container">
-                  <!-- Task 1 -->
-                  <div class="executor-card">
-                    <div class="exec-header">
-                      <div class="exec-title">
-                        <Database :size="14" class="icon-db" />
-                        <span>SQLite 知识提取</span>
-                      </div>
-                      <span class="exec-badge badge-success">✓ 成功</span>
-                    </div>
-                    <p class="exec-detail">从底层数据库加载三篇目标星记的 Markdown 格式文本内容。</p>
-                    <div class="exec-meta">
-                      <span><Clock :size="10" /> 耗时: 0.4s</span>
-                      <span>加载: 3 篇</span>
-                    </div>
-                  </div>
-
-                  <!-- Task 2 -->
-                  <div class="executor-card">
-                    <div class="exec-header">
-                      <div class="exec-title">
-                        <Search :size="14" class="icon-search" />
-                        <span>向量相似度混合检索</span>
-                      </div>
-                      <span class="exec-badge badge-success">✓ 成功</span>
-                    </div>
-                    <p class="exec-detail">执行相似度搜索，提取最相关的 5 段 RAG 性能优化文档切片。</p>
-                    <div class="exec-meta">
-                      <span><Clock :size="10" /> 耗时: 0.8s</span>
-                      <span>召回: 5 段</span>
-                    </div>
-                  </div>
-
-                  <!-- Task 3 -->
-                  <div class="executor-card">
-                    <div class="exec-header">
-                      <div class="exec-title">
-                        <Cpu :size="14" class="icon-cpu" />
-                        <span>DeepSeek 推理生成</span>
-                      </div>
-                      <span class="exec-badge badge-success">✓ 成功</span>
-                    </div>
-                    <p class="exec-detail">调用 LLM 综合语义上下文，生成整合的性能优化技术建议报告。</p>
-                    <div class="exec-meta">
-                      <span><Clock :size="10" /> 耗时: 2.1s</span>
-                      <span>Token: 5,040</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="pipeline-connector">
-                  <ArrowDown :size="14" class="connector-arrow-icon" />
-                  <span class="connector-text">执行输出已封装</span>
-                </div>
-
-                <div class="pipeline-status-badge">
+          <!-- 3. Dynamic Stage Display Pane -->
+          <div class="canvas-stage-pane">
+            <!-- Stage 1: Planner -->
+            <div v-if="currentAgentStep === 0" class="stage-slide" key="planner">
+              <div class="user-query-card">
+                <div class="query-card-tag">
                   <Zap :size="12" />
-                  <span>目标：提交输出草稿给 Reviewer 审计</span>
+                  <span>用户输入意图 (USER QUERY)</span>
+                </div>
+                <div class="query-card-text">
+                  "{{ agentPrompts[activePromptIndex].query }}"
                 </div>
               </div>
 
-              <!-- STEP 3: Reviewer -->
-              <div v-else-if="currentAgentStep === 2" class="pipeline-view" key="reviewer">
-                <div class="pipeline-step-title">输出质量审计与反馈修正</div>
+              <div class="stage-section-label">
+                <Workflow :size="14" />
+                <span>Router Agent DAG 拓扑子任务拆解结果</span>
+              </div>
 
-                <div class="reviewer-audit-flow">
-                  <!-- Audit 1 -->
-                  <div class="audit-item audit-success">
-                    <div class="audit-badge">✓</div>
-                    <div class="audit-info">
-                      <div class="audit-name">完整性覆盖校验 (Completeness Check)</div>
-                      <div class="audit-desc">通过。确认 ID: 104, 107, 112 三篇源星记的主旨均在报告中覆盖。</div>
+              <div class="cards-triad-grid">
+                <div
+                  v-for="task in agentPrompts[activePromptIndex].subtasks"
+                  :key="task.id"
+                  class="triad-card"
+                >
+                  <div class="triad-card-top">
+                    <span class="triad-id-badge">SUBTASK {{ task.id }}</span>
+                    <span class="triad-status-text">Ready</span>
+                  </div>
+                  <h4 class="triad-card-title">{{ task.name }}</h4>
+                  <p class="triad-card-desc">{{ task.desc }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage 2: Executor -->
+            <div v-else-if="currentAgentStep === 1" class="stage-slide" key="executor">
+              <div class="stage-section-label">
+                <Cpu :size="14" />
+                <span>并行工具调用与信息提炼 (Parallel Worker Pool)</span>
+              </div>
+
+              <div class="cards-triad-grid">
+                <div
+                  v-for="(card, i) in agentPrompts[activePromptIndex].execCards"
+                  :key="i"
+                  class="triad-card"
+                >
+                  <div class="triad-card-top">
+                    <span class="triad-worker-badge">Worker {{ i + 1 }}</span>
+                    <span class="triad-success-tag">✓ 执行成功</span>
+                  </div>
+                  <h4 class="triad-card-title">{{ card.title }}</h4>
+                  <p class="triad-card-desc">{{ card.desc }}</p>
+                  <div class="triad-meta-row">
+                    <span><Clock :size="11" /> {{ card.time }}</span>
+                    <span>{{ card.detail }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stage 3: Reviewer -->
+            <div v-else-if="currentAgentStep === 2" class="stage-slide" key="reviewer">
+              <div class="stage-section-label">
+                <ShieldCheck :size="14" />
+                <span>质量审计与自动纠偏反馈环 (Hallucination Detection)</span>
+              </div>
+
+              <div class="reviewer-flow-deck">
+                <!-- Completeness Check -->
+                <div class="review-item-row review-pass">
+                  <div class="review-status-icon">✓</div>
+                  <div class="review-content">
+                    <div class="review-title">知识完整性覆盖校验通过</div>
+                    <div class="review-desc">{{ agentPrompts[activePromptIndex].auditCheck }}</div>
+                  </div>
+                  <span class="review-pill pill-ok">100% 覆盖</span>
+                </div>
+
+                <!-- Diff Correction Box -->
+                <div class="review-diff-card">
+                  <div class="diff-card-meta">
+                    <span class="diff-badge">自动纠偏反馈环 (Feedback Loop)</span>
+                    <span class="diff-tip">检测到可能夸大表述，触发 Few-Shot 纠偏反馈：</span>
+                  </div>
+                  <div class="diff-comparison-box">
+                    <div class="diff-col diff-before">
+                      <span class="diff-col-lbl">原始生成 (Before)</span>
+                      <span class="diff-col-code">{{ agentPrompts[activePromptIndex].auditDiff.old }}</span>
+                    </div>
+                    <div class="diff-arrow-node">→</div>
+                    <div class="diff-col diff-after">
+                      <span class="diff-col-lbl">审计校准 (After)</span>
+                      <span class="diff-col-code">{{ agentPrompts[activePromptIndex].auditDiff.new }}</span>
                     </div>
                   </div>
+                </div>
 
-                  <!-- Audit 2 -->
-                  <div class="audit-item audit-warning">
-                    <div class="audit-badge">!</div>
-                    <div class="audit-info">
-                      <div class="audit-name">事实一致性校验 (Hallucination Detection)</div>
-                      <div class="audit-desc">检测到幻觉风险！关于 Section 2 中检索提速的表述。</div>
-
-                      <div class="audit-correction-ui">
-                        <span class="correction-tag">自动纠偏反馈环 (Feedback Loop)</span>
-                        <div class="diff-comparison">
-                          <span class="diff-old">"100x retrieval speedup"</span>
-                          <span class="diff-arrow">→</span>
-                          <span class="diff-new">"10x retrieval speedup"</span>
-                        </div>
-                      </div>
-                    </div>
+                <!-- Final Verification -->
+                <div class="review-item-row review-final">
+                  <div class="review-status-icon star-icon">★</div>
+                  <div class="review-content">
+                    <div class="review-title">最终成果就绪 (Delivery Ready)</div>
+                    <div class="review-desc">全链路质量审计完成，已安全编译并推送到客户端。</div>
                   </div>
-
-                  <!-- Audit 3 -->
-                  <div class="audit-item audit-success-final">
-                    <div class="audit-badge">★</div>
-                    <div class="audit-info">
-                      <div class="audit-name">最终交付物就绪 (Response Compilation)</div>
-                      <div class="audit-desc">编译成功。生成一份高质量的技术集成报告并推送到客户端。</div>
-                    </div>
-                  </div>
+                  <span class="review-pill pill-purple">VERIFIED</span>
                 </div>
               </div>
             </div>
@@ -489,101 +677,75 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Use Cases Section -->
-    <section class="section-white">
+    <!-- ════════ 4. LAUNCH DECK (纯净行动号召，告别突兀黑框) ════════ -->
+    <section class="section-launch-deck scroll-reveal">
       <div class="container">
-        <div class="section-header scroll-reveal">
-          <span class="section-tag">USE CASES</span>
-          <h2 class="section-heading">使用场景</h2>
-          <p class="section-subtitle">适合不同人群的知识管理需求</p>
-        </div>
-        <div class="use-cases-grid">
-          <div class="use-case-card scroll-reveal" style="transition-delay: 0.1s">
-            <div class="use-case-icon"><GraduationCap :size="36" /></div>
-            <h3 class="use-case-title">学生学习</h3>
-            <p class="use-case-desc">整理课程笔记、论文资料，用 AI 快速检索知识点，构建个人知识体系。</p>
-          </div>
-          <div class="use-case-card scroll-reveal" style="transition-delay: 0.2s">
-            <div class="use-case-icon"><Code :size="36" /></div>
-            <h3 class="use-case-title">开发者</h3>
-            <p class="use-case-desc">记录技术笔记、调试经验，用 RAG 检索历史问题，提升开发效率。</p>
-          </div>
-          <div class="use-case-card scroll-reveal" style="transition-delay: 0.3s">
-            <div class="use-case-icon"><Microscope :size="36" /></div>
-            <h3 class="use-case-title">研究者</h3>
-            <p class="use-case-desc">管理文献综述、实验数据，用 AI 辅助分析，发现知识间的关联。</p>
-          </div>
-          <div class="use-case-card scroll-reveal" style="transition-delay: 0.4s">
-            <div class="use-case-icon"><PenTool :size="36" /></div>
-            <h3 class="use-case-title">内容创作者</h3>
-            <p class="use-case-desc">收集灵感素材、写作素材，用 AI 发散创意，提升创作效率。</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Vision Section -->
-    <section class="vision-section">
-      <div class="container">
-        <div class="vision-content scroll-reveal">
-          <span class="section-tag">OUR VISION</span>
-          <h2 class="vision-title">让知识像星辰一样闪耀</h2>
-          <p class="vision-desc">
-            我们相信，每一份知识都值得被记录和探索。<br />
-            Starlore 致力于打造一个智能、沉浸式的个人知识宇宙，<br />
-            让碎片化的知识形成星座，在星空中找到它们的联系。
+        <div class="launch-hero-card">
+          <div class="launch-glow-aura" aria-hidden="true"></div>
+          <h2 class="launch-headline">准备好构建你的全栈智能知识宇宙了吗？</h2>
+          <p class="launch-subline">
+            无需繁琐配置，立即开始记录、在 3D 星空中漫游，并体验 Multi-Agent 带来的真实生产力蜕变。
           </p>
-          <div class="vision-values">
-            <div class="value-item">
-              <Sparkles :size="32" class="value-icon" />
-              <span class="value-text">智能</span>
-            </div>
-            <div class="value-item">
-              <Globe :size="32" class="value-icon" />
-              <span class="value-text">沉浸</span>
-            </div>
-            <div class="value-item">
-              <Link :size="32" class="value-icon" />
-              <span class="value-text">连接</span>
-            </div>
+          <div class="launch-btn-group">
+            <router-link to="/login" class="btn-launch-primary">
+              <Zap :size="16" />
+              <span>立即开启探索</span>
+            </router-link>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- Contact Section -->
-    <section class="section-parchment">
-      <div class="container">
-        <div class="contact-content scroll-reveal">
-          <span class="section-tag">CONTACT</span>
-          <h2 class="section-heading">联系我们</h2>
-          <p class="section-subtitle">有任何问题或建议，欢迎联系</p>
-          <div class="contact-links">
-            <a href="mailto:872709652@qq.com" class="contact-item">
-              <Mail :size="24" class="contact-icon" />
-              <span class="contact-label">邮箱</span>
-              <span class="contact-value">872709652@qq.com</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
+        <!-- ════════ 5. MODERN PLATFORM FOOTER ════════ -->
+        <footer class="starlore-site-footer">
+          <div class="footer-columns-grid">
+            <!-- Col 1: Brand Info -->
+            <div class="footer-brand-col">
+              <div class="footer-brand-logo">
+                <span class="brand-accent">Star</span>lore
+              </div>
+              <p class="footer-brand-desc">
+                AI-Powered Personal Knowledge Universe.<br />
+                让碎片化的知识形成星系，让思考成为生产力。
+              </p>
+              <div class="footer-contact-link">
+                <a href="mailto:872709652@qq.com" class="footer-email-btn">
+                  <Mail :size="14" />
+                  <span>872709652@qq.com</span>
+                </a>
+              </div>
+            </div>
 
-    <!-- CTA Section -->
-    <section class="cta-section">
-      <div class="container">
-        <div class="cta-content scroll-reveal">
-          <div class="cta-code">
-            <span class="cta-code-prompt">></span>
-            <span class="cta-code-text">starlore.start()</span>
+            <!-- Col 2: Products -->
+            <div class="footer-nav-col">
+              <h5 class="footer-col-heading">产品功能</h5>
+              <router-link to="/vr" class="footer-text-link">3D 知识星图</router-link>
+              <router-link to="/harness" class="footer-text-link">智能体生产力 (Harness)</router-link>
+              <router-link to="/articles" class="footer-text-link">星记知识库</router-link>
+              <router-link to="/diverge" class="footer-text-link">灵感发散引擎</router-link>
+            </div>
+
+            <!-- Col 3: Technology -->
+            <div class="footer-nav-col">
+              <h5 class="footer-col-heading">技术架构</h5>
+              <span class="footer-plain-text">Vue 3 · Vite 7</span>
+              <span class="footer-plain-text">Three.js · WebGL</span>
+              <span class="footer-plain-text">LangGraph · Multi-Agent</span>
+              <span class="footer-plain-text">DeepSeek · Fast RAG</span>
+            </div>
+
+            <!-- Col 4: Platform -->
+            <div class="footer-nav-col">
+              <h5 class="footer-col-heading">关于与服务</h5>
+              <router-link to="/about" class="footer-text-link">关于作者与项目</router-link>
+              <span class="footer-plain-text">Starlore 排版微服务</span>
+              <span class="footer-plain-text">系统状态: 正常运行</span>
+              <span class="footer-plain-text">版本: 2.0-Production</span>
+            </div>
           </div>
-          <h2 class="cta-title">准备好构建你的知识宇宙了吗？</h2>
-          <p class="cta-desc">登录后解锁完整功能，开始记录和探索</p>
-          <router-link to="/login" class="btn-primary btn-lg">
-            <Zap :size="16" />
-            立即登录
-          </router-link>
-        </div>
+
+          <div class="footer-legal-bar">
+            <p>© 2026 Starlore. All rights reserved. Designed with Craft, Clarity & Focus.</p>
+          </div>
+        </footer>
       </div>
     </section>
   </div>

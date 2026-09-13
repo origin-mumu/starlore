@@ -13,6 +13,11 @@ export function preloadArticleDetail() {
   return articleDetailPromise
 }
 
+// 关闭浏览器刷新后的滚动位置自动恢复（刷新时页面自动滚回上次位置就是它导致的）
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual'
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [

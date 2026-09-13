@@ -104,7 +104,7 @@ function getIcon(toolName: string) {
 <style scoped>
 .tool-row-container {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-muted, #71717a);
   user-select: none;
 }
@@ -117,9 +117,11 @@ function getIcon(toolName: string) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 6px;
+  padding: 3px 6px;
   border-radius: 6px;
   transition: all 0.15s ease;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .tool-label-row.clickable {
@@ -139,6 +141,7 @@ function getIcon(toolName: string) {
 .tool-name {
   font-weight: 500;
   color: var(--ink-soft, #3f3f46);
+  font-size: 14px;
 }
 
 [data-theme="dark"] .tool-name {
@@ -147,6 +150,7 @@ function getIcon(toolName: string) {
 
 .tool-summary {
   color: var(--ink-muted, #8a7a6a);
+  font-size: 14px;
 }
 
 .chevron-wrap {
@@ -161,7 +165,7 @@ function getIcon(toolName: string) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 11px;
+  font-size: 13px;
   font-family: monospace;
 }
 
@@ -184,14 +188,14 @@ function getIcon(toolName: string) {
 }
 
 .icon-sm {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
 }
 
 .icon-xs {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
 }
 

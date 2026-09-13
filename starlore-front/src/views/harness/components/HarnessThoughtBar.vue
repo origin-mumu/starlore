@@ -32,9 +32,14 @@ function isThoughtExpanded(key: string): boolean {
   return true
 }
 
+function cleanAiEmoji(text: string): string {
+  if (!text) return ''
+  return text.replace(/(?:\p{Extended_Pictographic}|\uFE0F|\u200D)+\s*/gu, '')
+}
+
 function getPreviewText(text: string, maxLen = 30): string {
   if (!text) return ''
-  const clean = text.replace(/[\r\n\t]+/g, ' ').trim()
+  const clean = cleanAiEmoji(text).replace(/[\r\n\t]+/g, ' ').trim()
   if (clean.length <= maxLen) return clean
   return `${clean.slice(0, maxLen)}...`
 }
@@ -72,11 +77,12 @@ const hasContent = computed(() => {
 
 function renderMarkdown(content: string) {
   if (!content) return ''
+  const clean = cleanAiEmoji(content)
   try {
-    const rawHtml = marked.parse(content) as string
+    const rawHtml = marked.parse(clean) as string
     return DOMPurify.sanitize(rawHtml)
   } catch {
-    return content
+    return clean
   }
 }
 </script>
@@ -221,8 +227,9 @@ function renderMarkdown(content: string) {
 .codex-timing-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12.5px;
+  gap: 5px;
+  font-size: 14px;
+  line-height: 1.5;
   font-weight: 500;
   color: var(--ink-muted, #71717a);
   background: transparent;
@@ -281,6 +288,8 @@ function renderMarkdown(content: string) {
   user-select: none;
   width: fit-content;
   transition: background 0.15s ease;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .sub-thought-header:hover {
@@ -292,12 +301,13 @@ function renderMarkdown(content: string) {
 }
 
 .sub-thought-label {
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ink-muted, #71717a);
-  padding: 1px 5px;
+  padding: 1px 7px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.04);
+  line-height: 1.4;
 }
 
 [data-theme="dark"] .sub-thought-label {
@@ -306,9 +316,10 @@ function renderMarkdown(content: string) {
 }
 
 .sub-thought-preview {
-  font-size: 12.5px;
+  font-size: 14px;
+  line-height: 1.5;
   color: #8a7a6a;
-  max-width: 480px;
+  max-width: 520px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -391,8 +402,8 @@ function renderMarkdown(content: string) {
 }
 
 .icon-tiny {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .text-primary {

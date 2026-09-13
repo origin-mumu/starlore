@@ -10,9 +10,11 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 body {
+  overflow-x: hidden;
   background: var(--canvas);
   background-image:
     radial-gradient(ellipse 80% 50% at 15% 15%, var(--orb-1) 0%, transparent 60%),

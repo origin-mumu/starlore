@@ -70,11 +70,18 @@ function getToolIcon(toolName?: string) {
   return Sparkles
 }
 
+function cleanAiEmoji(text: string): string {
+  if (!text) return ''
+  // 过滤原生 Emoji 表情符号及随后的冗余前缀空格，保持严谨工作台排版风格
+  return text.replace(/(?:\p{Extended_Pictographic}|\uFE0F|\u200D)+\s*/gu, '')
+}
+
 // Markdown 渲染
 const renderedContent = computed(() => {
   if (!props.message.content) return ''
+  const rawText = isUser.value ? props.message.content : cleanAiEmoji(props.message.content)
   try {
-    const rawHtml = marked.parse(props.message.content) as string
+    const rawHtml = marked.parse(rawText) as string
     // 为 table 包裹 table-wrapper 容器，确保 100% 宽度充满卡片、消除右侧空白，并支持内容自然换行与横向滑动
     const wrappedHtml = rawHtml.replace(
       /<table\b([^>]*)>([\s\S]*?)<\/table>/gi,
@@ -82,7 +89,7 @@ const renderedContent = computed(() => {
     )
     return DOMPurify.sanitize(wrappedHtml)
   } catch {
-    return props.message.content
+    return rawText
   }
 })
 </script>
@@ -519,7 +526,7 @@ const renderedContent = computed(() => {
 }
 
 .active-tool-title {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink, #18181b);
 }
@@ -529,7 +536,7 @@ const renderedContent = computed(() => {
 }
 
 .active-tool-sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-muted, #71717a);
 }
 
