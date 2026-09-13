@@ -323,14 +323,8 @@ function renderMarkdown(content: string) {
   max-height: 180px;
   overflow-y: auto;
   scrollbar-width: thin;
-  padding: 6px 8px 6px 12px;
+  padding: 4px 6px 4px 2px;
   margin-top: 3px;
-  margin-left: 4px;
-  border-left: 2px solid rgba(100, 116, 139, 0.25);
-}
-
-[data-theme="dark"] .sub-thought-body {
-  border-left-color: rgba(148, 163, 184, 0.25);
 }
 
 .sub-thought-body::-webkit-scrollbar {
@@ -346,10 +340,10 @@ function renderMarkdown(content: string) {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* 小思考文字：颜色灰色一点，和正文纯黑明显区分 */
+/* 小思考文字：字号与正文保持完全一致(14px/1.7)，颜色灰色一点区分 */
 .thought-markdown {
-  font-size: 13.5px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.7;
   color: #64748b;
   word-break: break-word;
 }

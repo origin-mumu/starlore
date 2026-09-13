@@ -76,7 +76,7 @@ const currentColor = computed(() => {
 const currentPaper = computed(() => {
   if (props.eyeColor) return props.eyeColor
   if (companionStore.eyeColor) return companionStore.eyeColor
-  return themeStore.current === 'dark' ? '#0A051F' : '#FFFFFF'
+  return '#FFFFFF'
 })
 
 const parsedSize = computed(() => {

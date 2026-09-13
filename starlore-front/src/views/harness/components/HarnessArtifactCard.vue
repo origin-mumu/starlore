@@ -5,9 +5,7 @@ import {
   FileText,
   File,
   Download,
-  Copy,
-  Check,
-  Sparkles,
+  Loader2,
 } from '@lucide/vue'
 import { ElMessage } from 'element-plus'
 import type { HarnessArtifact } from '../types'
@@ -15,8 +13,6 @@ import type { HarnessArtifact } from '../types'
 const props = defineProps<{
   artifact: HarnessArtifact
 }>()
-
-const copied = ref(false)
 
 const isPpt = computed(() => {
   const t = (props.artifact.file_type || '').toLowerCase()
@@ -66,151 +62,76 @@ async function handleDownload() {
   }
 }
 
-async function handleCopyLink() {
-  if (!props.artifact.download_url) return
-  try {
-    await navigator.clipboard.writeText(props.artifact.download_url)
-    copied.value = true
-    ElMessage.success('已复制下载链接到剪贴板')
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch {
-    ElMessage.warning('复制失败，请手动复制')
-  }
-}
 </script>
 
 <template>
   <div class="artifact-card" :class="{ 'is-ppt': isPpt, 'is-doc': isDoc }">
-    <!-- 顶部极简标记与尺寸 -->
-    <div class="artifact-badge-row">
-      <span class="type-pill">
-        <Sparkles class="icon-tiny" />
-        <span>{{ isPpt ? 'PPTX 演示文稿' : isDoc ? 'DOCX 结构化报告' : '产出交付物' }}</span>
+    <!-- 左侧文件图标 -->
+    <div class="file-icon-box">
+      <Presentation v-if="isPpt" class="icon-file" />
+      <FileText v-else-if="isDoc" class="icon-file" />
+      <File v-else class="icon-file" />
+    </div>
+
+    <!-- 中间文件名与文件大小 -->
+    <div class="file-details">
+      <h4 class="file-title" :title="artifact.name">
+        {{ artifact.name }}
+      </h4>
+      <span v-if="artifact.size_str" class="file-size-tag">
+        {{ artifact.size_str }}
       </span>
-      <span class="size-text">{{ artifact.size_str }}</span>
     </div>
 
-    <!-- 主体：图标、名称与动作 -->
-    <div class="artifact-content">
-      <!-- 左侧文件图标 -->
-      <div class="file-icon-box">
-        <Presentation v-if="isPpt" class="icon-file" />
-        <FileText v-else-if="isDoc" class="icon-file" />
-        <File v-else class="icon-file" />
-      </div>
-
-      <!-- 中间文件名与描述 -->
-      <div class="file-details">
-        <h4 class="file-title" :title="artifact.name">
-          {{ artifact.name }}
-        </h4>
-        <p class="file-sub">
-          云端生产就绪 · 已存储于 MinIO
-        </p>
-      </div>
-
-      <!-- 右侧操作按钮组 -->
-      <div class="btn-group">
-        <button
-          type="button"
-          class="copy-pill-btn"
-          title="复制下载直链"
-          @click="handleCopyLink"
-        >
-          <Check v-if="copied" class="icon-xs text-success" />
-          <Copy v-else class="icon-xs" />
-          <span>{{ copied ? '已复制' : '复制直链' }}</span>
-        </button>
-
-        <button
-          type="button"
-          class="download-pill-btn"
-          title="立即下载文件"
-          @click="handleDownload"
-        >
-          <Download class="icon-xs" />
-          <span>下载交付件</span>
-        </button>
-      </div>
-    </div>
+    <!-- 右侧单一操作：下载按钮 -->
+    <button
+      type="button"
+      class="download-pill-btn"
+      title="立即下载文件"
+      :disabled="isDownloading"
+      @click="handleDownload"
+    >
+      <Loader2 v-if="isDownloading" class="icon-xs spin" />
+      <Download v-else class="icon-xs" />
+      <span>{{ isDownloading ? '下载中' : '下载' }}</span>
+    </button>
   </div>
 </template>
 
 <style scoped>
 .artifact-card {
-  margin: 16px 0;
-  max-width: 580px;
-  border-radius: 20px;
+  margin: 12px 0 6px 0;
+  max-width: 480px;
+  border-radius: 16px;
   background: var(--surface, rgba(255, 255, 255, 0.75));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  padding: 14px 18px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.04);
+  padding: 10px 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   user-select: text;
 }
 
 [data-theme="dark"] .artifact-card {
   background: var(--surface, rgba(24, 24, 28, 0.85));
   border-color: var(--border, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
 }
 
 .artifact-card:hover {
   border-color: var(--border-focus, rgba(222, 67, 49, 0.3));
-  box-shadow: 0 10px 32px rgba(222, 67, 49, 0.08);
+  box-shadow: 0 8px 24px rgba(222, 67, 49, 0.08);
   transform: translateY(-1px);
 }
 
-.artifact-badge-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.type-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: var(--radius-full, 9999px);
-  background: var(--accent-soft, rgba(222, 67, 49, 0.08));
-  color: var(--accent, #DE4331);
-}
-
-.artifact-card.is-doc .type-pill {
-  background: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
-}
-
-[data-theme="dark"] .artifact-card.is-doc .type-pill {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-}
-
-.size-text {
-  font-size: 11.5px;
-  color: var(--ink-muted, #8A7A6A);
-}
-
-.artifact-content {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
 .file-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -240,99 +161,69 @@ async function handleCopyLink() {
 }
 
 .icon-file {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 .file-details {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .file-title {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink, #1A1410);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  line-height: 1.35;
 }
 
 [data-theme="dark"] .file-title {
   color: #f4f4f5;
 }
 
-.file-sub {
-  font-size: 12px;
+.file-size-tag {
+  font-size: 11.5px;
   color: var(--ink-muted, #8A7A6A);
-  margin: 3px 0 0 0;
-}
-
-.btn-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.copy-pill-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full, 9999px);
-  font-size: 12px;
   font-weight: 500;
-  color: var(--ink-soft, #5C4D3D);
-  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
-  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.copy-pill-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--ink, #1A1410);
-  border-color: var(--border-interactive, rgba(0, 0, 0, 0.15));
-}
-
-[data-theme="dark"] .copy-pill-btn {
+[data-theme="dark"] .file-size-tag {
   color: #a1a1aa;
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .copy-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
 }
 
 .download-pill-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 15px;
+  padding: 6px 14px;
   border-radius: var(--radius-full, 9999px);
   font-size: 12.5px;
   font-weight: 600;
   color: #ffffff;
   background: var(--accent-gradient, linear-gradient(135deg, #DE4331, #FCC841));
   cursor: pointer;
+  border: none;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(222, 67, 49, 0.28);
+  box-shadow: 0 2px 8px rgba(222, 67, 49, 0.25);
+  flex-shrink: 0;
 }
 
-.download-pill-btn:hover {
+.download-pill-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(222, 67, 49, 0.42);
+  box-shadow: 0 4px 14px rgba(222, 67, 49, 0.4);
   filter: brightness(1.04);
 }
 
-.icon-tiny {
-  width: 12px;
-  height: 12px;
+.download-pill-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .icon-xs {
@@ -340,7 +231,16 @@ async function handleCopyLink() {
   height: 14px;
 }
 
-.text-success {
-  color: #10b981;
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

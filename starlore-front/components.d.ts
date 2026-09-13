@@ -11,7 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AgentConfigDrawer: typeof import('./src/components/immersive/AgentConfigDrawer.vue')['default']
+    AgentConfigDrawer: typeof import('./src/components/AgentConfigDrawer.vue')['default']
     AgentTraceStepper: typeof import('./src/components/immersive/AgentTraceStepper.vue')['default']
     AICore: typeof import('./src/components/AICore.vue')['default']
     BlurredBubbles: typeof import('./src/components/BlurredBubbles.vue')['default']

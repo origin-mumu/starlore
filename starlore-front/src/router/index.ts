@@ -78,12 +78,7 @@ const router = createRouter({
 
     {
       path: '/echobot',
-      name: 'echobot',
-      component: () => import('../views/EchobotView.vue'),
-      meta: {
-        title: 'AI 助手 - Starlore',
-        requiresAuth: true
-      }
+      redirect: '/harness'
     },
     {
       path: '/harness',
@@ -163,7 +158,7 @@ const router = createRouter({
     {
       path: '/companion-studio',
       alias: '/companion',
-      redirect: '/echobot?tab=config'
+      redirect: '/harness'
     },
     {
       path: '/:pathMatch(.*)*',

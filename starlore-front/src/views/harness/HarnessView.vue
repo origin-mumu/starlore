@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PanelLeftOpen } from '@lucide/vue'
+import { PanelLeftOpen, Settings } from '@lucide/vue'
 import HarnessSidebar from './components/HarnessSidebar.vue'
 import HarnessMessageList from './components/HarnessMessageList.vue'
 import HarnessInputArea from './components/HarnessInputArea.vue'
+import HarnessMascotStage from './components/HarnessMascotStage.vue'
+import AgentConfigDrawer from '@/components/AgentConfigDrawer.vue'
+import { getAiModels, getAgentConfig, updateAgentConfig } from '@/api/ai'
 import {
   createHarnessSession,
   deleteHarnessSession,
@@ -29,6 +32,57 @@ const models = ref<HarnessModelItem[]>([])
 const currentModelId = ref<string>('deepseek-chat')
 const isSidebarOpen = ref(true)
 const isRunning = ref(false)
+
+// 设置弹窗状态
+const configModalOpen = ref(false)
+const agentConfigSavedHint = ref('')
+const agentConfigForm = reactive({
+  modelName: 'deepseek-chat',
+  similarityThreshold: 0.6,
+  topK: 5,
+  temperature: 0.7,
+  enableRerank: 1,
+})
+const availableModels = ref<{ id: string; name: string; configured?: boolean }[]>([])
+
+async function openAgentConfig() {
+  configModalOpen.value = true
+  agentConfigSavedHint.value = ''
+  try {
+    const modelRes = await getAiModels()
+    if (modelRes && modelRes.models && modelRes.models.length) {
+      availableModels.value = modelRes.models.filter((m) => !m.id.includes('embedding'))
+    }
+  } catch {}
+  try {
+    const res = await getAgentConfig()
+    if (res.success && res.data) {
+      const dbModel = res.data.modelName
+      agentConfigForm.modelName =
+        dbModel && availableModels.value.some((m) => m.id === dbModel)
+          ? dbModel
+          : currentModelId.value || 'deepseek-chat'
+      agentConfigForm.similarityThreshold = res.data.similarityThreshold ?? 0.6
+      agentConfigForm.topK = res.data.topK ?? 5
+      agentConfigForm.temperature = res.data.temperature ?? 0.7
+      agentConfigForm.enableRerank = res.data.enableRerank ?? 1
+    }
+  } catch {}
+}
+
+async function saveAgentConfig() {
+  agentConfigSavedHint.value = ''
+  try {
+    await updateAgentConfig(agentConfigForm)
+    agentConfigSavedHint.value = '✓ 参数保存成功！'
+    setTimeout(() => {
+      configModalOpen.value = false
+      agentConfigSavedHint.value = ''
+    }, 1200)
+  } catch (e: any) {
+    agentConfigSavedHint.value = '保存失败: ' + (e.message || '未知错误')
+  }
+}
 
 // 当前流式生成中的消息
 const streamingMessage = ref<HarnessMessage | null>(null)
@@ -350,31 +404,58 @@ function handleUpdateModel(modelId: string) {
 
 <template>
   <div class="harness-page">
-    <!-- 侧边栏大圆角矩形卡片 -->
-    <HarnessSidebar
-      :sessions="sessions"
-      :current-session-id="currentSessionId"
-      :is-open="isSidebarOpen"
-      @select-session="selectSession"
-      @new-session="handleNewSession"
-      @delete-session="handleDeleteSession"
-      @update-session="handleUpdateSession"
-      @toggle-sidebar="isSidebarOpen = !isSidebarOpen"
-    />
+    <!-- 左侧统一容器：控制从 270px 平滑扩展到 50%，推动右侧窗口左边框向右平滑移动 -->
+    <div class="harness-left-pane" :class="{ 'is-collapsed': !isSidebarOpen }">
+      <!-- 侧边栏：收起时向右退场，展开时从右滑入进场 -->
+      <Transition name="sidebar-slide">
+        <HarnessSidebar
+          v-if="isSidebarOpen"
+          :sessions="sessions"
+          :current-session-id="currentSessionId"
+          :is-open="isSidebarOpen"
+          class="left-pane-sidebar"
+          @select-session="selectSession"
+          @new-session="handleNewSession"
+          @delete-session="handleDeleteSession"
+          @update-session="handleUpdateSession"
+          @toggle-sidebar="isSidebarOpen = !isSidebarOpen"
+          @open-settings="openAgentConfig"
+        />
+      </Transition>
 
-    <!-- 右侧消息流与输入容器 -->
+      <!-- AI 小球舞台：收起时从左向右进场，展开时向左退场 -->
+      <Transition name="mascot-slide">
+        <HarnessMascotStage
+          v-if="!isSidebarOpen"
+          :is-running="isRunning"
+          class="left-pane-mascot"
+        />
+      </Transition>
+    </div>
+
+    <!-- 右侧消息流与输入容器：撑满剩余空间，左边框随左侧容器伸缩而平滑左右移动 -->
     <main class="harness-main">
-      <!-- 侧边栏折叠时呈现的极简展开浮动按钮 -->
-      <button
-        v-if="!isSidebarOpen"
-        type="button"
-        class="floating-sidebar-toggle"
-        title="展开会话列表"
-        @click="isSidebarOpen = true"
-      >
-        <PanelLeftOpen class="icon-sm" />
-        <span>历史会话</span>
-      </button>
+      <!-- 侧边栏折叠时呈现的左上角纯图标操作按钮组（不要文字：展开历史 + 设置） -->
+      <Transition name="actions-fade">
+        <div v-if="!isSidebarOpen" class="harness-top-actions">
+          <button
+            type="button"
+            class="top-action-btn"
+            title="展开会话历史"
+            @click="isSidebarOpen = true"
+          >
+            <PanelLeftOpen class="icon-sm" />
+          </button>
+          <button
+            type="button"
+            class="top-action-btn"
+            title="系统与 AI 助手设置"
+            @click="openAgentConfig"
+          >
+            <Settings class="icon-sm" />
+          </button>
+        </div>
+      </Transition>
 
       <HarnessMessageList
         :messages="messages"
@@ -394,6 +475,16 @@ function handleUpdateModel(modelId: string) {
         @update-model="handleUpdateModel"
       />
     </main>
+
+    <!-- 设置弹窗 (来自 echobot 的 AgentConfigDrawer) -->
+    <AgentConfigDrawer
+      :open="configModalOpen"
+      :agent-config-form="agentConfigForm"
+      :available-models="availableModels"
+      :agent-config-saved-hint="agentConfigSavedHint"
+      @close="configModalOpen = false"
+      @save="saveAgentConfig"
+    />
   </div>
 </template>
 
@@ -414,8 +505,76 @@ function handleUpdateModel(modelId: string) {
   box-sizing: border-box;
 }
 
+/* 左侧统一伸缩容器：展开时 270px，收起时占 50% */
+.harness-left-pane {
+  height: 100%;
+  width: 270px;
+  flex: 0 0 270px;
+  position: relative;
+  overflow: hidden;
+  transition: width 0.38s cubic-bezier(0.4, 0, 0.2, 1), flex-basis 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 20;
+}
+
+.harness-left-pane.is-collapsed {
+  width: calc(50% - 9px);
+  flex: 0 0 calc(50% - 9px);
+}
+
+@media (max-width: 900px) {
+  .harness-left-pane {
+    display: none;
+  }
+}
+
+.left-pane-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 270px;
+  height: 100%;
+  z-index: 20;
+}
+
+.left-pane-mascot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+/* 侧边栏退场/进场动画：向右退场 / 从右进场 */
+.sidebar-slide-enter-active {
+  transition: opacity 0.32s ease, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-slide-leave-active {
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  opacity: 0;
+  transform: translateX(50px);
+}
+
+/* AI 小球退场/进场动画：从左向右进场 / 向左退场 */
+.mascot-slide-enter-active {
+  transition: opacity 0.38s ease 0.05s, transform 0.38s cubic-bezier(0.4, 0, 0.2, 1) 0.05s;
+}
+.mascot-slide-leave-active {
+  transition: opacity 0.22s ease, transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mascot-slide-enter-from,
+.mascot-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+/* 右侧主聊天卡片：flex: 1 撑满其余宽度，左边框自然平滑跟随左侧容器移动 */
 .harness-main {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -436,18 +595,24 @@ function handleUpdateModel(modelId: string) {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
-.floating-sidebar-toggle {
+/* 顶部纯图标快捷操作组（展开 + 设置） */
+.harness-top-actions {
   position: absolute;
-  top: 10px;
+  top: 14px;
   left: 16px;
   z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full, 9999px);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: var(--radius-full, 9999px);
-  font-size: 12.5px;
-  font-weight: 550;
+  justify-content: center;
   color: var(--ink-soft, #5C4D3D);
   background: var(--surface, rgba(255, 255, 255, 0.85));
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -458,7 +623,7 @@ function handleUpdateModel(modelId: string) {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.floating-sidebar-toggle:hover {
+.top-action-btn:hover {
   color: var(--ink, #1A1410);
   border-color: rgba(222, 67, 49, 0.3);
   background: var(--surface-hover, #ffffff);
@@ -466,19 +631,31 @@ function handleUpdateModel(modelId: string) {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
 }
 
-[data-theme="dark"] .floating-sidebar-toggle {
+[data-theme="dark"] .top-action-btn {
   color: #a1a1aa;
   background: var(--surface, rgba(24, 24, 28, 0.88));
   border-color: var(--border, rgba(255, 255, 255, 0.08));
 }
 
-[data-theme="dark"] .floating-sidebar-toggle:hover {
+[data-theme="dark"] .top-action-btn:hover {
   color: #ffffff;
   background: rgba(36, 36, 42, 0.95);
+  border-color: rgba(222, 67, 49, 0.4);
 }
 
 .icon-sm {
   width: 16px;
   height: 16px;
+}
+
+/* 顶部操作按钮淡入淡出 */
+.actions-fade-enter-active,
+.actions-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.actions-fade-enter-from,
+.actions-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>

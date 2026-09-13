@@ -9,6 +9,7 @@ import {
   X,
   MessageSquare,
   PanelLeftClose,
+  Settings,
 } from '@lucide/vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import type { HarnessSession } from '../types'
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   deleteSession: [sessionId: number]
   updateSession: [sessionId: number, payload: { title?: string; pinned?: boolean }]
   toggleSidebar: []
+  openSettings: []
 }>()
 
 // 重命名状态
@@ -88,10 +90,7 @@ const regularSessions = computed(() => props.sessions.filter((s) => !s.pinned))
 </script>
 
 <template>
-  <aside
-    class="harness-sidebar"
-    :class="{ 'sidebar-closed': !isOpen }"
-  >
+  <aside class="harness-sidebar">
     <!-- 顶部：新建按钮与收起按钮 -->
     <div class="sidebar-top">
       <button
@@ -101,6 +100,15 @@ const regularSessions = computed(() => props.sessions.filter((s) => !s.pinned))
       >
         <Plus class="icon-sm" />
         <span>开启新会话</span>
+      </button>
+
+      <button
+        type="button"
+        class="collapse-btn"
+        title="系统与 AI 助手设置"
+        @click="emit('openSettings')"
+      >
+        <Settings class="icon-sm" />
       </button>
 
       <button
@@ -292,15 +300,6 @@ const regularSessions = computed(() => props.sessions.filter((s) => !s.pinned))
   border-color: var(--border, rgba(255, 255, 255, 0.08));
   background: var(--surface, rgba(20, 20, 24, 0.85));
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-}
-
-.sidebar-closed {
-  width: 0 !important;
-  margin-right: -18px !important;
-  padding: 0 !important;
-  border: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
 }
 
 .sidebar-top {

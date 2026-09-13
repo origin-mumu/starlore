@@ -168,8 +168,8 @@ const renderedContent = computed(() => {
         </div>
       </div>
 
-      <!-- 交付产物卡片 (仅当生成了 PPT/Doc 时附在最下方) -->
-      <div v-if="message.artifacts && message.artifacts.length > 0" class="artifacts-container">
+      <!-- 交付产物卡片 (仅当全部回答生成完毕后才展示在最下方) -->
+      <div v-if="!isRunning && message.artifacts && message.artifacts.length > 0" class="artifacts-container">
         <HarnessArtifactCard
           v-for="artifact in message.artifacts"
           :key="artifact.file_id"

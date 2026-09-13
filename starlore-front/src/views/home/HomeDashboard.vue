@@ -11,6 +11,14 @@ import {
   MessageCircle,
   FileText,
   ChevronRight,
+  Compass,
+  Sparkles,
+  Orbit,
+  Clock,
+  ArrowRight,
+  Lightbulb,
+  ArrowUpRight,
+  Layers,
 } from '@lucide/vue'
 
 const userStore = useUserStore()
@@ -34,6 +42,20 @@ const displayName = computed(
   () => userStore.user?.nickname || userStore.user?.username || '探索者',
 )
 
+// 动态时段问候语
+const timeGreeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return '早安'
+  if (hour >= 12 && hour < 18) return '午安'
+  return '晚上好'
+})
+
+// 随机重读文章
+const rediscoverArticle = computed(() => {
+  if (!articles.value || articles.value.length === 0) return null
+  return articles.value[articles.value.length - 1]
+})
+
 const formatKnowledgeDate = (value?: string) => {
   if (!value) return '最近更新'
   const date = new Date(value)
@@ -45,9 +67,20 @@ const formatKnowledgeDate = (value?: string) => {
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
 
+// 知识库搜索
 const openKnowledgeSearch = () => {
   const query = searchQuery.value.trim()
   router.push(query ? { path: '/articles', query: { search: query } } : '/articles')
+}
+
+// 向 AI 提问直通 Harness
+const askAiHarness = (customQuery?: string) => {
+  const q = (customQuery || searchQuery.value).trim()
+  if (q) {
+    router.push({ path: '/harness', query: { prompt: q } })
+  } else {
+    router.push('/harness')
+  }
 }
 
 onMounted(async () => {
@@ -65,163 +98,296 @@ onMounted(async () => {
 
 <template>
   <main class="knowledge-home">
-    <section class="knowledge-hero">
-      <div class="knowledge-intro">
-        <div class="knowledge-intro-copy">
-          <p class="knowledge-eyebrow">我的知识库</p>
-          <h1>
-            <span>{{ displayName }}，</span>
-            知识正在形成星系
+    <!-- ── 顶部 Hero：知识工作台问候与 AI 伴侣灵动卡片 ── -->
+    <section class="hero-workbench-section">
+      <div class="hero-aurora-glow" aria-hidden="true"></div>
+
+      <div class="hero-grid">
+        <!-- 左侧：问候、标题、双模搜索与快捷动作 -->
+        <div class="hero-intro-copy">
+          <div class="greeting-kicker">
+            <span class="pulse-dot"></span>
+            <span class="kicker-text">{{ timeGreeting }}，{{ displayName }} · 知识星系正在演进</span>
+          </div>
+
+          <h1 class="hero-main-title">
+            探索、续写，<br />
+            让每一个灵感形成星图
           </h1>
-          <p>搜索、续写，或从一条旧知识重新出发。</p>
+
+          <p class="hero-subtext">
+            融合 Multi-Agent 深度协作与 RAG 向量检索，构建属于你的智慧沉淀空间。
+          </p>
+
+          <!-- 全局双模搜索 Command Bar -->
+          <form class="command-search-bar" role="search" @submit.prevent="openKnowledgeSearch">
+            <Search :size="20" class="search-icon" aria-hidden="true" />
+            <input
+              id="knowledge-search-input"
+              v-model="searchQuery"
+              type="search"
+              placeholder="搜索星记、星域、概念... 或输入问题向 AI 提问"
+              autocomplete="off"
+            />
+            <div class="search-actions-group">
+              <button type="submit" class="btn-search-normal" title="在知识库中搜索">
+                <span>搜索星记</span>
+              </button>
+              <button
+                type="button"
+                class="btn-search-ai"
+                @click="askAiHarness()"
+                title="携当前内容前往 Harness 智能体解答"
+              >
+                <Sparkles :size="14" />
+                <span>AI 提问</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- 核心操作快捷入口 -->
+          <div class="hero-shortcuts-row">
+            <router-link to="/articles/edit" class="shortcut-pill shortcut-pill--primary">
+              <Plus :size="16" />
+              <span>新建知识星记</span>
+            </router-link>
+
+            <router-link to="/harness" class="shortcut-pill">
+              <MessageCircle :size="15" />
+              <span>智能体对话</span>
+            </router-link>
+
+            <router-link to="/vr" class="shortcut-pill">
+              <Orbit :size="15" />
+              <span>3D 知识星图</span>
+            </router-link>
+
+            <router-link to="/diverge" class="shortcut-pill">
+              <Sparkles :size="15" />
+              <span>灵感发散</span>
+            </router-link>
+          </div>
         </div>
-        <div class="knowledge-constellation knowledge-constellation--interactive" aria-label="知识星系">
-          <div class="constellation-bg-svg" aria-hidden="true">
-            <svg viewBox="0 0 260 250" role="presentation">
-              <ellipse class="constellation-path orbit-one" cx="130" cy="124" rx="98" ry="43" transform="rotate(-18 130 124)" />
-              <ellipse class="constellation-path orbit-two" cx="130" cy="124" rx="84" ry="62" transform="rotate(38 130 124)" />
-              <path class="constellation-path constellation-path-faint orbit-trail" d="M53 80 C91 31 178 32 216 82 C242 116 229 174 183 205" />
 
-              <circle class="constellation-halo halo-outer" cx="130" cy="124" r="48" />
-              <circle class="constellation-halo halo-inner" cx="130" cy="124" r="32" />
+        <!-- 右侧：AI 伴侣灵动卡片 -->
+        <div class="hero-mascot-card">
+          <div class="mascot-card-inner">
+            <div class="mascot-sphere-wrap">
+              <EmotionBall
+                :size="200"
+                shape="blob"
+                emotion="02"
+                :show-rings="true"
+                :show-style-toggle="true"
+                :interactive="true"
+                :follow="true"
+              />
+            </div>
 
-              <circle class="constellation-node node-accent" cx="73" cy="61" r="7" />
-              <circle class="constellation-node node-sky" cx="211" cy="84" r="6" />
-              <circle class="constellation-node node-warm" cx="214" cy="159" r="5" />
-              <circle class="constellation-node node-small" cx="49" cy="155" r="4" />
-              <circle class="constellation-node node-small" cx="104" cy="196" r="4" />
-              <circle class="constellation-node node-muted" cx="184" cy="207" r="3" />
-              <circle class="constellation-star-dot" cx="36" cy="91" r="2" />
-              <circle class="constellation-star-dot" cx="224" cy="53" r="2.5" />
-              <circle class="constellation-star-dot" cx="231" cy="188" r="1.8" />
-            </svg>
+            <div class="mascot-meta">
+
+              <div class="mascot-prompt-chips">
+                <button
+                  type="button"
+                  class="prompt-chip"
+                  @click="askAiHarness('请帮我总结知识库中近期的核心主题与逻辑关联')"
+                >
+                  <Sparkles :size="12" />
+                  <span>总结近期沉淀</span>
+                </button>
+                <button
+                  type="button"
+                  class="prompt-chip"
+                  @click="router.push('/diverge')"
+                >
+                  <Lightbulb :size="12" />
+                  <span>发散新想法</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="constellation-ball-core">
-            <EmotionBall :size="220" :show-rings="false" />
-          </div>
-          <span>KNOWLEDGE MAP</span>
-
         </div>
       </div>
-
-      <form class="knowledge-search" role="search" @submit.prevent="openKnowledgeSearch">
-        <Search :size="21" aria-hidden="true" />
-        <label class="sr-only" for="knowledge-search-input">搜索知识库</label>
-        <input
-          id="knowledge-search-input"
-          v-model="searchQuery"
-          type="search"
-          placeholder="搜索标题、正文与分类"
-          autocomplete="off"
-        />
-        <button type="submit">搜索</button>
-      </form>
-
-      <nav class="knowledge-shortcuts" aria-label="快捷操作">
-        <router-link to="/articles/edit" class="knowledge-create">
-          <Plus :size="17" />
-          新建知识
-        </router-link>
-        <router-link to="/echobot" class="ask-knowledge">
-          <MessageCircle :size="17" />
-          询问知识库
-        </router-link>
-        <router-link to="/articles">
-          浏览全部知识
-          <span>{{ totalArticles }}</span>
-        </router-link>
-        <router-link to="/vr">
-          查看知识图谱
-          <ChevronRight :size="15" />
-        </router-link>
-      </nav>
     </section>
 
-    <div class="knowledge-dashboard">
-      <section class="knowledge-recent" aria-labelledby="recent-heading">
-        <div class="knowledge-section-heading">
-          <div>
-            <h2 id="recent-heading">最近访问</h2>
-            <p>继续阅读或整理最近接触的内容</p>
+    <!-- ── 知识核心数据 Bento 看板 ── -->
+    <section class="bento-stats-grid" aria-label="知识库核心数据">
+      <router-link to="/articles" class="bento-stat-card">
+        <div class="stat-card-icon-wrap">
+          <FileText :size="22" />
+        </div>
+        <div class="stat-card-info">
+          <span class="stat-card-num">{{ totalArticles }}</span>
+          <span class="stat-card-title">沉淀星记</span>
+          <span class="stat-card-sub">已记录的知识篇目</span>
+        </div>
+        <ArrowUpRight :size="16" class="stat-card-arrow" />
+      </router-link>
+
+      <router-link to="/categories" class="bento-stat-card">
+        <div class="stat-card-icon-wrap stat-icon-sky">
+          <Compass :size="22" />
+        </div>
+        <div class="stat-card-info">
+          <span class="stat-card-num">{{ totalCategories }}</span>
+          <span class="stat-card-title">知识星域</span>
+          <span class="stat-card-sub">多维主题与空间归类</span>
+        </div>
+        <ArrowUpRight :size="16" class="stat-card-arrow" />
+      </router-link>
+
+      <router-link to="/harness" class="bento-stat-card">
+        <div class="stat-card-icon-wrap stat-icon-purple">
+          <Sparkles :size="22" />
+        </div>
+        <div class="stat-card-info">
+          <span class="stat-card-num">Harness</span>
+          <span class="stat-card-title">云端智能体</span>
+          <span class="stat-card-sub">向量 RAG 与思维链协作</span>
+        </div>
+        <ArrowUpRight :size="16" class="stat-card-arrow" />
+      </router-link>
+
+      <router-link to="/vr" class="bento-stat-card">
+        <div class="stat-card-icon-wrap stat-icon-warm">
+          <Orbit :size="22" />
+        </div>
+        <div class="stat-card-info">
+          <span class="stat-card-num">3D 星图</span>
+          <span class="stat-card-title">空间关联网络</span>
+          <span class="stat-card-sub">沉浸式三维知识星系</span>
+        </div>
+        <ArrowUpRight :size="16" class="stat-card-arrow" />
+      </router-link>
+    </section>
+
+    <!-- ── 主工作区：双列知识流与侧翼空间 ── -->
+    <div class="knowledge-workbench-grid">
+      <!-- 左列：最近访问与整理 -->
+      <section class="workbench-main-stream" aria-labelledby="recent-stream-heading">
+        <div class="stream-section-header">
+          <div class="header-left">
+            <Clock :size="18" class="stream-header-icon" />
+            <div>
+              <h2 id="recent-stream-heading" class="stream-title">最近访问与整理</h2>
+              <p class="stream-subtitle">继续阅读、迭代或沉淀最近接触的内容</p>
+            </div>
           </div>
-          <router-link to="/articles">全部知识 <ChevronRight :size="16" /></router-link>
+          <router-link to="/articles" class="stream-more-link">
+            <span>全部星记 ({{ totalArticles }})</span>
+            <ArrowRight :size="15" />
+          </router-link>
         </div>
 
-        <div v-if="recentArticles.length" class="knowledge-list">
+        <div v-if="recentArticles.length" class="knowledge-stream-list">
           <router-link
             v-for="article in recentArticles"
             :key="article.id"
             :to="`/articles/${article.id}`"
-            class="knowledge-row"
+            class="knowledge-item-card"
           >
-            <span class="knowledge-file-icon"><FileText :size="18" /></span>
-            <span class="knowledge-row-main">
-              <strong>{{ article.title || '未命名知识' }}</strong>
-              <small>{{ article.description || '打开继续阅读与整理' }}</small>
-            </span>
-            <span class="knowledge-row-meta">
-              <span v-if="article.category" class="knowledge-category">{{ article.category }}</span>
-              <time>{{ formatKnowledgeDate(article.createdAt) }}</time>
-            </span>
-            <ChevronRight :size="17" class="row-arrow" />
+            <div class="item-icon-box">
+              <FileText :size="18" />
+            </div>
+
+            <div class="item-body">
+              <div class="item-title-row">
+                <strong class="item-title">{{ article.title || '未命名知识' }}</strong>
+                <span v-if="article.category" class="item-category-tag">
+                  {{ article.category }}
+                </span>
+              </div>
+              <p class="item-desc">
+                {{ article.description || '点击打开继续深入阅读与结构化整理...' }}
+              </p>
+            </div>
+
+            <div class="item-meta-right">
+              <time class="item-date">{{ formatKnowledgeDate(article.createdAt) }}</time>
+              <ChevronRight :size="17" class="item-arrow" />
+            </div>
           </router-link>
         </div>
 
-        <div v-else class="knowledge-empty">
-          <span class="knowledge-file-icon"><FileText :size="20" /></span>
-          <div>
-            <h3>知识库还是空的</h3>
-            <p>先记录一个想法，以后就能在这里快速找到它。</p>
-          </div>
-          <router-link to="/articles/edit">创建第一条知识</router-link>
+        <div v-else class="stream-empty-state">
+          <FileText :size="40" class="empty-stream-icon" />
+          <h3>知识星系尚是一片虚空</h3>
+          <p>记录下第一个闪念或文章，知识将在宇宙中相遇并连接成网。</p>
+          <router-link to="/articles/edit" class="btn-create-first">
+            <Plus :size="16" />
+            <span>创建第一篇知识</span>
+          </router-link>
         </div>
       </section>
 
-      <aside class="knowledge-sidebar">
-        <section class="knowledge-spaces" aria-labelledby="spaces-heading">
-          <div class="knowledge-section-heading spaces-heading">
-            <div>
-              <h2 id="spaces-heading">知识空间</h2>
-              <p>{{ totalCategories }} 个空间</p>
+      <!-- 右列：知识空间、随机重读与发散导流 -->
+      <aside class="workbench-sidebar">
+        <!-- 知识空间矩阵 -->
+        <div class="sidebar-block spaces-block">
+          <div class="block-header">
+            <div class="block-title-group">
+              <Compass :size="17" class="block-icon" />
+              <h3>知识星域</h3>
             </div>
-            <router-link to="/categories" aria-label="管理知识空间">
-              <ChevronRight :size="17" />
+            <router-link to="/categories" class="block-link" aria-label="管理星域">
+              <span>管理星域</span>
+              <ChevronRight :size="14" />
             </router-link>
           </div>
 
-          <div v-if="categories.length" class="space-list">
+          <div v-if="categories.length" class="category-pills-grid">
             <router-link
-              v-for="category in categories.slice(0, 6)"
-              :key="category.name"
-              :to="{ path: '/articles', query: { category: category.name } }"
-              class="space-row"
+              v-for="cat in categories.slice(0, 8)"
+              :key="cat.name"
+              :to="{ path: '/articles', query: { category: cat.name } }"
+              class="cat-chip"
             >
-              <span class="space-dot" aria-hidden="true"></span>
-              <span>{{ category.name }}</span>
-              <small>{{ category.article_count ?? 0 }}</small>
+              <span class="cat-chip-name">{{ cat.name }}</span>
+              <span class="cat-chip-count">{{ cat.article_count ?? 0 }}</span>
             </router-link>
           </div>
-          <div v-else class="spaces-empty">
-            <p>用空间组织同一主题下的知识。</p>
-            <router-link to="/categories">创建知识空间</router-link>
+          <div v-else class="block-empty-tip">
+            <p>尚未建立知识星域分类</p>
+            <router-link to="/categories" class="block-empty-action">创建星域 →</router-link>
           </div>
-        </section>
+        </div>
 
+        <!-- 灵感与随机重读 -->
         <router-link
-          v-if="recentArticles.length"
-          :to="`/articles/${recentArticles[recentArticles.length - 1].id}`"
-          class="rediscover-card"
+          v-if="rediscoverArticle"
+          :to="`/articles/${rediscoverArticle.id}`"
+          class="sidebar-block rediscover-block"
         >
-          <span class="rediscover-label">随机重读</span>
-          <strong>{{ recentArticles[recentArticles.length - 1].title }}</strong>
-          <p>重新看看一条旧知识，也许会有新的发现。</p>
-          <span class="rediscover-link">打开知识 <ChevronRight :size="15" /></span>
+          <div class="rediscover-badge">
+            <Sparkles :size="13" />
+            <span>随机重读 · 发现遗忘</span>
+          </div>
+          <h4 class="rediscover-title">{{ rediscoverArticle.title }}</h4>
+          <p class="rediscover-excerpt">
+            {{ rediscoverArticle.description || '重新回顾一条旧日知识，在新的思考维度下常有惊喜发现。' }}
+          </p>
+          <div class="rediscover-action-row">
+            <span>打开阅读</span>
+            <ArrowRight :size="14" />
+          </div>
         </router-link>
 
-        <div class="library-summary">
-          <span><strong>{{ totalArticles }}</strong> 条知识</span>
-          <span><strong>{{ totalCategories }}</strong> 个空间</span>
-        </div>
+        <!-- 创意发散入口 -->
+        <router-link to="/diverge" class="sidebar-block diverge-promo-block">
+          <div class="diverge-promo-header">
+            <div class="promo-icon-wrap">
+              <Lightbulb :size="18" />
+            </div>
+            <div>
+              <h4>思维发散引擎</h4>
+              <p>从一个核心概念出发，AI 助你向外衍生思维导图</p>
+            </div>
+          </div>
+          <div class="diverge-promo-link">
+            <span>开启发散思维</span>
+            <ArrowRight :size="14" />
+          </div>
+        </router-link>
       </aside>
     </div>
   </main>

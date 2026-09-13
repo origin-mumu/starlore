@@ -426,7 +426,6 @@ defineExpose({
               title="切换模型"
               @click.stop="toggleModelMenu"
             >
-              <Cpu class="icon-xs pill-icon" />
               <span class="pill-label model-label">{{ currentModelDisplayName }}</span>
               <ChevronDown class="icon-xs arrow-icon" :class="{ 'is-open': isModelOpen }" />
             </button>
@@ -549,14 +548,9 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  margin-top: 6px;
+  padding-top: 4px;
   user-select: none;
-}
-
-[data-theme="dark"] .input-footer {
-  border-top-color: rgba(255, 255, 255, 0.06);
 }
 
 .footer-left {
@@ -663,22 +657,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 260px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.popover-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.popover-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
-}
-
-[data-theme="dark"] .popover-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
+  max-height: none;
+  overflow: visible;
 }
 
 .popover-item {
