@@ -37,7 +37,9 @@ except ImportError:
     PptxPt = None  # type: ignore
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
+from app.config import settings
 from app.services import blog_tools, file_service
 
 logger = logging.getLogger(__name__)
@@ -1227,8 +1229,135 @@ class ResumeDetailTool(BaseHarnessTool):
             return ToolResult(success=False, label="读取简历详情异常", summary=str(e), data=f"读取失败: {e}")
 
 
+class WebSearchTool(BaseHarnessTool):
+    """互联网实时网络搜索工具（基于智谱 BigModel 开放平台 Web Search API）。"""
+    name = "web_search"
+    description = (
+        "检索互联网最新前沿资讯、技术发展动态、官方文档、业界新闻，或当本地知识库未命中时进行外部资料补充。"
+        "返回相关网页标题、核心内容摘要及参考来源链接。"
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "要检索的搜索词或问题短句，建议精炼且具有针对性，如'DeepSeek V3架构设计'、'Python 3.13新特性'等",
+            },
+            "count": {
+                "type": "integer",
+                "description": "期望获取的网页条数，默认为 5，最多 10 条",
+            },
+        },
+        "required": ["query"],
+    }
+
+    async def execute(self, db: AsyncSession, user_id: int, **kwargs) -> ToolResult:
+        query = kwargs.get("query", "").strip()
+        count = kwargs.get("count", 5)
+        try:
+            count = min(max(int(count), 1), 10)
+        except Exception:
+            count = 5
+
+        if not query:
+            return ToolResult(
+                success=False,
+                label="网络搜索参数缺失",
+                summary="检索关键词为空",
+                data="搜索失败：未提供有效的搜索关键词",
+            )
+
+        api_key = (settings.zhipu_api_key or "").strip()
+        if not api_key:
+            import os
+            api_key = os.getenv("ZHIPU_API_KEY", "").strip()
+
+        if not api_key:
+            return ToolResult(
+                success=False,
+                label="网络搜索未配置",
+                summary="未配置 ZHIPU_API_KEY",
+                data="无法执行互联网搜索：系统未检测到 ZHIPU_API_KEY 配置，请在后端 .env 中配置后再试。",
+            )
+
+        endpoint = "https://open.bigmodel.cn/api/paas/v4/web_search"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "search_query": query,
+            "search_engine": "search_std",
+            "count": count,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                resp = await client.post(endpoint, headers=headers, json=payload)
+                if resp.status_code != 200:
+                    err_msg = f"智谱搜索接口返回错误码 {resp.status_code}: {resp.text[:200]}"
+                    logger.warning("WebSearchTool request error: %s", err_msg)
+                    return ToolResult(
+                        success=False,
+                        label="网络搜索失败",
+                        summary=f"上游服务异常 ({resp.status_code})",
+                        data=err_msg,
+                    )
+
+                data = resp.json()
+                raw_results = data.get("search_result", [])
+                if not raw_results:
+                    return ToolResult(
+                        success=True,
+                        label="检索了互联网",
+                        summary="未检索到相关网页",
+                        data=f"在互联网上未找到关于'{query}'的有效公开网页结果。",
+                        citations=[],
+                    )
+
+                citations: list[str] = []
+                formatted_snippets: list[str] = []
+                for idx, item in enumerate(raw_results, 1):
+                    title = item.get("title", "").strip() or "未命名网页"
+                    link = item.get("link", "").strip()
+                    content = item.get("content", "").strip()
+
+                    citation_label = f"{title}"
+                    if link:
+                        citation_label += f" ({link})"
+                    citations.append(citation_label)
+
+                    formatted_snippets.append(
+                        f"### [{idx}] {title}\n"
+                        f"- **来源**: {link or '未知'}\n"
+                        f"- **内容摘要**: {content}\n"
+                    )
+
+                full_data_text = (
+                    f"针对关键词「{query}」共检索到 {len(raw_results)} 条互联网公开资讯：\n\n"
+                    + "\n".join(formatted_snippets)
+                )
+
+                return ToolResult(
+                    success=True,
+                    label="检索了互联网",
+                    summary=f"命中 {len(raw_results)} 篇相关资讯",
+                    data=full_data_text,
+                    citations=citations,
+                )
+        except Exception as e:
+            logger.exception("WebSearchTool execute error: %s", e)
+            return ToolResult(
+                success=False,
+                label="网络搜索异常",
+                summary=f"请求异常: {str(e)[:50]}",
+                data=f"执行网络搜索发生异常: {e}",
+            )
+
+
 # 工具统一注册实例列表
 HARNESS_TOOLS: list[BaseHarnessTool] = [
+    WebSearchTool(),
     KnowledgeSearchTool(),
     ArticleDetailTool(),
     BlogStatsTool(),
@@ -1248,4 +1377,5 @@ HARNESS_TOOLS: list[BaseHarnessTool] = [
 ]
 
 HARNESS_TOOL_MAP: dict[str, BaseHarnessTool] = {tool.name: tool for tool in HARNESS_TOOLS}
+
 

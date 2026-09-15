@@ -48,7 +48,10 @@ class Settings(BaseSettings):
     # ---------- Optional MCP servers (JSON array) ----------
     mcp_servers: str = "[]"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # ---------- 外部搜索与开放平台 ----------
+    zhipu_api_key: str = ""
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     @property
     def database_url(self) -> str:

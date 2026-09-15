@@ -58,7 +58,16 @@ ro-blog/*.env
 
 # Python
 **/__pycache__/
-*.py[cod]
+*.pyc
+
+# 个人办公与投递文档（防误提交泄密）
+*.xlsx
+*.xls
+*.docx
+*.doc
+秋招投递跟踪清单*
+简历面试*
+飞书岗位*
 starlore-py/data/
 starlore-py/.env
 
