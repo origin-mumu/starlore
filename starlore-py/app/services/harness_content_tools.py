@@ -1233,15 +1233,15 @@ class WebSearchTool(BaseHarnessTool):
     """互联网实时网络搜索工具（基于智谱 BigModel 开放平台 Web Search API）。"""
     name = "web_search"
     description = (
-        "检索互联网最新前沿资讯、技术发展动态、官方文档、业界新闻，或当本地知识库未命中时进行外部资料补充。"
-        "返回相关网页标题、核心内容摘要及参考来源链接。"
+        "全网实时搜索引擎。当用户询问最新新闻、今日热点、前沿技术动态、实时资讯、行业趋势，"
+        "或本地知识库中未收录相关信息时调用。返回相关公开网页的真实标题、正文摘要与原始来源链接。"
     )
     parameters = {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "要检索的搜索词或问题短句，建议精炼且具有针对性，如'DeepSeek V3架构设计'、'Python 3.13新特性'等",
+                "description": "搜索关键词或短语，如'最新科技新闻'、'今日热点新闻'、'DeepSeek最新进展'等",
             },
             "count": {
                 "type": "integer",
