@@ -209,15 +209,7 @@ async def get_dynamic_models(db: AsyncSession) -> list[HarnessModelItem]:
                     ):
                         vendor_map[upstream_mid] = (url, key, upstream_mid)
 
-    if not model_items:
-        # 终极兜底
-        scoped_id = "deepseek::deepseek-chat"
-        model_items.append(
-            HarnessModelItem(id=scoped_id, name="DeepSeek-Chat", vendor="DeepSeek")
-        )
-        vendor_map[scoped_id] = ("https://api.deepseek.com", "", "deepseek-chat")
-        vendor_map["deepseek-chat"] = ("https://api.deepseek.com", "", "deepseek-chat")
-
+    # 无真实模型时保持空列表：没有配置可用厂商就如实返回空，绝不伪造模型
     _MODEL_CACHE["models"] = model_items
     _MODEL_CACHE["expires_at"] = now + _CACHE_TTL
     _MODEL_CACHE["model_vendor_map"] = vendor_map
@@ -262,4 +254,4 @@ async def resolve_model_credentials(
         first = configs[0]
         return first.apiUrl, first.apiKey or "", model_id
 
-    return "https://api.deepseek.com", "", model_id
+    raise ValueError("未找到可用的 AI 厂商配置，请先在后台 AI 配置中启用厂商并填写密钥")

@@ -254,39 +254,24 @@ const currentProviderLabel = computed(() => {
   return selectedProviderKey.value || '选择 AI 厂商'
 })
 
-const defaultFallbackModels = [
-  { id: 'deepseek-chat', name: 'deepseek-chat (DeepSeek-V3)' },
-  { id: 'deepseek-reasoner', name: 'deepseek-reasoner (DeepSeek-R1 深度思考)' },
-  { id: 'deepseek-coder', name: 'deepseek-coder (代码大模型)' },
-]
-
 const currentModelLabel = computed(() => {
-  const allModels = providerModels.value.length ? providerModels.value : defaultFallbackModels
-  const m = allModels.find((item) => item.id === props.agentConfigForm.modelName)
+  const m = providerModels.value.find((item) => item.id === props.agentConfigForm.modelName)
   if (m) return `${m.name} (${m.id})`
   const fallback = props.availableModels.find((item) => item.id === props.agentConfigForm.modelName)
   if (fallback) return `${fallback.name} (${fallback.id})`
-  return props.agentConfigForm.modelName || '请选择模型'
+  return props.agentConfigForm.modelName || '暂无可用模型'
 })
 
 async function fetchProvidersAndModels() {
   try {
     const res = await getAiProviders()
-    if (res.success && res.providers && res.providers.length) {
-      providers.value = res.providers
-    } else {
-      providers.value = [
-        { key: 'deepseek', name: 'DeepSeek', apiUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat', enabled: true, configured: true }
-      ]
-    }
+    providers.value = (res.success && res.providers) ? res.providers : []
   } catch (err) {
     console.error('获取厂商失败:', err)
-    providers.value = [
-      { key: 'deepseek', name: 'DeepSeek', apiUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat', enabled: true, configured: true }
-    ]
+    providers.value = []
   }
 
-  const currentModel = props.agentConfigForm.modelName || 'deepseek-chat'
+  const currentModel = props.agentConfigForm.modelName
   let matched = providers.value.find(p =>
     p.key === currentModel ||
     p.defaultModel === currentModel ||
@@ -306,20 +291,18 @@ async function fetchModelsForProvider(providerKey: string, autoSelectFirst = fal
   isLoadingModels.value = true
   try {
     const res = await getProviderModels(providerKey)
-    if (res.success && res.models && res.models.length) {
-      providerModels.value = res.models
+    providerModels.value = (res.success && res.models) ? res.models : []
+    if (providerModels.value.length) {
       if (autoSelectFirst || !providerModels.value.some(m => m.id === props.agentConfigForm.modelName)) {
         const defaultM = providerModels.value[0]
         if (defaultM) {
           props.agentConfigForm.modelName = defaultM.id
         }
       }
-    } else {
-      providerModels.value = defaultFallbackModels
     }
   } catch (err) {
     console.error('拉取官方模型失败:', err)
-    providerModels.value = defaultFallbackModels
+    providerModels.value = []
   } finally {
     isLoadingModels.value = false
   }
@@ -660,6 +643,9 @@ onBeforeUnmount(() => {
                     </div>
                     <Transition name="dropdown-fade">
                       <div v-if="providerSelectOpen" class="custom-select-options">
+                        <div v-if="!providers.length" class="custom-select-option is-empty">
+                          暂无厂商配置，请先在后台 AI 配置中添加
+                        </div>
                         <div
                           v-for="p in providers"
                           :key="p.key"
@@ -697,8 +683,11 @@ onBeforeUnmount(() => {
                     </div>
                     <Transition name="dropdown-fade">
                       <div v-if="modelSelectOpen" class="custom-select-options">
+                        <div v-if="!providerModels.length" class="custom-select-option is-empty">
+                          {{ isLoadingModels ? '正在同步官方模型...' : '暂无可用模型，请检查厂商密钥配置' }}
+                        </div>
                         <div
-                          v-for="model in (providerModels.length ? providerModels : defaultFallbackModels)"
+                          v-for="model in providerModels"
                           :key="model.id"
                           class="custom-select-option"
                           :class="{ active: agentConfigForm.modelName === model.id }"
@@ -1501,6 +1490,17 @@ onBeforeUnmount(() => {
   background: #337BF4;
   color: #ffffff !important;
   font-weight: 650;
+}
+
+.custom-select-option.is-empty {
+  color: #94a3b8;
+  font-size: 0.74rem;
+  cursor: default;
+}
+
+.custom-select-option.is-empty:hover {
+  background: transparent;
+  color: #94a3b8;
 }
 
 /* 纯净开关 */

@@ -82,9 +82,16 @@ async def run_harness_turn(
         yield _format_sse("error", {"message": "会话不存在或无权访问"})
         return
 
-    # 确定使用的模型
-    model_id = override_model_id or session.model_id or "deepseek-chat"
-    api_url, api_key, model_id = await resolve_model_credentials(db, model_id)
+    # 确定使用的模型：没有可用厂商配置时直接向前端报错，不做任何模型兜底
+    model_id = override_model_id or session.model_id or ""
+    if not model_id:
+        yield _format_sse("error", {"message": "暂无可用模型，请先在后台 AI 配置中启用厂商与模型"})
+        return
+    try:
+        api_url, api_key, model_id = await resolve_model_credentials(db, model_id)
+    except ValueError as e:
+        yield _format_sse("error", {"message": str(e)})
+        return
 
     # 1. 记录用户消息到数据库
     user_msg = HarnessMessage(

@@ -98,25 +98,8 @@ async def get_provider_models(
 
     remote_models = await ai_config_service.fetch_provider_models(config.apiUrl, config.apiKey)
     if not remote_models:
-        # 如果远程接口暂时无法连通，提供厂商官方最新全量模型
-        if "deepseek" in config.modelKey.lower() or "deepseek" in config.apiUrl.lower() or "deepseek" in (config.modelName or "").lower():
-            remote_models = [
-                {"id": "deepseek-chat", "name": "deepseek-chat (DeepSeek-V3)"},
-                {"id": "deepseek-reasoner", "name": "deepseek-reasoner (DeepSeek-R1 深度思考)"},
-                {"id": "deepseek-coder", "name": "deepseek-coder (代码大模型)"},
-            ]
-        elif "mimo" in config.modelKey.lower():
-            remote_models = [
-                {"id": "mimo", "name": "小米 MiMo"}
-            ]
-        elif "qwen" in config.modelKey.lower():
-            remote_models = [
-                {"id": "qwen-max", "name": "通义千问 Max"},
-                {"id": "qwen-plus", "name": "通义千问 Plus"},
-                {"id": "qwen-turbo", "name": "通义千问 Turbo"},
-            ]
-        elif config.modelId:
-            remote_models = [{"id": config.modelId, "name": config.modelId}]
+        # 官方接口暂时不可用时，只回退到数据库中真实配置的默认模型，不伪造模型列表
+        remote_models = [{"id": config.modelId, "name": config.modelId}] if config.modelId else []
 
     return {"success": True, "providerKey": provider_key, "models": remote_models}
 
