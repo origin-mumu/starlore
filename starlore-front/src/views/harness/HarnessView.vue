@@ -29,7 +29,8 @@ const sessions = ref<HarnessSession[]>([])
 const currentSessionId = ref<number | null>(null)
 const messages = ref<HarnessMessage[]>([])
 const models = ref<HarnessModelItem[]>([])
-const currentModelId = ref<string>('deepseek-chat')
+const currentModelId = ref<string>('')
+const modelsLoaded = ref(false)
 const isSidebarOpen = ref(true)
 const isRunning = ref(false)
 
@@ -37,7 +38,7 @@ const isRunning = ref(false)
 const configModalOpen = ref(false)
 const agentConfigSavedHint = ref('')
 const agentConfigForm = reactive({
-  modelName: 'deepseek-chat',
+  modelName: '',
   similarityThreshold: 0.6,
   topK: 5,
   temperature: 0.7,
@@ -61,7 +62,7 @@ async function openAgentConfig() {
       agentConfigForm.modelName =
         dbModel && availableModels.value.some((m) => m.id === dbModel)
           ? dbModel
-          : currentModelId.value || 'deepseek-chat'
+          : currentModelId.value || availableModels.value[0]?.id || ''
       agentConfigForm.similarityThreshold = res.data.similarityThreshold ?? 0.6
       agentConfigForm.topK = res.data.topK ?? 5
       agentConfigForm.temperature = res.data.temperature ?? 0.7
@@ -108,15 +109,19 @@ onMounted(async () => {
     models.value = fetchedModels
     if (fetchedModels.length > 0) {
       currentModelId.value = fetchedModels[0].id
+    } else {
+      ElMessage.warning('暂无可用模型，请在后台 AI 配置中启用模型')
     }
+    modelsLoaded.value = true
 
     sessions.value = fetchedSessions
     if (fetchedSessions.length > 0) {
       await selectSession(fetchedSessions[0].id)
-    } else {
+    } else if (currentModelId.value) {
       await handleNewSession()
     }
   } catch (err: any) {
+    modelsLoaded.value = true
     ElMessage.error(err.message || '初始化 Harness 失败')
   }
 })
@@ -129,8 +134,12 @@ async function selectSession(sessionId: number) {
   }
   currentSessionId.value = sessionId
   const s = sessions.value.find((item) => item.id === sessionId)
-  if (s && s.model_id) {
+  if (s && s.model_id && models.value.some((m) => m.id === s.model_id)) {
+    // 会话记录的模型仍在可用列表中才启用
     currentModelId.value = s.model_id
+  } else if (models.value.length > 0) {
+    // 会话记录的模型已下线，回退到真实可用列表的第一个
+    currentModelId.value = models.value[0].id
   }
   try {
     messages.value = await fetchHarnessMessages(sessionId)
@@ -143,6 +152,10 @@ async function selectSession(sessionId: number) {
 async function handleNewSession() {
   if (isRunning.value) {
     ElMessage.warning('当前任务正在生成中，请稍候')
+    return
+  }
+  if (!currentModelId.value) {
+    ElMessage.warning('暂无可用模型，无法创建会话')
     return
   }
   try {
@@ -197,6 +210,10 @@ function handleSelectPrompt(prompt: string) {
 // 发送消息核心逻辑
 async function handleSend(userText: string, images?: string[]) {
   if (!currentSessionId.value || isRunning.value) return
+  if (!currentModelId.value) {
+    ElMessage.warning('暂无可用模型，请稍候重试')
+    return
+  }
 
   // 1. 本地立即追加用户消息
   const userMsg: HarnessMessage = {
@@ -487,6 +504,7 @@ function handleUpdateModel(modelId: string) {
       <HarnessInputArea
         ref="inputAreaRef"
         :models="models"
+        :models-loaded="modelsLoaded"
         :current-model-id="currentModelId"
         :is-running="isRunning"
         @send="handleSend"

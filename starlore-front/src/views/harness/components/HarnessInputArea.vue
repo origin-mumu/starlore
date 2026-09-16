@@ -21,6 +21,7 @@ import type { HarnessModelItem } from '../types'
 
 const props = defineProps<{
   models: HarnessModelItem[]
+  modelsLoaded: boolean
   currentModelId: string
   isRunning: boolean
 }>()
@@ -96,11 +97,17 @@ const uploadOptions = [
   },
 ]
 
-// 当前模型显示名称
+// 当前模型显示名称：只展示真实加载到的模型，不造假默认值
 const currentModelDisplayName = computed(() => {
+  if (!props.modelsLoaded) {
+    return '模型加载中…'
+  }
   const found = props.models.find((m) => m.id === props.currentModelId)
   if (found) {
     return found.name || found.id
+  }
+  if (props.models.length === 0) {
+    return '暂无可用模型'
   }
   return props.currentModelId || '选择模型'
 })
@@ -247,6 +254,10 @@ function handleKeyDown(e: KeyboardEvent) {
 
 function handleSend() {
   if (props.isRunning) return
+  if (!props.currentModelId) {
+    ElMessage.warning(props.modelsLoaded ? '暂无可用模型，无法发送' : '模型列表加载中，请稍候')
+    return
+  }
   if (pendingAttachments.value.some((a) => a.status === 'parsing')) {
     ElMessage.info('附件正在解析中，请稍候...')
     return
@@ -467,9 +478,9 @@ defineExpose({
           <button
             v-else
             type="button"
-            :disabled="!inputText.trim() && pendingAttachments.length === 0"
+            :disabled="!currentModelId || (!inputText.trim() && pendingAttachments.length === 0)"
             class="send-btn"
-            :class="{ active: inputText.trim() || pendingAttachments.length > 0 }"
+            :class="{ active: currentModelId && (inputText.trim() || pendingAttachments.length > 0) }"
             title="发送指令 (Enter)"
             @click="handleSend"
           >
