@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ChevronDown, ChevronRight, Loader2 } from '@lucide/vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -12,24 +12,49 @@ const props = defineProps<{
   toolCalls?: HarnessToolCall[]
   stepDetails?: HarnessStepDetail[]
   isRunning?: boolean
+  /** 正在流式输出思考文字的步骤号：仅该步骤的小思考自动展开 */
+  activeStep?: number | null
+  /** 正文是否已开始流式输出（全部思考完成的信号） */
+  bodyStarted?: boolean
 }>()
 
-// 思考总栏折叠状态：默认展开，用户可随时点击“用时 21s”一键折叠全部
-const isExpanded = ref(true)
+// 思考总栏折叠状态：生成中默认展开；全部思考完成（正文开始输出/整体结束）时自动折叠，用户可随时点开回看
+const isExpanded = ref(props.isRunning === true)
 
-// 每个小思考的独立折叠状态，默认展开（带高度限制与滚动条）
-const expandedThoughts = ref<Record<string, boolean>>({})
+watch(() => props.isRunning, (running, prev) => {
+  if (prev && !running) {
+    // 整体生成结束：自动折叠思考过程
+    isExpanded.value = false
+  }
+})
 
-function toggleThought(key: string) {
-  expandedThoughts.value[key] = !isThoughtExpanded(key)
+watch(() => props.bodyStarted, (started, prev) => {
+  if (started && !prev) {
+    // 正文开始输出：全部思考完成，折叠整体思考栏，让正文成为视觉焦点
+    isExpanded.value = false
+  }
+})
+
+// 每个小思考的显式展开/折叠状态：用户手动操作优先于"活跃步骤自动展开"
+const thoughtOverrides = ref<Record<string, boolean>>({})
+
+// 某个小思考当前是否处于"正在思考"的活跃状态（思考文字正在流出）
+function isStepThinking(st: HarnessStepDetail): boolean {
+  return Boolean(props.isRunning) && props.activeStep != null && st.step === props.activeStep
 }
 
-function isThoughtExpanded(key: string): boolean {
-  if (expandedThoughts.value[key] !== undefined) {
-    return expandedThoughts.value[key]
-  }
-  // 默认小思考展开，若长则受到高度限制并出现滚动条
-  return true
+// 兜底单段思考：生成中且正文尚未开始输出时视为正在思考
+const isFlatThinking = computed(() => Boolean(props.isRunning) && !props.bodyStarted)
+
+function isThoughtExpanded(key: string, isActive: boolean): boolean {
+  const override = thoughtOverrides.value[key]
+  if (override !== undefined) return override
+  // 默认：正在思考的小思考展开，思考完毕即自动折叠（保留预览行可随时点开）
+  return isActive
+}
+
+function toggleThought(key: string, isActive: boolean) {
+  thoughtOverrides.value[key] = !isThoughtExpanded(key, isActive)
 }
 
 function cleanAiEmoji(text: string): string {
@@ -112,23 +137,23 @@ function renderMarkdown(content: string) {
           :key="st.step || idx"
           class="step-flow-item"
         >
-          <!-- 小思考：可折叠、加高度限制、灰色字体与正文区分 -->
+          <!-- 小思考：正在思考时自动展开，思考完毕自动折叠（保留预览行可点开回看） -->
           <div
             v-if="st.reasoning && st.reasoning.trim().length > 0"
             class="sub-thought-item"
           >
             <div
               class="sub-thought-header"
-              @click="toggleThought(`step_r_${idx}`)"
+              @click="toggleThought(`step_r_${st.step}`, isStepThinking(st))"
             >
               <span class="sub-thought-label">{{ idx === 0 ? '思考' : '再次思考' }}</span>
               <span class="sub-thought-preview">{{ getPreviewText(st.reasoning) }}</span>
-              <ChevronDown v-if="isThoughtExpanded(`step_r_${idx}`)" class="icon-tiny chevron" />
+              <ChevronDown v-if="isThoughtExpanded(`step_r_${st.step}`, isStepThinking(st))" class="icon-tiny chevron" />
               <ChevronRight v-else class="icon-tiny chevron" />
             </div>
             <!-- 小思考正文：带高度限制、微滚动条、灰色字体 -->
             <div
-              v-if="isThoughtExpanded(`step_r_${idx}`)"
+              v-if="isThoughtExpanded(`step_r_${st.step}`, isStepThinking(st))"
               class="sub-thought-body"
             >
               <div
@@ -138,22 +163,22 @@ function renderMarkdown(content: string) {
             </div>
           </div>
 
-          <!-- 中间规划草稿：同样支持折叠、高度限制、灰色字体 -->
+          <!-- 中间规划草稿：默认折叠为预览行，点击可展开（同样带高度限制与滚动条） -->
           <div
             v-if="st.scratchpad && st.scratchpad.trim().length > 0"
             class="sub-thought-item"
           >
             <div
               class="sub-thought-header"
-              @click="toggleThought(`step_s_${idx}`)"
+              @click="toggleThought(`step_s_${st.step}`, false)"
             >
               <span class="sub-thought-label">规划草稿</span>
               <span class="sub-thought-preview">{{ getPreviewText(st.scratchpad) }}</span>
-              <ChevronDown v-if="isThoughtExpanded(`step_s_${idx}`)" class="icon-tiny chevron" />
+              <ChevronDown v-if="isThoughtExpanded(`step_s_${st.step}`, false)" class="icon-tiny chevron" />
               <ChevronRight v-else class="icon-tiny chevron" />
             </div>
             <div
-              v-if="isThoughtExpanded(`step_s_${idx}`)"
+              v-if="isThoughtExpanded(`step_s_${st.step}`, false)"
               class="sub-thought-body"
             >
               <div
@@ -174,7 +199,7 @@ function renderMarkdown(content: string) {
         </div>
       </div>
 
-      <!-- 兜底呈现 (单段思考) -->
+      <!-- 兜底呈现 (单段思考：生成中展开，正文输出/结束后自动折叠) -->
       <template v-else>
         <div
           v-if="reasoningContent"
@@ -182,15 +207,15 @@ function renderMarkdown(content: string) {
         >
           <div
             class="sub-thought-header"
-            @click="toggleThought('flat_reasoning')"
+            @click="toggleThought('flat_reasoning', isFlatThinking)"
           >
             <span class="sub-thought-label">思考</span>
             <span class="sub-thought-preview">{{ getPreviewText(reasoningContent) }}</span>
-            <ChevronDown v-if="isThoughtExpanded('flat_reasoning')" class="icon-tiny chevron" />
+            <ChevronDown v-if="isThoughtExpanded('flat_reasoning', isFlatThinking)" class="icon-tiny chevron" />
             <ChevronRight v-else class="icon-tiny chevron" />
           </div>
           <div
-            v-if="isThoughtExpanded('flat_reasoning')"
+            v-if="isThoughtExpanded('flat_reasoning', isFlatThinking)"
             class="sub-thought-body"
           >
             <div

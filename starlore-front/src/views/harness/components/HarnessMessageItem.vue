@@ -18,6 +18,8 @@ import type { HarnessMessage, HarnessToolCall } from '../types'
 const props = defineProps<{
   message: HarnessMessage
   isRunning?: boolean
+  activeThinkingStep?: number | null
+  bodyStarted?: boolean
 }>()
 
 const isUserLongExpanded = ref(false)
@@ -146,6 +148,8 @@ const renderedContent = computed(() => {
         :tool-calls="message.tool_calls"
         :step-details="message.step_details"
         :is-running="isRunning"
+        :active-step="activeThinkingStep"
+        :body-started="bodyStarted"
       />
 
       <!-- 正文纯文字 Markdown 排版（流式输出时带轻量跳动光标） -->

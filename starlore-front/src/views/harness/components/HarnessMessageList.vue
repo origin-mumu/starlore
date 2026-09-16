@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch, computed } from 'vue'
 import { ArrowDown, Sparkles } from '@lucide/vue'
 import HarnessMessageItem from './HarnessMessageItem.vue'
 import type { HarnessMessage } from '../types'
@@ -8,7 +8,11 @@ const props = defineProps<{
   messages: HarnessMessage[]
   streamingMessage?: HarnessMessage | null
   isRunning?: boolean
+  activeThinkingStep?: number | null
 }>()
+
+// 正文是否已开始流式输出（全部思考完成、开始输出正文的信号）
+const bodyStarted = computed(() => Boolean(props.isRunning) && Boolean(props.streamingMessage?.content))
 
 const emit = defineEmits<{
   selectPrompt: [prompt: string]
@@ -117,6 +121,8 @@ const defaultPrompts = [
         v-if="streamingMessage"
         :message="streamingMessage"
         :is-running="isRunning"
+        :active-thinking-step="activeThinkingStep"
+        :body-started="bodyStarted"
       />
     </div>
 

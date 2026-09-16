@@ -86,6 +86,9 @@ async function saveAgentConfig() {
 
 // 当前流式生成中的消息
 const streamingMessage = ref<HarnessMessage | null>(null)
+// 正在流式输出思考文字(reasoning)的步骤号：仅该步骤的小思考自动展开，
+// 一旦进入规划/工具/正文阶段或切换到新步骤即置空，对应小思考自动折叠
+const activeThinkingStep = ref<number | null>(null)
 let abortController: AbortController | null = null
 
 const inputAreaRef = ref<InstanceType<typeof HarnessInputArea> | null>(null)
@@ -217,6 +220,7 @@ async function handleSend(userText: string, images?: string[]) {
   abortController = new AbortController()
   const startTime = Date.now()
   let currentStepNum = 1
+  activeThinkingStep.value = null
 
   let targetContent = ''
   let typingTimer: number | null = null
@@ -280,6 +284,8 @@ async function handleSend(userText: string, images?: string[]) {
 
         if (ev.event === 'step') {
           currentStepNum = ev.data.step || currentStepNum
+          // 进入新步骤：上一段小思考已思考完毕，自动折叠
+          activeThinkingStep.value = null
           getOrCreateStep(currentStepNum)
         } else if (ev.event === 'reasoning') {
           const delta = ev.data.delta || ''
@@ -287,15 +293,22 @@ async function handleSend(userText: string, images?: string[]) {
             (streamingMessage.value.reasoning_content || '') + delta
           const st = getOrCreateStep(currentStepNum)
           st.reasoning = (st.reasoning || '') + delta
+          // 思考文字正在流出：当前步骤的小思考保持展开
+          activeThinkingStep.value = currentStepNum
           streamingMessage.value.duration_ms = Date.now() - startTime
         } else if (ev.event === 'step_thought') {
+          // 规划草稿到达：该步骤思考结束，小思考自动折叠
+          activeThinkingStep.value = null
           const st = getOrCreateStep(ev.data.step || currentStepNum)
           st.scratchpad = ev.data.text || ''
         } else if (ev.event === 'content') {
+          // 正文开始输出：全部思考完成，小思考自动折叠
+          activeThinkingStep.value = null
           const delta = ev.data.delta || ''
           appendSmoothContent(delta)
           streamingMessage.value.duration_ms = Date.now() - startTime
         } else if (ev.event === 'tool_start') {
+          activeThinkingStep.value = null
           const stepNum = ev.data.step || currentStepNum
           const st = getOrCreateStep(stepNum)
           const newTool = {
@@ -310,6 +323,7 @@ async function handleSend(userText: string, images?: string[]) {
           streamingMessage.value.tool_calls.push(newTool)
           st.tool_calls.push(newTool)
         } else if (ev.event === 'tool_done') {
+          activeThinkingStep.value = null
           const stepNum = ev.data.step || currentStepNum
           const list = streamingMessage.value.tool_calls || []
           const target = list.find((t) => t.call_id === ev.data.call_id)
@@ -326,9 +340,11 @@ async function handleSend(userText: string, images?: string[]) {
             stTarget.citations = ev.data.citations
           }
         } else if (ev.event === 'artifact') {
+          activeThinkingStep.value = null
           streamingMessage.value.artifacts = streamingMessage.value.artifacts || []
           streamingMessage.value.artifacts.push(ev.data)
         } else if (ev.event === 'done') {
+          activeThinkingStep.value = null
           if (ev.data.duration_ms) {
             streamingMessage.value.duration_ms = ev.data.duration_ms
           }
@@ -336,6 +352,7 @@ async function handleSend(userText: string, images?: string[]) {
             streamingMessage.value.step_details = ev.data.step_details
           }
         } else if (ev.event === 'error') {
+          activeThinkingStep.value = null
           const errMsg = ev.data?.message || '生成失败'
           ElMessage.error(errMsg)
           if (streamingMessage.value && !streamingMessage.value.content) {
@@ -374,6 +391,7 @@ async function handleSend(userText: string, images?: string[]) {
       messages.value.push({ ...streamingMessage.value })
     }
     streamingMessage.value = null
+    activeThinkingStep.value = null
     isRunning.value = false
     abortController = null
 
@@ -461,6 +479,7 @@ function handleUpdateModel(modelId: string) {
         :messages="messages"
         :streaming-message="streamingMessage"
         :is-running="isRunning"
+        :active-thinking-step="activeThinkingStep"
         @select-prompt="handleSelectPrompt"
       />
 
