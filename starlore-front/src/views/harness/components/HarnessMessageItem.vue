@@ -5,15 +5,10 @@ import DOMPurify from 'dompurify'
 import {
   ChevronDown,
   ChevronUp,
-  Loader2,
-  Sparkles,
-  BookOpen,
-  Presentation,
-  FileText,
 } from '@lucide/vue'
 import HarnessThoughtBar from './HarnessThoughtBar.vue'
 import HarnessArtifactCard from './HarnessArtifactCard.vue'
-import type { HarnessMessage, HarnessToolCall } from '../types'
+import type { HarnessMessage } from '../types'
 
 const props = defineProps<{
   message: HarnessMessage
@@ -56,21 +51,6 @@ const displayUserContent = computed(() => {
   }
   return content
 })
-
-// 当前处于执行中的具体工具调用（如生成文档、生成PPT、检索知识库等）
-const activeRunningTool = computed<HarnessToolCall | null>(() => {
-  if (!props.isRunning || !props.message.tool_calls) return null
-  return props.message.tool_calls.find((t) => t.status === 'running') || null
-})
-
-function getToolIcon(toolName?: string) {
-  if (!toolName) return Sparkles
-  const t = toolName.toLowerCase()
-  if (t.includes('knowledge') || t.includes('search')) return BookOpen
-  if (t.includes('ppt') || t.includes('presentation')) return Presentation
-  if (t.includes('doc') || t.includes('file')) return FileText
-  return Sparkles
-}
 
 function cleanAiEmoji(text: string): string {
   if (!text) return ''
@@ -159,24 +139,6 @@ const renderedContent = computed(() => {
           v-html="renderedContent"
         />
         <span v-if="isRunning" class="streaming-inline-cursor">▌</span>
-      </div>
-
-      <!-- 工具执行中提示卡片（仅当具体工具在执行时展示） -->
-      <div v-if="isRunning && activeRunningTool" class="generating-status-container">
-        <div class="active-tool-badge">
-          <div class="active-tool-spin">
-            <Loader2 class="icon-sm spin" />
-          </div>
-          <component :is="getToolIcon(activeRunningTool.tool)" class="icon-sm tool-type-icon" />
-          <div class="active-tool-texts">
-            <span class="active-tool-title">
-              {{ activeRunningTool.label || activeRunningTool.tool }} 进行中...
-            </span>
-            <span class="active-tool-sub">
-              {{ activeRunningTool.summary && activeRunningTool.summary !== '正在执行...' ? activeRunningTool.summary : 'AI 正在处理与排版产物，即将生成' }}
-            </span>
-          </div>
-        </div>
       </div>
 
       <!-- 交付产物卡片 (仅当全部回答生成完毕后才展示在最下方) -->
@@ -471,80 +433,7 @@ const renderedContent = computed(() => {
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* ── 生成中的状态卡片与动效 ── */
-.generating-status-container {
-  margin-top: 12px;
-}
-
-.active-tool-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: var(--surface, rgba(255, 255, 255, 0.8));
-  border: 1px solid rgba(222, 67, 49, 0.25);
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(222, 67, 49, 0.08);
-  backdrop-filter: blur(12px);
-  animation: pulseBadge 2s ease-in-out infinite;
-}
-
-[data-theme="dark"] .active-tool-badge {
-  background: rgba(30, 32, 40, 0.85);
-  border-color: rgba(99, 133, 255, 0.35);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes pulseBadge {
-  0%, 100% {
-    border-color: rgba(222, 67, 49, 0.25);
-  }
-  50% {
-    border-color: rgba(222, 67, 49, 0.55);
-  }
-}
-
-.active-tool-spin {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.tool-type-icon {
-  color: var(--accent, #DE4331);
-}
-
-.active-tool-texts {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.active-tool-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink, #18181b);
-}
-
-[data-theme="dark"] .active-tool-title {
-  color: #f4f4f5;
-}
-
-.active-tool-sub {
-  font-size: 13px;
-  color: var(--ink-muted, #71717a);
-}
-
-/* 流式输出轻量闪烁光标 */
+/* ── 流式输出轻量闪烁光标 ── */
 .ai-markdown-wrap {
   position: relative;
   display: inline-block;

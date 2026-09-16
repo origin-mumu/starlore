@@ -113,7 +113,7 @@ const getCardStyle = (idx: number) => {
   const scale = isCenter ? 1 : isNeighbor ? 0.9 : 0.8
   const opacity = isCenter ? 1 : isNeighbor ? 0.65 : 0
   const zIndex = isCenter ? 10 : isNeighbor ? 5 : 1
-  const pointerEvents = isHidden ? 'none' : 'auto'
+  const pointerEvents: 'none' | 'auto' = isHidden ? 'none' : 'auto'
 
   return {
     transform: `translateX(${translateX}px) scale(${scale})`,
