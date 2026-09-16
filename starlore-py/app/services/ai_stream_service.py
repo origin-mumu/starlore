@@ -14,10 +14,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
+async def _available_upstream_models(db: AsyncSession, config) -> list[str]:
+    """获取该厂商配置下真实可用的上游模型名列表（复用 harness 的动态模型缓存，5 分钟有效）。"""
+    try:
+        from app.services import harness_service
+
+        await harness_service.get_dynamic_models(db)
+        vendor_map = harness_service._MODEL_CACHE.get("model_vendor_map", {})
+        base = (config.apiUrl or "").rstrip("/")
+        seen: list[str] = []
+        for url, _key, real_mid in vendor_map.values():
+            if url.rstrip("/") == base and real_mid not in seen:
+                seen.append(real_mid)
+        return seen
+    except Exception as e:
+        logger.warning("Failed to fetch available upstream models: %s", e)
+        return []
+
+
+def _pick_fallback_model(available: list[str], config) -> str | None:
+    """从真实可用列表中挑选默认模型：配置默认 → deepseek 系 → 列表第一个。"""
+    if not available:
+        return None
+    if config.modelId and config.modelId in available:
+        return config.modelId
+    for m in available:
+        if "deepseek" in m.lower():
+            return m
+    return available[0]
+
+
 async def _resolve_model(db: AsyncSession, model: str, temperature: float = 0.7) -> ChatOpenAI:
     """解析模型配置，返回 LangChain ChatOpenAI 实例。"""
     provider_key = None
-    target_model = model or "deepseek-chat"
+    target_model = (model or "").strip()
 
     if "::" in target_model:
         provider_key, target_model = target_model.split("::", 1)
@@ -51,7 +81,18 @@ async def _resolve_model(db: AsyncSession, model: str, temperature: float = 0.7)
             extra_kwargs["default_headers"] = {"api-key": db_config.apiKey}
 
         # 动态使用传入的具体模型名，若传入的是 providerKey 则使用默认 modelId
-        actual_model = target_model if target_model != db_config.modelKey else (db_config.modelId or target_model)
+        actual_model = target_model if target_model and target_model != db_config.modelKey else (db_config.modelId or target_model)
+
+        # 校验模型在该厂商真实存在，不存在的旧模型名（如 deepseek-chat）回退到网关实际可用模型
+        available = await _available_upstream_models(db, db_config)
+        if available:
+            if actual_model not in available:
+                fallback = _pick_fallback_model(available, db_config)
+                if fallback:
+                    logger.info("Model %r unavailable at %s, falling back to %r", actual_model, base_url, fallback)
+                    actual_model = fallback
+        elif not actual_model:
+            actual_model = db_config.modelId or "deepseek-chat"
 
         return ChatOpenAI(
             base_url=base_url,

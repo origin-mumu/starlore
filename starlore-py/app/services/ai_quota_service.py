@@ -7,6 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 
+# 角色默认每日额度：admin 不限流，member 99 次，其余角色 10 次
+_ROLE_DEFAULT_LIMITS = {"member": 99}
+_DEFAULT_LIMIT = 10
+
+
+def _effective_limit(user: User) -> int:
+    """生效额度：用户个人 ai_daily_limit 优先，未设置时按角色默认。"""
+    return user.ai_daily_limit or _ROLE_DEFAULT_LIMITS.get(user.role, _DEFAULT_LIMIT)
+
 
 async def get_remaining(db: AsyncSession, user_id: int) -> int:
     """获取用户今日剩余 AI 调用次数。-1 表示无限制。"""
@@ -23,7 +32,7 @@ async def get_remaining(db: AsyncSession, user_id: int) -> int:
         user.ai_reset_date = date.today()
         await db.flush()
 
-    limit = user.ai_daily_limit or 10
+    limit = _effective_limit(user)
     return max(0, limit - user.ai_today_count)
 
 
@@ -41,7 +50,7 @@ async def try_consume(db: AsyncSession, user_id: int) -> bool:
         user.ai_today_count = 0
         user.ai_reset_date = date.today()
 
-    limit = user.ai_daily_limit or 10
+    limit = _effective_limit(user)
     if user.ai_today_count >= limit:
         return False
 
@@ -65,7 +74,7 @@ async def get_quota_info(db: AsyncSession, user_id: int) -> dict:
         user.ai_reset_date = date.today()
         await db.flush()
 
-    limit = user.ai_daily_limit or 10
+    limit = _effective_limit(user)
     used = user.ai_today_count
 
     return {

@@ -125,9 +125,31 @@ def _sse_response(db: AsyncSession, model: str, messages: list[dict]) -> Streami
     )
 
 
+def _quota_exhausted_response(message: str) -> StreamingResponse:
+    """配额耗尽时返回的 SSE 响应，以 content 形式提示前端展示。"""
+    async def _gen():
+        yield f"data: {json.dumps({'content': message}, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        _gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
+async def _consume_quota_or_respond(db: AsyncSession, user: User) -> StreamingResponse | None:
+    """校验并消耗一次 AI 配额；耗尽时返回提示响应，否则返回 None。"""
+    remaining = await ai_quota_service.get_remaining(db, user.id)
+    if remaining == 0:
+        return _quota_exhausted_response("今日 AI 调用次数已用尽，明天再来吧～")
+    await ai_quota_service.try_consume(db, user.id)
+    return None
+
+
 @router.get("/sse")
 async def sse_get(
-    model: str = Query("deepseek-chat"),
+    model: str = Query(""),
     messages: str = Query("[]"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -136,6 +158,9 @@ async def sse_get(
         msg_list = json.loads(messages)
     except Exception:
         msg_list = []
+    quota_resp = await _consume_quota_or_respond(db, user)
+    if quota_resp:
+        return quota_resp
     return _sse_response(db, model, msg_list)
 
 
@@ -146,8 +171,11 @@ async def sse_post(
     db: AsyncSession = Depends(get_db),
 ):
     body = await request.json()
-    model = body.get("model", "deepseek-chat")
+    model = body.get("model", "")
     messages = body.get("messages", [])
+    quota_resp = await _consume_quota_or_respond(db, user)
+    if quota_resp:
+        return quota_resp
     return _sse_response(db, model, messages)
 
 
@@ -158,15 +186,18 @@ async def thinking_sse(
     db: AsyncSession = Depends(get_db),
 ):
     body = await request.json()
-    model = body.get("model", "deepseek-reasoner")
+    model = body.get("model", "")
     messages = body.get("messages", [])
+    quota_resp = await _consume_quota_or_respond(db, user)
+    if quota_resp:
+        return quota_resp
     return _sse_response(db, model, messages)
 
 
 @router.post("/agent-sse")
 async def agent_sse(
     request: Request,
-    model: str = "deepseek-chat",
+    model: str = "",
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -272,7 +272,6 @@ async function sendAiMessage() {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: 'deepseek-chat',
         messages: apiMessages,
       }),
       signal: aiAbortController.signal,

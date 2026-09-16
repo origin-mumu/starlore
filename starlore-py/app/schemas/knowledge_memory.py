@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class GenerateKnowledgeCardsRequest(BaseModel):
     articleIds: list[int] = Field(min_length=1, max_length=10)
-    model: str = "deepseek-chat"
+    model: str = ""
     maxCardsPerArticle: int = Field(default=20, ge=3, le=40)
 
 

@@ -1,5 +1,6 @@
 """Harness 路由：会话管理、动态模型获取、SSE 流式内容生成。"""
 
+import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -17,7 +18,7 @@ from app.schemas.harness import (
     HarnessSessionResponse,
     HarnessSessionUpdate,
 )
-from app.services import harness_agent_service, harness_service
+from app.services import ai_quota_service, harness_agent_service, harness_service
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,24 @@ async def chat_stream(
     session = await harness_service.get_session(db, session_id, user.id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+
+    # 按用户角色限制每日调用次数：admin 无限，member 99 次，user 10 次
+    remaining = await ai_quota_service.get_remaining(db, user.id)
+    if remaining == 0:
+        async def quota_exhausted():
+            yield (
+                "event: error\n"
+                "data: "
+                + json.dumps({"message": "今日 AI 调用次数已用尽，请明天再来或联系管理员提升额度"}, ensure_ascii=False)
+                + "\n\n"
+            )
+
+        return StreamingResponse(
+            quota_exhausted(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+    await ai_quota_service.try_consume(db, user.id)
 
     stream_gen = harness_agent_service.run_harness_turn(
         db=db,
