@@ -108,7 +108,7 @@ jobs:
             set -e
             cd /opt/starlore
             if [ "${{ steps.changes.outputs.stack }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              docker-compose pull
+              docker-compose pull starlore-py starlore-front starlore-admin
               docker-compose up -d --remove-orphans
             else
               if [ "${{ steps.changes.outputs.py }}" = "true" ]; then
