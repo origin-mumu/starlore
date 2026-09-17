@@ -15,6 +15,7 @@ import {
   Sunny,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { Orbit } from 'lucide-vue-next'
 
 interface NavItem {
   path: string
@@ -60,7 +61,9 @@ async function handleLogout(): Promise<void> {
   <div class="admin-shell">
     <aside class="app-sidebar">
       <div class="brand">
-        <div class="brand-mark">星</div>
+        <div class="brand-mark">
+          <Orbit class="brand-icon" :size="22" :stroke-width="2.2" />
+        </div>
         <div class="brand-text">
           <span class="brand-name">Starlore</span>
           <span class="brand-sub">管理控制台</span>

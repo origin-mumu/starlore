@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { Orbit } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +43,9 @@ async function handleLogin(): Promise<void> {
   <div class="login-page">
     <div class="login-card">
       <div class="login-brand">
-        <div class="brand-mark">星</div>
+        <div class="brand-mark">
+          <Orbit :size="26" :stroke-width="2.2" />
+        </div>
         <h1>Starlore 管理控制台</h1>
         <p>仅管理员账号可登录后台</p>
       </div>
@@ -108,12 +111,10 @@ async function handleLogin(): Promise<void> {
   height: 52px;
   margin: 0 auto 14px;
   place-items: center;
-  background: linear-gradient(145deg, var(--brand-secondary-soft), var(--brand-subtle));
+  background: linear-gradient(145deg, var(--brand-subtle), rgba(110, 231, 183, 0.12));
   border-radius: 16px;
   box-shadow: var(--shadow-button);
   color: var(--brand-primary);
-  font-size: 24px;
-  font-weight: 700;
 }
 
 .login-brand h1 {
