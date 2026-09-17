@@ -119,6 +119,8 @@
   --el-border-radius-base: 12px;
   --el-border-radius-small: 10px;
   --el-dialog-border-radius: var(--radius-md);
+  --el-popper-border-radius: 12px;
+  --el-message-border-radius: 14px;
   --el-font-family: var(--font-family-base);
 }
 

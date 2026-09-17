@@ -146,6 +146,53 @@ body {
   color: var(--text-muted);
 }
 
+/* ── Element Plus 大圆角统一 ── */
+.el-button {
+  border-radius: 12px;
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: 10px;
+}
+
+.el-date-editor.el-input__wrapper,
+.el-date-editor.el-range-editor.el-input__wrapper {
+  border-radius: 10px;
+}
+
+/* 下拉/弹出面板（select 下拉、日期面板、popper） */
+.el-popper {
+  border-radius: 12px;
+}
+
+.el-select-dropdown,
+.el-picker-panel,
+.el-date-picker {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* 分页器 */
+.el-pagination.is-background .el-pager li,
+.el-pagination.is-background .btn-prev,
+.el-pagination.is-background .btn-next {
+  border-radius: 10px;
+}
+
+/* 消息提示 */
+.el-message {
+  border-radius: 14px;
+}
+
+/* 弹窗内表单元素同样生效（弹窗内是嵌套命名空间） */
+.el-dialog .el-input__wrapper,
+.el-dialog .el-select__wrapper,
+.el-dialog .el-textarea__inner {
+  border-radius: 10px;
+}
+
 .el-dialog {
   border-radius: var(--radius-md);
 }
