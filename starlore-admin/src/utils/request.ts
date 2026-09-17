@@ -2,17 +2,20 @@ import axios, { type AxiosRequestConfig } from 'axios'
 
 const TOKEN_KEY = 'ro_blog_admin_token'
 const ROLE_KEY = 'admin_user_role'
-const LOGGED_IN_KEY = 'isLoggedIn'
+const USER_KEY = 'admin_user_info'
 
-export { TOKEN_KEY, ROLE_KEY, LOGGED_IN_KEY }
+export { TOKEN_KEY, ROLE_KEY, USER_KEY }
+
+/** 会话过期/失效时广播，由 main.ts 统一清理并跳转登录页 */
+export const UNAUTHORIZED_EVENT = 'starlore:unauthorized'
 
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(ROLE_KEY)
-  localStorage.removeItem(LOGGED_IN_KEY)
+  localStorage.removeItem(USER_KEY)
 }
 
-const instance = axios.create({ baseURL: '/api' })
+const instance = axios.create({ baseURL: '/api', timeout: 60_000 })
 
 instance.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY)
@@ -28,9 +31,12 @@ instance.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       clearSession()
-      window.location.href = '/login'
+      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
+    } else if (err.response?.status === 403) {
+      return Promise.reject(new Error(err.response?.data?.detail ?? '需要管理员权限'))
     }
-    const message: string = err.response?.data?.message ?? '网络错误'
+    const message: string =
+      err.response?.data?.message ?? err.response?.data?.detail ?? '网络错误，请稍后重试'
     return Promise.reject(new Error(message))
   },
 )

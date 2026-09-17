@@ -1,42 +1,37 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { loginService } from '@/api/auth'
-import { useUserStore } from '@/stores/user'
-import { Loading } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
+const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
+const auth = useAuthStore()
 
+const formRef = ref<FormInstance>()
 const loading = ref(false)
-const errorMessage = ref('')
-
-const loginForm = reactive({
+const form = reactive({
   username: '',
   password: '',
 })
 
-const handleLogin = async (): Promise<void> => {
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    const result = await loginService({ ...loginForm }) as any
-    const loginData = result?.data?.token ? result.data : result
-    const token = loginData?.token
-    const user = loginData?.user
+const rules: FormRules = {
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+}
 
-    if (!token || !user) {
-      errorMessage.value = '登录失败，返回数据异常'
-      return
-    }
-    if (user.role !== 'admin') {
-      errorMessage.value = '仅管理员可登录后台管理系统'
-      return
-    }
-    userStore.setSession(token, user.role)
-    router.push('/admin/articles')
+async function handleLogin(): Promise<void> {
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
+  loading.value = true
+  try {
+    await auth.login({ username: form.username.trim(), password: form.password })
+    ElMessage.success('欢迎回来，管理员')
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    void router.replace(redirect)
   } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : '用户名或密码错误'
+    ElMessage.error(err instanceof Error ? err.message : '登录失败')
   } finally {
     loading.value = false
   }
@@ -46,148 +41,96 @@ const handleLogin = async (): Promise<void> => {
 <template>
   <div class="login-page">
     <div class="login-card">
-      <div class="login-card__header">
-        <div class="login-card__brand-mark">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path d="M12 2l2.4 6.3L21 9.3l-5 4.4 1.5 6.6L12 16.8 6.5 20.3 8 13.7 3 9.3l6.6-1L12 2z" />
-          </svg>
-        </div>
-        <h1 class="login-card__title">Starlore</h1>
-        <p class="login-card__subtitle">后台管理系统</p>
+      <div class="login-brand">
+        <div class="brand-mark">星</div>
+        <h1>Starlore 管理控制台</h1>
+        <p>仅管理员账号可登录后台</p>
       </div>
 
-      <form class="login-card__form" @submit.prevent="handleLogin">
-        <div class="form-field">
-          <label for="username">用户名</label>
-          <input
-            id="username"
-            v-model="loginForm.username"
-            class="form-input"
-            type="text"
-            placeholder="请输入用户名"
-            autocomplete="username"
-            required
-          />
-        </div>
-
-        <div class="form-field">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="loginForm.password"
-            class="form-input"
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        size="large"
+        @keyup.enter="handleLogin"
+      >
+        <el-form-item prop="username">
+          <el-input v-model="form.username" placeholder="用户名" :prefix-icon="User" autocomplete="username" />
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input
+            v-model="form.password"
             type="password"
-            placeholder="请输入密码"
+            placeholder="密码"
+            :prefix-icon="Lock"
+            show-password
             autocomplete="current-password"
-            required
           />
-        </div>
-
-        <button class="btn btn--primary login-card__submit" type="submit" :disabled="loading">
-          <el-icon v-if="loading" class="is-loading"><Loading /></el-icon>
-          <span>{{ loading ? '登录中...' : '登录' }}</span>
-        </button>
-
-        <Transition name="error-fade">
-          <div v-if="errorMessage" class="login-card__error">{{ errorMessage }}</div>
-        </Transition>
-      </form>
-
-      <p class="login-card__footer">请使用知识库账号登录</p>
+        </el-form-item>
+        <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">
+          登 录
+        </el-button>
+      </el-form>
     </div>
   </div>
 </template>
 
 <style scoped>
 .login-page {
+  display: grid;
+  place-items: center;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 82% 8%, var(--brand-glow-soft), transparent 28%),
+    radial-gradient(circle at 15% 92%, var(--accent-glow-soft), transparent 26%),
+    var(--bg-app);
 }
 
 .login-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 44px 36px 30px;
+  width: 400px;
+  padding: 40px 38px 36px;
   background: var(--surface-glass);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   border: var(--border-glass);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(18px);
 }
 
-.login-card__header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 28px;
+.login-brand {
+  margin-bottom: 26px;
   text-align: center;
 }
 
-.login-card__brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
-  color: #fff;
+.brand-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  place-items: center;
+  background: linear-gradient(145deg, var(--brand-secondary-soft), var(--brand-subtle));
+  border-radius: 16px;
   box-shadow: var(--shadow-button);
-  margin-bottom: 4px;
-}
-
-.login-card__title {
-  font-size: 1.5rem;
+  color: var(--brand-primary);
+  font-size: 24px;
   font-weight: 700;
+}
+
+.login-brand h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
 }
 
-.login-card__subtitle {
-  font-size: 0.85rem;
+.login-brand p {
+  margin: 0;
+  font-size: 12.5px;
   color: var(--text-muted);
 }
 
-.login-card__form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.login-card__submit {
+.login-btn {
   width: 100%;
-  padding: 12px;
-  font-size: 0.95rem;
-  margin-top: 4px;
-}
-
-.login-card__error {
-  padding: 10px 14px;
-  background: var(--color-danger-subtle);
-  color: var(--color-danger);
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.error-fade-enter-active {
-  transition: all var(--transition-normal);
-}
-
-.error-fade-enter-from {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-.login-card__footer {
-  margin-top: 22px;
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  margin-top: 6px;
+  letter-spacing: 4px;
 }
 </style>

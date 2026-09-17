@@ -1,23 +1,24 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { User } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import {
-  getUserListService,
-  updateUserService,
   deleteUserService,
+  getUserListService,
   reindexService,
+  updateUserService,
 } from '@/api/user'
-import type { UserItem, UserPayload } from '@/types'
-import AppModal from '@/components/common/AppModal.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-import LoadingState from '@/components/common/LoadingState.vue'
+import type { UserItem } from '@/types'
 
-const users = ref<UserItem[]>([])
 const loading = ref(false)
+const users = ref<UserItem[]>([])
+const keyword = ref('')
 
-const editDialogVisible = ref(false)
-const editingUserId = ref<number>(0)
-const editForm = reactive<UserPayload>({
+const dialogVisible = ref(false)
+const saving = ref(false)
+const editing = ref<UserItem | null>(null)
+
+const form = reactive({
   nickname: '',
   email: '',
   bio: '',
@@ -28,215 +29,219 @@ const editForm = reactive<UserPayload>({
   aiDailyLimit: 10,
 })
 
-const reindexingId = ref<number | null>(null)
+const ROLE_LABELS: Record<string, string> = {
+  admin: '管理员',
+  member: '会员',
+  user: '普通用户',
+}
 
-const fetchUsers = async (): Promise<void> => {
+const filteredUsers = (): UserItem[] => {
+  const kw = keyword.value.trim().toLowerCase()
+  if (!kw) return users.value
+  return users.value.filter(
+    (u) =>
+      u.username.toLowerCase().includes(kw) ||
+      (u.nickname ?? '').toLowerCase().includes(kw) ||
+      (u.email ?? '').toLowerCase().includes(kw),
+  )
+}
+
+function usageText(u: UserItem): string {
+  return `${u.aiTodayCount ?? 0} / ${u.aiDailyLimit ?? 10}`
+}
+
+function usagePercent(u: UserItem): number {
+  const limit = u.aiDailyLimit ?? 10
+  if (limit <= 0) return 0
+  return Math.min(100, Math.round(((u.aiTodayCount ?? 0) / limit) * 100))
+}
+
+function openEdit(u: UserItem): void {
+  editing.value = u
+  form.nickname = u.nickname ?? ''
+  form.email = u.email ?? ''
+  form.bio = u.bio ?? ''
+  form.location = u.location ?? ''
+  form.website = u.website ?? ''
+  form.github = u.github ?? ''
+  form.role = u.role
+  form.aiDailyLimit = u.aiDailyLimit ?? 10
+  dialogVisible.value = true
+}
+
+async function handleSave(): Promise<void> {
+  if (!editing.value) return
+  saving.value = true
+  try {
+    await updateUserService(editing.value.id, { ...form })
+    ElMessage.success('用户信息已更新')
+    dialogVisible.value = false
+    await loadUsers()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '更新失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete(u: UserItem): Promise<void> {
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除用户「${u.username}」吗？该操作不可恢复。`,
+    '删除确认',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+  ).catch(() => false)
+  if (!confirmed) return
+  try {
+    await deleteUserService(u.id)
+    ElMessage.success('已删除')
+    await loadUsers()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+  }
+}
+
+async function handleReindex(u: UserItem): Promise<void> {
+  try {
+    await reindexService(u.id)
+    ElMessage.success(`已为「${u.username}」重建语义索引`)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '重建索引失败')
+  }
+}
+
+async function loadUsers(): Promise<void> {
   loading.value = true
   try {
-    users.value = (await getUserListService()) ?? []
-  } catch (error) {
-    console.error('获取用户列表失败:', error)
+    users.value = await getUserListService()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载用户失败')
   } finally {
     loading.value = false
   }
 }
 
-const openEditDialog = (user: UserItem): void => {
-  editingUserId.value = user.id
-  editForm.nickname = user.nickname || ''
-  editForm.email = user.email || ''
-  editForm.bio = user.bio || ''
-  editForm.location = user.location || ''
-  editForm.website = user.website || ''
-  editForm.github = user.github || ''
-  editForm.role = user.role || 'user'
-  editForm.aiDailyLimit = user.aiDailyLimit ?? 10
-  editDialogVisible.value = true
-}
-
-const submitEdit = async (): Promise<void> => {
-  try {
-    await updateUserService(editingUserId.value, { ...editForm })
-    editDialogVisible.value = false
-    ElMessage.success('保存成功')
-    await fetchUsers()
-  } catch (error) {
-    console.error('更新用户失败:', error)
-    ElMessage.error('更新失败，请重试')
-  }
-}
-
-const confirmDelete = async (user: UserItem): Promise<void> => {
-  if (!confirm(`确定删除观星者「${user.username}」吗？`)) return
-  try {
-    await deleteUserService(user.id)
-    ElMessage.success('删除成功')
-    await fetchUsers()
-  } catch (error) {
-    console.error('删除用户失败:', error)
-    ElMessage.error('删除失败，请重试')
-  }
-}
-
-const handleReindex = async (userId: number): Promise<void> => {
-  if (reindexingId.value !== null) return
-  reindexingId.value = userId
-  try {
-    const result = await reindexService(userId)
-    ElMessage.success(result.message || '索引重建成功')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error(`重建失败: ${message}`)
-  } finally {
-    reindexingId.value = null
-  }
-}
-
-const roleLabel = (role: string): string =>
-  role === 'admin' ? '管理员' : role === 'member' ? '会员' : '普通观星者'
-
-const rolePillClass = (role: string): string =>
-  role === 'admin' ? 'pill--brand' : role === 'member' ? 'pill--warning' : 'pill--info'
-
-const formatDate = (date: string): string =>
-  date ? new Date(date).toLocaleDateString('zh-CN') : '-'
-
-onMounted(() => {
-  void fetchUsers()
-})
+onMounted(loadUsers)
 </script>
 
 <template>
-  <div class="user-list">
-    <header class="page-header">
-      <div>
-        <h1 class="page-title">观星者管理</h1>
-        <p class="page-subtitle">共 {{ users.length }} 位观星者</p>
-      </div>
-    </header>
-
-    <LoadingState v-if="loading" />
-
-    <EmptyState v-else-if="users.length === 0" text="暂无观星者数据">
-      <template #icon>
-        <el-icon><User /></el-icon>
-      </template>
-    </EmptyState>
-
-    <div
-      v-else
-      class="data-table"
-      style="--table-cols: 0.5fr 1fr 1fr 0.9fr 0.8fr 1.3fr 1fr 1.8fr"
-    >
-      <div class="data-table__header">
-        <div>ID</div>
-        <div>用户名</div>
-        <div>昵称</div>
-        <div>角色</div>
-        <div>每日上限</div>
-        <div>邮箱</div>
-        <div>注册时间</div>
-        <div>操作</div>
-      </div>
-      <div v-for="user in users" :key="user.id" class="data-table__row">
-        <div>{{ user.id }}</div>
-        <div><span class="cell-primary">{{ user.username }}</span></div>
-        <div>{{ user.nickname || '-' }}</div>
-        <div>
-          <span class="pill" :class="rolePillClass(user.role)">{{ roleLabel(user.role) }}</span>
-        </div>
-        <div>{{ user.aiDailyLimit ?? 10 }}</div>
-        <div>{{ user.email || '-' }}</div>
-        <div>{{ formatDate(user.createdAt) }}</div>
-        <div>
-          <div class="user-list__actions">
-            <button class="btn btn--secondary btn--sm" type="button" @click="openEditDialog(user)">
-              编辑
-            </button>
-            <button
-              class="btn btn--secondary btn--sm"
-              type="button"
-              :disabled="reindexingId !== null"
-              @click="handleReindex(user.id)"
-            >
-              {{ reindexingId === user.id ? '索引中...' : '索引' }}
-            </button>
-            <button class="btn btn--danger btn--sm" type="button" @click="confirmDelete(user)">
-              删除
-            </button>
-          </div>
-        </div>
-      </div>
+  <div>
+    <div class="page-head">
+      <el-input
+        v-model="keyword"
+        placeholder="搜索用户名 / 昵称 / 邮箱"
+        clearable
+        :prefix-icon="Search"
+        style="width: 260px"
+      />
+      <span class="total-hint">共 {{ users.length }} 位观星者</span>
     </div>
 
-    <AppModal title="编辑观星者" :width="500" @close="editDialogVisible = false">
-      <div class="user-list__form">
-        <div class="form-field">
-          <label>昵称</label>
-          <input v-model="editForm.nickname" class="form-input" type="text" />
-        </div>
-        <div class="form-field">
-          <label>邮箱</label>
-          <input v-model="editForm.email" class="form-input" type="email" />
-        </div>
-        <div class="form-field">
-          <label>个人简介</label>
-          <textarea v-model="editForm.bio" class="form-textarea" rows="3"></textarea>
-        </div>
-        <div class="user-list__form-row">
-          <div class="form-field">
-            <label>所在地</label>
-            <input v-model="editForm.location" class="form-input" type="text" />
-          </div>
-          <div class="form-field">
-            <label>角色</label>
-            <select v-model="editForm.role" class="form-select">
-              <option value="user">普通观星者</option>
-              <option value="member">会员</option>
-              <option value="admin">管理员</option>
-            </select>
-          </div>
-        </div>
-        <div class="user-list__form-row">
-          <div class="form-field">
-            <label>网站</label>
-            <input v-model="editForm.website" class="form-input" type="text" />
-          </div>
-          <div class="form-field">
-            <label>GitHub</label>
-            <input v-model="editForm.github" class="form-input" type="text" />
-          </div>
-        </div>
-        <div class="form-field">
-          <label>每日 AI 上限（-1 为不限）</label>
-          <input v-model.number="editForm.aiDailyLimit" class="form-input" type="number" min="-1" />
-        </div>
-      </div>
+    <div class="table-wrap">
+      <el-table v-loading="loading" :data="filteredUsers()" empty-text="暂无用户">
+        <el-table-column prop="username" label="用户名" min-width="120" />
+        <el-table-column prop="nickname" label="昵称" min-width="110">
+          <template #default="{ row }">{{ row.nickname || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="角色" width="100">
+          <template #default="{ row }">
+            <span class="pill muted">{{ ROLE_LABELS[row.role] ?? row.role }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="今日 AI 用量" min-width="170">
+          <template #default="{ row }">
+            <div class="usage-cell">
+              <el-progress
+                :percentage="usagePercent(row)"
+                :stroke-width="7"
+                :show-text="false"
+                class="usage-bar"
+              />
+              <span class="usage-text">{{ usageText(row) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="注册时间" min-width="150">
+          <template #default="{ row }">
+            {{ row.createdAt ? new Date(row.createdAt).toLocaleDateString('zh-CN') : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link @click="handleReindex(row)">重建索引</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-dialog v-model="dialogVisible" :title="`编辑用户：${editing?.username ?? ''}`" width="560px">
+      <el-form :model="form" label-width="92px">
+        <el-form-item label="角色">
+          <el-radio-group v-model="form.role">
+            <el-radio-button value="user">普通用户</el-radio-button>
+            <el-radio-button value="member">会员</el-radio-button>
+            <el-radio-button value="admin">管理员</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="AI 日限额">
+          <el-input-number v-model="form.aiDailyLimit" :min="0" :max="9999" />
+          <span class="form-hint">0 表示按角色默认（member 99 / user 10）</span>
+        </el-form-item>
+        <el-form-item label="昵称">
+          <el-input v-model="form.nickname" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="form.email" />
+        </el-form-item>
+        <el-form-item label="位置">
+          <el-input v-model="form.location" />
+        </el-form-item>
+        <el-form-item label="网站">
+          <el-input v-model="form.website" />
+        </el-form-item>
+        <el-form-item label="GitHub">
+          <el-input v-model="form.github" />
+        </el-form-item>
+        <el-form-item label="简介">
+          <el-input v-model="form.bio" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <button class="btn btn--secondary" type="button" @click="editDialogVisible = false">
-          取消
-        </button>
-        <button class="btn btn--primary" type="button" @click="submitEdit">保存</button>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
-    </AppModal>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.user-list__actions {
+.total-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.usage-cell {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
-.user-list__form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.usage-bar {
+  flex: 1;
+  --el-progress-color: var(--brand-primary);
 }
 
-.user-list__form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+.usage-text {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.form-hint {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

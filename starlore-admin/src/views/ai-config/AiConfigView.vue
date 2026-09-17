@@ -1,26 +1,23 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Plus, Cpu } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import {
-  getAiConfigsService,
   createAiConfigService,
-  updateAiConfigService,
   deleteAiConfigService,
+  getAiConfigsService,
+  updateAiConfigService,
 } from '@/api/ai-config'
-import type { AiConfigItem, AiConfigPayload } from '@/types'
-import AppModal from '@/components/common/AppModal.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-import LoadingState from '@/components/common/LoadingState.vue'
+import type { AiConfigItem } from '@/types'
 
-const configs = ref<AiConfigItem[]>([])
 const loading = ref(false)
-const saving = ref(false)
-
+const configs = ref<AiConfigItem[]>([])
 const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const currentId = ref<number | null>(null)
+const saving = ref(false)
+/** 正在编辑的配置 id；null 表示新建 */
+const editingId = ref<number | null>(null)
 
-const form = reactive<AiConfigPayload>({
+const form = reactive({
   modelKey: '',
   modelName: '',
   apiUrl: '',
@@ -29,257 +26,162 @@ const form = reactive<AiConfigPayload>({
   enabled: true,
 })
 
-const fetchConfigs = async (): Promise<void> => {
-  loading.value = true
-  try {
-    configs.value = (await getAiConfigsService()) ?? []
-  } catch (error) {
-    console.error('获取AI配置失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
-const resetForm = (): void => {
-  Object.assign(form, {
-    modelKey: '',
-    modelName: '',
-    apiUrl: '',
-    modelId: '',
-    apiKey: '',
-    enabled: true,
-  })
-  currentId.value = null
-}
-
-const openCreateDialog = (): void => {
-  resetForm()
-  dialogMode.value = 'create'
+/** 编辑时 apiKey 留空 = 保留服务端已有 key（后端不回传明文） */
+function openCreate(): void {
+  editingId.value = null
+  Object.assign(form, { modelKey: '', modelName: '', apiUrl: '', modelId: '', apiKey: '', enabled: true })
   dialogVisible.value = true
 }
 
-const openEditDialog = (config: AiConfigItem): void => {
-  dialogMode.value = 'edit'
-  currentId.value = config.id
+function openEdit(item: AiConfigItem): void {
+  editingId.value = item.id
   Object.assign(form, {
-    modelKey: config.modelKey,
-    modelName: config.modelName,
-    apiUrl: config.apiUrl,
-    modelId: config.modelId,
+    modelKey: item.modelKey,
+    modelName: item.modelName,
+    apiUrl: item.apiUrl,
+    modelId: item.modelId,
     apiKey: '',
-    enabled: config.enabled,
+    enabled: item.enabled,
   })
   dialogVisible.value = true
 }
 
-const saveConfig = async (): Promise<void> => {
-  if (!form.modelKey.trim() || !form.modelId.trim()) {
-    ElMessage.warning('请填写模型标识与模型 ID')
+async function handleSave(): Promise<void> {
+  if (!form.modelKey || !form.modelName || !form.apiUrl || !form.modelId) {
+    ElMessage.warning('modelKey / modelName / apiUrl / modelId 均为必填')
     return
   }
   saving.value = true
   try {
-    if (dialogMode.value === 'edit' && currentId.value !== null) {
-      // API 永不回传已存储密钥；留空表示保持原密钥不变
-      const payload: Partial<AiConfigPayload> = { ...form }
-      if (!form.apiKey) delete payload.apiKey
-      await updateAiConfigService(currentId.value, payload)
+    if (editingId.value) {
+      const payload = { ...form }
+      if (!payload.apiKey) delete (payload as Partial<typeof form>).apiKey
+      await updateAiConfigService(editingId.value, payload)
+      ElMessage.success('配置已更新')
     } else {
       await createAiConfigService({ ...form })
+      ElMessage.success('配置已创建')
     }
     dialogVisible.value = false
-    ElMessage.success('保存成功')
-    await fetchConfigs()
-  } catch (error) {
-    console.error('保存配置失败:', error)
-    ElMessage.error('保存失败，请重试')
+    await loadConfigs()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
   } finally {
     saving.value = false
   }
 }
 
-const deleteConfig = async (id: number): Promise<void> => {
-  if (!confirm('确定要删除该配置吗？')) return
+async function handleToggle(item: AiConfigItem): Promise<void> {
   try {
-    await deleteAiConfigService(id)
-    ElMessage.success('删除成功')
-    await fetchConfigs()
-  } catch (error) {
-    console.error('删除配置失败:', error)
-    ElMessage.error('删除失败，请重试')
+    await updateAiConfigService(item.id, { enabled: item.enabled })
+    ElMessage.success(item.enabled ? '已启用' : '已停用')
+  } catch (err) {
+    item.enabled = !item.enabled
+    ElMessage.error(err instanceof Error ? err.message : '操作失败')
   }
 }
 
-const maskKey = (key: string): string => {
-  if (!key) return '未设置'
-  if (key.length <= 8) return '****'
-  return `${key.slice(0, 4)}****${key.slice(-4)}`
+async function handleDelete(item: AiConfigItem): Promise<void> {
+  const confirmed = await ElMessageBox.confirm(
+    `确定删除模型配置「${item.modelName}」吗？`,
+    '删除确认',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+  ).catch(() => false)
+  if (!confirmed) return
+  try {
+    await deleteAiConfigService(item.id)
+    ElMessage.success('已删除')
+    await loadConfigs()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+  }
 }
 
-const formatDate = (dateString: string): string =>
-  dateString ? new Date(dateString).toLocaleDateString('zh-CN') : '-'
+async function loadConfigs(): Promise<void> {
+  loading.value = true
+  try {
+    configs.value = await getAiConfigsService()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载配置失败')
+  } finally {
+    loading.value = false
+  }
+}
 
-onMounted(() => {
-  void fetchConfigs()
-})
+onMounted(loadConfigs)
 </script>
 
 <template>
-  <div class="ai-config">
-    <header class="page-header">
-      <div>
-        <h1 class="page-title">AI 配置</h1>
-        <p class="page-subtitle">大模型接入参数管理</p>
-      </div>
-      <button class="btn btn--primary" type="button" @click="openCreateDialog">
-        <el-icon><Plus /></el-icon>
-        添加模型
-      </button>
-    </header>
-
-    <LoadingState v-if="loading" />
-
-    <EmptyState v-else-if="configs.length === 0" text="暂无 AI 模型配置，请点击右上角添加">
-      <template #icon>
-        <el-icon><Cpu /></el-icon>
-      </template>
-    </EmptyState>
-
-    <div v-else class="data-table" style="--table-cols: 1fr 1fr 1.8fr 1fr 0.9fr 0.7fr 0.6fr 1fr">
-      <div class="data-table__header">
-        <div>模型标识</div>
-        <div>显示名称</div>
-        <div>API 地址</div>
-        <div>模型 ID</div>
-        <div>API 密钥</div>
-        <div>状态</div>
-        <div>创建时间</div>
-        <div>操作</div>
-      </div>
-      <div v-for="config in configs" :key="config.id" class="data-table__row">
-        <div><span class="pill pill--brand">{{ config.modelKey }}</span></div>
-        <div><span class="cell-primary">{{ config.modelName }}</span></div>
-        <div><span class="ai-config__url">{{ config.apiUrl }}</span></div>
-        <div>{{ config.modelId }}</div>
-        <div><span class="ai-config__key">{{ maskKey(config.apiKey) }}</span></div>
-        <div>
-          <span class="pill" :class="config.enabled ? 'pill--success' : 'pill--neutral'">
-            {{ config.enabled ? '已启用' : '已禁用' }}
-          </span>
-        </div>
-        <div>{{ formatDate(config.createdAt) }}</div>
-        <div>
-          <div class="ai-config__actions">
-            <button class="btn btn--secondary btn--sm" type="button" @click="openEditDialog(config)">
-              编辑
-            </button>
-            <button class="btn btn--danger btn--sm" type="button" @click="deleteConfig(config.id)">
-              删除
-            </button>
-          </div>
-        </div>
-      </div>
+  <div>
+    <div class="page-head">
+      <span class="total-hint">已接入 {{ configs.length }} 家模型服务</span>
+      <el-button type="primary" :icon="Plus" @click="openCreate">新增配置</el-button>
     </div>
 
-    <AppModal
-      :title="dialogMode === 'create' ? '添加模型配置' : '编辑模型配置'"
-      :width="560"
-      @close="dialogVisible = false"
+    <div class="table-wrap">
+      <el-table v-loading="loading" :data="configs" empty-text="暂无配置">
+        <el-table-column prop="modelName" label="服务名称" min-width="120" />
+        <el-table-column prop="modelKey" label="Key" min-width="110" />
+        <el-table-column prop="apiUrl" label="API 地址" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="modelId" label="默认模型" min-width="130" />
+        <el-table-column label="API Key" width="110">
+          <template #default>******</template>
+        </el-table-column>
+        <el-table-column label="启用" width="80">
+          <template #default="{ row }">
+            <el-switch v-model="row.enabled" @change="handleToggle(row)" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="130" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editingId ? '编辑模型配置' : '新增模型配置'"
+      width="520px"
     >
-      <div class="ai-config__form">
-        <div class="ai-config__form-row">
-          <div class="form-field">
-            <label>模型标识</label>
-            <input v-model="form.modelKey" class="form-input" type="text" placeholder="如 qwen-plus、mimo" />
-          </div>
-          <div class="form-field">
-            <label>显示名称</label>
-            <input v-model="form.modelName" class="form-input" type="text" placeholder="如 通义千问 Plus" />
-          </div>
-        </div>
-        <div class="form-field">
-          <label>API 地址</label>
-          <input
-            v-model="form.apiUrl"
-            class="form-input"
-            type="text"
-            placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+      <el-form :model="form" label-width="92px">
+        <el-form-item label="服务名称" required>
+          <el-input v-model="form.modelName" placeholder="如：newapi / DeepSeek 官方" />
+        </el-form-item>
+        <el-form-item label="modelKey" required>
+          <el-input v-model="form.modelKey" placeholder="唯一标识，如 modelapi" />
+        </el-form-item>
+        <el-form-item label="API 地址" required>
+          <el-input v-model="form.apiUrl" placeholder="如：https://api.deepseek.com/v1" />
+        </el-form-item>
+        <el-form-item label="默认模型" required>
+          <el-input v-model="form.modelId" placeholder="该服务的默认模型 ID" />
+        </el-form-item>
+        <el-form-item label="API Key">
+          <el-input
+            v-model="form.apiKey"
+            type="password"
+            show-password
+            :placeholder="editingId ? '留空则保留原 Key' : 'sk-...'"
           />
-        </div>
-        <div class="ai-config__form-row">
-          <div class="form-field">
-            <label>模型 ID</label>
-            <input v-model="form.modelId" class="form-input" type="text" placeholder="如 qwen-plus" />
-          </div>
-          <div class="form-field">
-            <label>API 密钥</label>
-            <input
-              v-model="form.apiKey"
-              class="form-input"
-              type="password"
-              :placeholder="dialogMode === 'edit' ? '留空则保持原密钥不变' : 'sk-...'"
-              autocomplete="off"
-            />
-          </div>
-        </div>
-        <label class="ai-config__switch">
-          <input v-model="form.enabled" type="checkbox" />
-          <span>{{ form.enabled ? '已启用' : '已禁用' }}</span>
-        </label>
-      </div>
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="form.enabled" />
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <button class="btn btn--secondary" type="button" @click="dialogVisible = false">取消</button>
-        <button class="btn btn--primary" type="button" :disabled="saving" @click="saveConfig">
-          {{ saving ? '保存中...' : '确认' }}
-        </button>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
-    </AppModal>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.ai-config__url {
-  font-size: 0.78rem;
+.total-hint {
+  font-size: 12.5px;
   color: var(--text-muted);
-  word-break: break-all;
-}
-
-.ai-config__key {
-  font-family: var(--font-family-mono);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.ai-config__actions {
-  display: flex;
-  gap: 8px;
-}
-
-.ai-config__form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.ai-config__form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.ai-config__switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.ai-config__switch input {
-  accent-color: var(--brand-primary);
-  width: 16px;
-  height: 16px;
 }
 </style>

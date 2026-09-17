@@ -127,6 +127,7 @@ export interface LoginLogItem {
   country: string
   province: string
   city: string
+  userAgent?: string
   loginTime: string
 }
 
@@ -158,6 +159,7 @@ export interface UserItem {
   github: string | null
   role: 'admin' | 'member' | 'user' | string
   aiDailyLimit: number
+  aiTodayCount: number
   createdAt: string
   updatedAt: string
 }
@@ -197,4 +199,78 @@ export interface AiConfigPayload {
   modelId: string
   apiKey: string
   enabled: boolean
+}
+
+/* ── AI 调用明细 ──────────────────────────── */
+
+export type AiUsageScene = 'harness' | 'chat' | 'thinking' | 'agent' | 'diverge' | 'knowledge' | string
+
+export type AiUsageStatus = 'success' | 'quota_exhausted' | 'error' | string
+
+export interface AiUsageItem {
+  id: number
+  userId: number
+  username: string | null
+  role: string | null
+  scene: AiUsageScene
+  model: string | null
+  status: AiUsageStatus
+  durationMs: number
+  tokensPrompt: number
+  tokensCompletion: number
+  createdAt: string
+}
+
+export interface AiUsageQuery {
+  page: number
+  limit: number
+  userId?: number
+  scene?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+export interface AiUsageListVO {
+  data: AiUsageItem[]
+  total: number
+  pages: number
+  current: number
+}
+
+export interface AiUsageTodayVO {
+  total: number
+  exhausted: number
+  activeUsers: number
+  tokens: number
+}
+
+export interface AiUsageTrendItem {
+  date: string
+  count: number
+}
+
+export interface AiUsageSceneDistItem {
+  scene: string
+  count: number
+}
+
+export interface AiUsageModelDistItem {
+  model: string
+  count: number
+}
+
+export interface AiUsageUserRankItem {
+  userId: number
+  username: string
+  role: string | null
+  count: number
+}
+
+export interface AiUsageSummaryVO {
+  today: AiUsageTodayVO
+  trend: AiUsageTrendItem[]
+  sceneDistribution: AiUsageSceneDistItem[]
+  modelDistribution: AiUsageModelDistItem[]
+  userRanking: AiUsageUserRankItem[]
 }

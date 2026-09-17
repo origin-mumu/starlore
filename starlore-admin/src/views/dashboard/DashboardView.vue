@@ -1,246 +1,187 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { DataLine, Document, FolderOpened, View, Plus } from '@element-plus/icons-vue'
 import { getBlogStatsService } from '@/api/article'
 import { getLoginLogsService } from '@/api/auth'
+import { getAiUsageSummaryService } from '@/api/ai-usage'
 import { useECharts } from '@/composables/useECharts'
-import type { BlogStatsVO, LoginLogItem } from '@/types'
-import StatCard from '@/components/common/StatCard.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-import LoadingState from '@/components/common/LoadingState.vue'
+import type { BlogStatsVO, LoginLogItem, AiUsageSummaryVO } from '@/types'
 
 const router = useRouter()
-const stats = ref<BlogStatsVO>()
+
+const loading = ref(true)
+const stats = ref<BlogStatsVO | null>(null)
+const aiSummary = ref<AiUsageSummaryVO | null>(null)
 const recentLogs = ref<LoginLogItem[]>([])
-const chartRef = ref<HTMLElement>()
-const { render } = useECharts(chartRef)
 
-const hasCategories = computed(() => (stats.value?.popularCategories.length ?? 0) > 0)
+const pieRef = ref<HTMLElement>()
+const trendRef = ref<HTMLElement>()
+const { render: renderPie } = useECharts(pieRef)
+const { render: renderTrend } = useECharts(trendRef)
 
-const formatLogTime = (time: string): string => {
-  if (!time) return '-'
-  return new Date(time).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const BRAND = '#b85c38'
+
+async function loadData(): Promise<void> {
+  loading.value = true
+  try {
+    const [statsRes, aiRes, logsRes] = await Promise.all([
+      getBlogStatsService().catch(() => null),
+      getAiUsageSummaryService().catch(() => null),
+      getLoginLogsService({ page: 1, limit: 8 }).catch(() => null),
+    ])
+    stats.value = statsRes
+    aiSummary.value = aiRes
+    recentLogs.value = logsRes?.data ?? []
+    renderCharts()
+  } finally {
+    loading.value = false
+  }
 }
 
-const renderCategoryChart = (data: BlogStatsVO): void => {
-  const palette = [
-    '#B85C38',
-    '#C4893A',
-    '#8B6E4E',
-    '#D4A070',
-    '#A04E2E',
-    '#C49A3A',
-    '#7A5C3E',
-    '#E8C4A0',
-    '#9E8E7A',
-  ]
-  void render({
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c}篇 ({d}%)',
-    },
-    legend: {
-      orient: 'vertical',
-      left: 'left',
-      top: 'middle',
-      textStyle: { color: '#6B5D4D', fontFamily: 'inherit' },
-    },
-    series: [
-      {
-        name: '星记数量',
-        type: 'pie',
-        radius: ['44%', '72%'],
-        center: ['62%', '50%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 10, borderColor: '#fffdf8', borderWidth: 2 },
-        label: { show: false, position: 'center' },
-        emphasis: {
-          label: { show: true, fontSize: 17, fontWeight: 'bold', fontFamily: 'inherit' },
+function renderCharts(): void {
+  const categories = stats.value?.popularCategories ?? []
+  if (pieRef.value) {
+    void renderPie({
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      series: [
+        {
+          type: 'pie',
+          radius: ['42%', '68%'],
+          itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 2 },
+          label: { show: false },
+          data: categories.map((c) => ({ name: c.name, value: c.article_count })),
         },
-        labelLine: { show: false },
-        data: data.popularCategories.map((category, index) => ({
-          name: category.name,
-          value: category.article_count || 0,
-          itemStyle: { color: palette[index % palette.length] },
-        })),
+      ],
+    })
+  }
+
+  const trend = aiSummary.value?.trend ?? []
+  if (trendRef.value) {
+    void renderTrend({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 36, right: 16, top: 24, bottom: 28 },
+      xAxis: {
+        type: 'category',
+        data: trend.map((t) => t.date.slice(5)),
+        axisLine: { lineStyle: { color: '#d4c4ad' } },
+        axisLabel: { fontSize: 11 },
       },
-    ],
-  })
-}
-
-onMounted(async () => {
-  try {
-    stats.value = await getBlogStatsService()
-    if (hasCategories.value && stats.value) renderCategoryChart(stats.value)
-  } catch (error) {
-    console.error('获取统计信息失败:', error)
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { fontSize: 11 },
+        splitLine: { lineStyle: { color: 'rgba(212,196,173,0.25)' } },
+      },
+      series: [
+        {
+          name: 'AI 调用',
+          type: 'line',
+          smooth: true,
+          symbolSize: 6,
+          lineStyle: { width: 2.5, color: BRAND },
+          itemStyle: { color: BRAND },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(184,92,56,0.22)' },
+                { offset: 1, color: 'rgba(184,92,56,0.01)' },
+              ],
+            },
+          },
+          data: trend.map((t) => t.count),
+        },
+      ],
+    })
   }
-
-  try {
-    const logs = await getLoginLogsService({ page: 1, limit: 10 })
-    recentLogs.value = logs.data ?? []
-  } catch {
-    /* 非管理员忽略 */
-  }
-})
-
-const goArticles = (): void => {
-  void router.push({ name: 'articles' })
 }
-const goCategories = (): void => {
-  void router.push({ name: 'categories' })
+
+function formatTime(value: string): string {
+  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
 }
+
+onMounted(loadData)
 </script>
 
 <template>
-  <div class="dashboard">
-    <header class="page-header">
-      <div>
-        <h1 class="page-title">知识库首页</h1>
-        <p class="page-subtitle">星域运营数据总览</p>
+  <div v-loading="loading" class="dashboard">
+    <!-- 指标卡 -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">星记总数</div>
+        <div class="stat-value">{{ stats?.totalArticles ?? '-' }}</div>
       </div>
-    </header>
-
-    <div class="dashboard__grid">
-      <StatCard label="星记总数" :value="stats?.totalArticles ?? 0">
-        <el-icon><Document /></el-icon>
-      </StatCard>
-
-      <StatCard label="星域数量" :value="stats?.totalCategories ?? 0">
-        <el-icon><FolderOpened /></el-icon>
-      </StatCard>
-
-      <StatCard label="总阅读量" :value="stats?.totalViews ?? 0">
-        <el-icon><View /></el-icon>
-      </StatCard>
-    </div>
-
-    <div v-if="hasCategories" class="bento-card dashboard__chart-card">
-      <h3 class="bento-card__title">
-        <el-icon><DataLine /></el-icon>
-        星记星域分布
-      </h3>
-      <div ref="chartRef" class="dashboard__chart"></div>
-    </div>
-
-    <div class="dashboard__row">
-      <div class="bento-card dashboard__actions">
-        <h3 class="bento-card__title">快速操作</h3>
-        <div class="dashboard__action-buttons">
-          <button class="btn btn--primary" type="button" @click="goArticles">
-            <el-icon><Plus /></el-icon>
-            新建星记
-          </button>
-          <button class="btn btn--secondary" type="button" @click="goCategories">
-            <el-icon><FolderOpened /></el-icon>
-            管理星域
-          </button>
+      <div class="stat-card">
+        <div class="stat-label">星域分类</div>
+        <div class="stat-value">{{ stats?.totalCategories ?? '-' }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">累计浏览</div>
+        <div class="stat-value">{{ stats?.totalViews ?? '-' }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日 AI 调用</div>
+        <div class="stat-value">{{ aiSummary?.today.total ?? '-' }}</div>
+        <div class="stat-hint">
+          活跃用户 {{ aiSummary?.today.activeUsers ?? 0 }} · 额度拒答 {{ aiSummary?.today.exhausted ?? 0 }}
         </div>
       </div>
+    </div>
 
-      <div class="bento-card dashboard__logs">
-        <h3 class="bento-card__title">最近登录</h3>
-        <EmptyState v-if="recentLogs.length === 0" text="暂无登录记录" />
-        <ul v-else class="dashboard__log-list">
-          <li v-for="log in recentLogs" :key="log.id" class="dashboard__log-item">
-            <span class="dashboard__log-user">{{ log.username }}</span>
-            <span class="dashboard__log-time">{{ formatLogTime(log.loginTime) }}</span>
-          </li>
-        </ul>
+    <!-- 图表行 -->
+    <div class="chart-row">
+      <div class="bento-card">
+        <h2 class="card-title">近 14 天 AI 调用趋势</h2>
+        <div ref="trendRef" class="chart-box" />
+      </div>
+      <div class="bento-card">
+        <h2 class="card-title">星域文章分布</h2>
+        <div ref="pieRef" class="chart-box" />
       </div>
     </div>
 
-    <LoadingState v-if="!stats" text="正在加载运营数据..." />
+    <!-- 最近登录 -->
+    <div class="bento-card">
+      <h2 class="card-title">
+        最近登录
+        <el-button link type="primary" @click="router.push('/admin/login-logs')">查看全部</el-button>
+      </h2>
+      <el-table :data="recentLogs" empty-text="暂无登录记录">
+        <el-table-column prop="username" label="用户" min-width="120" />
+        <el-table-column label="IP 归属" min-width="180">
+          <template #default="{ row }">
+            {{ [row.country, row.province, row.city].filter(Boolean).join(' ') || row.ip || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="时间" min-width="170">
+          <template #default="{ row }">{{ formatTime(row.loginTime) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard__grid {
+.chart-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 18px;
-  margin-bottom: 18px;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.dashboard__chart-card {
-  margin-bottom: 18px;
-}
-
-.dashboard__chart {
+.chart-box {
   width: 100%;
-  height: 360px;
-  min-height: 360px;
+  height: 260px;
 }
 
-.dashboard__row {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 18px;
-}
-
-.dashboard__actions {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard__action-buttons {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 18px;
-}
-
-.dashboard__logs {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard__log-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 12px;
-}
-
-.dashboard__log-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 9px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
-  transition: background var(--transition-fast);
-}
-
-.dashboard__log-item:hover {
-  background: var(--brand-subtle);
-}
-
-.dashboard__log-user {
-  font-weight: 500;
-  font-size: 0.88rem;
-  color: var(--text-primary);
-}
-
-.dashboard__log-time {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-@media (max-width: 900px) {
-  .dashboard__row {
+@media (max-width: 1024px) {
+  .chart-row {
     grid-template-columns: 1fr;
-  }
-
-  .dashboard__chart {
-    height: 280px;
-    min-height: 280px;
   }
 }
 </style>

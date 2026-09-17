@@ -1,0 +1,210 @@
+/* ══════════════════════════════════════════════
+   AppLayout 外壳样式（玻璃侧边栏 + 顶栏 + 视口）
+   ══════════════════════════════════════════════ */
+
+.admin-shell {
+  display: flex;
+  min-height: 100vh;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 82% 5%, var(--brand-glow-soft), transparent 26%),
+    radial-gradient(circle at 18% 94%, var(--accent-glow-soft), transparent 24%),
+    var(--bg-app);
+}
+
+/* ── 玻璃侧边栏 ── */
+.app-sidebar {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 236px;
+  height: calc(100vh - 32px);
+  padding: 18px 14px;
+  overflow: hidden;
+  background: var(--surface-glass);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(18px);
+}
+
+[data-theme='dark'] .app-sidebar,
+.dark .app-sidebar {
+  background: rgba(30, 27, 24, 0.88);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 8px 18px;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  background: linear-gradient(145deg, var(--brand-secondary-soft), var(--brand-subtle));
+  border-radius: 14px;
+  box-shadow: var(--shadow-button);
+  color: var(--brand-primary);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+
+.nav-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.nav-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  position: relative;
+  background: var(--brand-subtle);
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--brand-primary);
+}
+
+.nav-icon {
+  font-size: 16px;
+}
+
+.sidebar-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.admin-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+.admin-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-role {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+}
+
+/* ── 主舞台 ── */
+.main-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 4px 0 16px;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 16px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+
+.top-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ghost-btn {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.ghost-btn:hover {
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  transform: translateY(-1px);
+}
+
+.ghost-btn.danger:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.page-viewport {
+  flex: 1;
+  padding: 0 4px 8px;
+  overflow-y: auto;
+}

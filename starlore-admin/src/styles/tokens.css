@@ -81,6 +81,11 @@
   --status-published-text: var(--color-success);
   --status-draft-bg: var(--color-warning-subtle);
   --status-draft-text: var(--color-warning);
+
+  /* 11. 外壳辅助 */
+  --brand-glow-soft: rgba(184, 92, 56, 0.1);
+  --accent-glow-soft: rgba(196, 137, 58, 0.08);
+  --border-soft: rgba(230, 220, 203, 0.9);
 }
 
 /* ════════════════════════════════════════
@@ -123,4 +128,54 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ════════════════════════════════════════
+   暗色主题（html.dark，与 Element Plus dark vars 协同）
+   ════════════════════════════════════════ */
+
+html.dark {
+  --brand-primary: #d2805c;
+  --brand-hover: #e0906c;
+  --brand-active: #e8a482;
+  --brand-secondary-soft: rgba(196, 137, 58, 0.2);
+  --brand-subtle: rgba(210, 128, 92, 0.14);
+  --brand-glow: rgba(210, 128, 92, 0.26);
+
+  --color-success: #7dbd6e;
+  --color-success-subtle: rgba(125, 189, 110, 0.16);
+  --color-warning: #d4af4e;
+  --color-warning-subtle: rgba(212, 175, 78, 0.15);
+  --color-danger: #e07a68;
+  --color-danger-subtle: rgba(224, 122, 104, 0.15);
+  --color-info: #7da3c4;
+  --color-info-subtle: rgba(125, 163, 196, 0.15);
+
+  --text-primary: #f0ece5;
+  --text-secondary: #b8ac9c;
+  --text-muted: #857a6b;
+  --text-disabled: #5f564b;
+
+  --bg-app: #16130f;
+  --surface-glass: rgba(32, 28, 24, 0.82);
+  --surface-solid: #211d19;
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --border-glass: 1px solid rgba(255, 255, 255, 0.08);
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.09);
+  --border-strong: #4a423a;
+
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.35);
+  --shadow-md:
+    0 8px 24px -4px rgba(0, 0, 0, 0.42),
+    0 4px 12px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg:
+    0 12px 35px -6px rgba(0, 0, 0, 0.5),
+    0 6px 16px -4px rgba(0, 0, 0, 0.35);
+  --shadow-modal:
+    0 24px 50px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+
+  --brand-glow-soft: rgba(210, 128, 92, 0.09);
+  --accent-glow-soft: rgba(196, 137, 58, 0.07);
 }

@@ -1,223 +1,179 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Loading } from '@element-plus/icons-vue'
-import { createArticleService, getArticleByIdService, updateArticleService, articleCategoryListService } from '@/api/article'
+import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
+import {
+  getArticleByIdService,
+  createArticleService,
+  updateArticleService,
+  articleCategoryListService,
+} from '@/api/article'
 import { useArticleEditor } from '@/composables/useArticleEditor'
-import type { ArticleStatus, CategoryItem } from '@/types'
-import '@wangeditor/editor/dist/css/style.css'
+import type { ArticleStatus } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
 
-const categories = ref<CategoryItem[]>([])
-const saving = ref(false)
-const errorMessage = ref('')
+const articleId = computed(() => {
+  const raw = route.params.id
+  return raw ? Number(Array.isArray(raw) ? raw[0] : raw) : null
+})
 
-const articleId = computed(() => (route.params.id ? Number(route.params.id) : null))
-const isEdit = computed(() => articleId.value !== null)
-const pageTitle = computed(() => (isEdit.value ? '编辑星记' : '新增星记'))
+const formRef = ref<FormInstance>()
+const saving = ref(false)
+const categories = ref<string[]>([])
 
 const form = reactive({
   title: '',
-  description: '',
   category: '',
   status: 'draft' as ArticleStatus,
+  description: '',
+  content: '',
 })
 
-const { editorRef, editorHtml, editorMode, toolbarConfig, editorConfig, handleCreated } =
-  useArticleEditor()
+const rules: FormRules = {
+  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  description: [{ required: true, message: '请输入摘要', trigger: 'blur' }],
+  content: [{ required: true, message: '请输入正文内容', trigger: 'blur' }],
+}
 
-const loadCategories = async (): Promise<void> => {
+const { editorRef, editorHtml, toolbarConfig, editorConfig, handleCreated } = useArticleEditor()
+
+async function loadArticle(): Promise<void> {
+  if (!articleId.value) return
   try {
-    categories.value = await articleCategoryListService()
-  } catch (error) {
-    console.error('获取分类列表失败:', error)
+    const detail = await getArticleByIdService(articleId.value)
+    form.title = detail.title
+    form.category = detail.category
+    form.status = detail.status
+    form.description = detail.description
+    form.content = detail.content
+    editorHtml.value = detail.content
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '文章加载失败')
   }
 }
 
-const loadArticle = async (): Promise<void> => {
-  if (articleId.value === null) return
-  try {
-    const article = await getArticleByIdService(articleId.value)
-    form.title = article.title
-    form.description = article.description ?? ''
-    form.category = article.category
-    form.status = article.status
-    editorHtml.value = article.content
-  } catch (error) {
-    console.error('加载文章失败:', error)
-    ElMessage.error('加载星记失败')
-  }
-}
-
-const validate = (): boolean => {
-  if (!form.title.trim()) {
-    errorMessage.value = '请输入星记标题'
-    return false
-  }
-  if (!form.category) {
-    errorMessage.value = '请选择星域'
-    return false
-  }
-  errorMessage.value = ''
-  return true
-}
-
-const save = async (): Promise<void> => {
-  if (!validate()) return
+async function handleSave(): Promise<void> {
+  form.content = editorHtml.value
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
   saving.value = true
   try {
-    const payload = {
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      status: form.status,
-      content: editorHtml.value,
-    }
-    if (isEdit.value && articleId.value !== null) {
-      await updateArticleService(articleId.value, payload)
-      ElMessage.success('星记编辑成功')
+    if (articleId.value) {
+      await updateArticleService(articleId.value, { ...form })
+      ElMessage.success('保存成功')
     } else {
-      await createArticleService(payload)
-      ElMessage.success('星记创建成功')
+      await createArticleService({ ...form })
+      ElMessage.success('创建成功')
     }
-    router.push({ name: 'articles' })
-  } catch (error) {
-    console.error('保存文章失败:', error)
-    ElMessage.error(isEdit.value ? '编辑星记失败' : '创建星记失败')
+    void router.push('/admin/articles')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
   } finally {
     saving.value = false
   }
 }
 
-onMounted(() => {
-  void loadCategories()
-  void loadArticle()
+onMounted(async () => {
+  const list = await articleCategoryListService().catch(() => [])
+  categories.value = list.map((c) => c.name)
+  await loadArticle()
 })
 </script>
 
 <template>
   <div class="article-form">
-    <header class="page-header">
-      <div class="article-form__toolbar">
-        <button class="btn btn--secondary btn--sm" type="button" @click="router.push({ name: 'articles' })">
-          <el-icon><ArrowLeft /></el-icon>
-          返回
-        </button>
-        <h1 class="page-title">{{ pageTitle }}</h1>
-      </div>
-      <button class="btn btn--primary" type="button" :disabled="saving" @click="save">
-        <el-icon v-if="saving" class="is-loading"><Loading /></el-icon>
-        <span>{{ saving ? '保存中...' : '保存' }}</span>
-      </button>
-    </header>
+    <div class="bento-card">
+      <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+        <el-form-item label="标题" prop="title">
+          <el-input v-model="form.title" placeholder="请输入文章标题" maxlength="120" show-word-limit />
+        </el-form-item>
 
-    <div class="bento-card article-form__body">
-      <div class="article-form__grid">
-        <div class="form-field">
-          <label>标题</label>
-          <input v-model="form.title" class="form-input" type="text" placeholder="请输入星记标题" />
+        <div class="inline-fields">
+          <el-form-item label="分类" prop="category">
+            <el-select v-model="form.category" placeholder="选择星域分类" style="width: 200px">
+              <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="状态" prop="status">
+            <el-radio-group v-model="form.status">
+              <el-radio-button value="draft">草稿</el-radio-button>
+              <el-radio-button value="published">发布</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
         </div>
-        <div class="form-field">
-          <label>星域</label>
-          <select v-model="form.category" class="form-select">
-            <option value="" disabled>请选择星域</option>
-            <option v-for="item in categories" :key="item.id" :value="item.name">
-              {{ item.name }}
-            </option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>状态</label>
-          <select v-model="form.status" class="form-select">
-            <option value="draft">草稿</option>
-            <option value="published">已发布</option>
-          </select>
-        </div>
-      </div>
 
-      <div class="form-field">
-        <label>描述</label>
-        <input v-model="form.description" class="form-input" type="text" placeholder="请输入星记描述" />
-      </div>
-
-      <div class="form-field">
-        <label>内容</label>
-        <div class="article-form__editor">
-          <Toolbar
-            class="article-form__editor-toolbar"
-            :editor="editorRef"
-            :default-config="toolbarConfig"
-            :mode="editorMode"
+        <el-form-item label="摘要" prop="description">
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="2"
+            placeholder="简要概括文章内容，将展示在列表与详情页"
+            maxlength="300"
+            show-word-limit
           />
-          <Editor
-            class="article-form__editor-area"
-            v-model="editorHtml"
-            :default-config="editorConfig"
-            :mode="editorMode"
-            @on-created="handleCreated"
-          />
-        </div>
-      </div>
+        </el-form-item>
 
-      <Transition name="error-fade">
-        <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
-      </Transition>
+        <el-form-item label="正文" prop="content">
+          <div class="editor-wrap">
+            <Toolbar class="editor-toolbar" :editor="editorRef" :default-config="toolbarConfig" :mode="'default'" />
+            <Editor
+              class="editor-content"
+              v-model="editorHtml"
+              :default-config="editorConfig"
+              :mode="'default'"
+              @on-created="handleCreated"
+            />
+          </div>
+        </el-form-item>
+      </el-form>
+
+      <div class="form-actions">
+        <el-button @click="router.push('/admin/articles')">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">
+          {{ articleId ? '保存修改' : '创建文章' }}
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.article-form__toolbar {
+@import '@wangeditor/editor/dist/css/style.css';
+
+.inline-fields {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  gap: 28px;
+  flex-wrap: wrap;
 }
 
-.article-form__body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.article-form__grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 16px;
-}
-
-.article-form__editor {
-  border: var(--border-subtle);
+.editor-wrap {
+  width: 100%;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  background: #fff;
+  z-index: 0;
 }
 
-.article-form__editor-toolbar {
-  border-bottom: var(--border-subtle);
-  background: rgba(242, 235, 217, 0.45);
+.editor-toolbar {
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-solid);
 }
 
-.article-form__editor-area {
+.editor-content {
   height: 420px;
-  min-height: 320px;
   overflow-y: hidden;
+  background: var(--surface-solid);
 }
 
-.error-fade-enter-active {
-  transition: all var(--transition-normal);
-}
-
-.error-fade-enter-from {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-@media (max-width: 900px) {
-  .article-form__grid {
-    grid-template-columns: 1fr;
-  }
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
 }
 </style>
