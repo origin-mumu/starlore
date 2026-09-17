@@ -105,6 +105,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           command_timeout: 60m
           script: |
+            set -e
             cd /opt/starlore
             if [ "${{ steps.changes.outputs.stack }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               docker-compose pull
