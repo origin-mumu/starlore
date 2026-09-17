@@ -33,10 +33,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        // target: 'http://47.94.128.65:5000',
         target: 'http://localhost:5000',
         changeOrigin: true,
-        // rewrite:(path)=>path.replace(/^\/api/,'')
       }
     }
   }

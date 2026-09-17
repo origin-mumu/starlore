@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   // 本地后端: 'http://localhost:5000' (默认)
-  // 远程服务器: 'http://47.94.128.65:5173' (通过前端容器 Nginx 转发到后端)
+  // 远程调试时通过 VITE_API_TARGET 指定后端地址（不要提交真实服务器 IP）
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:5000'
   return {
     plugins: [
