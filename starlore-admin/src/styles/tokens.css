@@ -90,9 +90,11 @@
 
 /* ════════════════════════════════════════
    Element Plus 主题映射
+   用 html:root 提高优先级：dev 模式下组件样式会在本文件之后
+   重新注入 EP 默认 :root 变量，仅靠 :root 会被冲掉
    ════════════════════════════════════════ */
 
-:root {
+html:root {
   --el-color-primary: var(--brand-primary);
   --el-color-primary-light-3: #7b90f9;
   --el-color-primary-light-5: #a7b7fb;

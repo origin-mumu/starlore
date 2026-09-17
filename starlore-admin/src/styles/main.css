@@ -146,31 +146,33 @@ body {
   color: var(--text-muted);
 }
 
-/* ── Element Plus 大圆角统一 ── */
+/* ── Element Plus 大圆角统一 ──
+   组件样式由懒加载页面在运行时注入，晚于 main.css，
+   因此这里的覆盖使用 !important 保证与注入顺序无关 */
 .el-button {
-  border-radius: 12px;
+  border-radius: 12px !important;
 }
 
 .el-input__wrapper,
 .el-textarea__inner,
 .el-select__wrapper {
-  border-radius: 10px;
+  border-radius: 10px !important;
 }
 
 .el-date-editor.el-input__wrapper,
 .el-date-editor.el-range-editor.el-input__wrapper {
-  border-radius: 10px;
+  border-radius: 10px !important;
 }
 
 /* 下拉/弹出面板（select 下拉、日期面板、popper） */
 .el-popper {
-  border-radius: 12px;
+  border-radius: 12px !important;
 }
 
 .el-select-dropdown,
 .el-picker-panel,
 .el-date-picker {
-  border-radius: 14px;
+  border-radius: 14px !important;
   overflow: hidden;
 }
 
@@ -178,12 +180,41 @@ body {
 .el-pagination.is-background .el-pager li,
 .el-pagination.is-background .btn-prev,
 .el-pagination.is-background .btn-next {
-  border-radius: 10px;
+  border-radius: 10px !important;
 }
 
 /* 消息提示 */
 .el-message {
-  border-radius: 14px;
+  border-radius: 14px !important;
+}
+
+/* ── Loading：遮罩不变色（避免加载时出现直角色块），仅保留居中品牌色 spinner ── */
+.el-loading-mask {
+  background-color: transparent !important;
+  border-radius: var(--radius-md);
+}
+
+html.dark .el-loading-mask {
+  background-color: transparent !important;
+}
+
+.el-loading-spinner {
+  margin-top: -15px;
+}
+
+.el-loading-spinner .circular {
+  width: 30px;
+  height: 30px;
+}
+
+.el-loading-spinner .path {
+  stroke: var(--brand-primary);
+}
+
+.el-loading-spinner .el-loading-text {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
 }
 
 /* 弹窗内表单元素同样生效（弹窗内是嵌套命名空间） */
