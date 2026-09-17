@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.exceptions import BadRequestException, NotFoundException
 from app.models.article import Article
 from app.models.knowledge_card import KnowledgeCard, KnowledgeReview
+from app.models.user import User
 from app.schemas.knowledge_memory import (
     GenerateKnowledgeCardsRequest,
     KnowledgeArticleItem,
@@ -22,7 +23,7 @@ from app.schemas.knowledge_memory import (
     ReviewKnowledgeCardRequest,
     UpdateKnowledgeCardRequest,
 )
-from app.services import ai_quota_service, ai_stream_service
+from app.services import ai_quota_service, ai_stream_service, ai_usage_service
 
 logger = logging.getLogger(__name__)
 
@@ -280,11 +281,19 @@ async def generate_cards(
     errors: list[dict] = []
     article_ids = list(dict.fromkeys(req.articleIds))
 
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    usage_user = user_result.scalar_one_or_none()
+
     for article_id in article_ids:
         article: Article | None = None
         try:
             article = await _owned_article(db, user_id, article_id)
-            if not await ai_quota_service.try_consume(db, user_id):
+            consumed = await ai_quota_service.try_consume(db, user_id)
+            if usage_user is not None:
+                await ai_usage_service.record_consumption(
+                    db, usage_user, scene="knowledge", model=req.model or None, consumed=consumed
+                )
+            if not consumed:
                 errors.append({"articleId": article_id, "title": article.title, "message": "今日 AI 额度已用尽"})
                 continue
             generated_cards = await _generate_article_cards(

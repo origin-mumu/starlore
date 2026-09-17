@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.harness_message import HarnessMessage
 from app.models.harness_session import HarnessSession
+from app.services.ai_usage_service import finish_log
 from app.services.harness_content_tools import HARNESS_TOOL_MAP, HARNESS_TOOLS
 from app.services.harness_service import get_session, resolve_model_credentials
 
@@ -74,6 +75,7 @@ async def run_harness_turn(
     user_input: str,
     images: list[str] | None = None,
     override_model_id: str | None = None,
+    usage_log_id: int | None = None,
 ) -> AsyncGenerator[str, None]:
     """执行一轮 ReAct 多步智能体生产循环，持续产出 SSE 事件流。"""
     start_time = time.time()
@@ -505,6 +507,14 @@ async def run_harness_turn(
         )
         db.add(assistant_msg)
         session.status = "idle"
+        if usage_log_id:
+            await finish_log(
+                db,
+                usage_log_id,
+                duration_ms=duration_ms,
+                tokens_prompt=total_prompt_tokens,
+                tokens_completion=total_completion_tokens,
+            )
         await db.commit()
 
         # 推送完成信号
@@ -519,9 +529,13 @@ async def run_harness_turn(
     except asyncio.CancelledError:
         logger.info("Harness turn cancelled by client")
         session.status = "idle"
+        if usage_log_id:
+            await finish_log(db, usage_log_id, tokens_prompt=total_prompt_tokens, tokens_completion=total_completion_tokens)
         await db.commit()
     except Exception as e:
         logger.exception("Harness turn failed: %s", e)
         session.status = "error"
+        if usage_log_id:
+            await finish_log(db, usage_log_id, status="error")
         await db.commit()
         yield _format_sse("error", {"message": f"执行遇到错误: {str(e)}"})

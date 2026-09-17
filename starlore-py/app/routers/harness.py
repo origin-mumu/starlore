@@ -18,7 +18,7 @@ from app.schemas.harness import (
     HarnessSessionResponse,
     HarnessSessionUpdate,
 )
-from app.services import ai_quota_service, harness_agent_service, harness_service
+from app.services import ai_quota_service, ai_usage_service, harness_agent_service, harness_service
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +138,11 @@ async def chat_stream(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
 
     # 按用户角色限制每日调用次数：admin 无限，member 99 次，user 10 次
+    usage_model = payload.model_id or session.model_id
     remaining = await ai_quota_service.get_remaining(db, user.id)
     if remaining == 0:
+        await ai_usage_service.record_consumption(db, user, scene="harness", model=usage_model, consumed=False)
+
         async def quota_exhausted():
             yield (
                 "event: error\n"
@@ -154,6 +157,7 @@ async def chat_stream(
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
     await ai_quota_service.try_consume(db, user.id)
+    usage_log_id = await ai_usage_service.record_consumption(db, user, scene="harness", model=usage_model, consumed=True)
 
     stream_gen = harness_agent_service.run_harness_turn(
         db=db,
@@ -162,6 +166,7 @@ async def chat_stream(
         user_input=payload.message,
         images=payload.images,
         override_model_id=payload.model_id,
+        usage_log_id=usage_log_id,
     )
 
     return StreamingResponse(

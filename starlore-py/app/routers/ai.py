@@ -30,7 +30,7 @@ from app.schemas.ai import (
     UpdateSessionRequest,
 )
 from app.exceptions import NotFoundException
-from app.services import ai_service, ai_stream_service, ai_quota_service, ai_config_service
+from app.services import ai_service, ai_stream_service, ai_quota_service, ai_config_service, ai_usage_service
 from app.services.langgraph_agent import run_agent
 
 logger = logging.getLogger(__name__)
@@ -138,12 +138,16 @@ def _quota_exhausted_response(message: str) -> StreamingResponse:
     )
 
 
-async def _consume_quota_or_respond(db: AsyncSession, user: User) -> StreamingResponse | None:
-    """校验并消耗一次 AI 配额；耗尽时返回提示响应，否则返回 None。"""
+async def _consume_quota_or_respond(
+    db: AsyncSession, user: User, scene: str = "chat", model: str | None = None
+) -> StreamingResponse | None:
+    """校验并消耗一次 AI 配额；耗尽时返回提示响应，否则返回 None。同时记录调用明细。"""
     remaining = await ai_quota_service.get_remaining(db, user.id)
     if remaining == 0:
+        await ai_usage_service.record_consumption(db, user, scene=scene, model=model, consumed=False)
         return _quota_exhausted_response("今日 AI 调用次数已用尽，明天再来吧～")
     await ai_quota_service.try_consume(db, user.id)
+    await ai_usage_service.record_consumption(db, user, scene=scene, model=model, consumed=True)
     return None
 
 
@@ -158,7 +162,7 @@ async def sse_get(
         msg_list = json.loads(messages)
     except Exception:
         msg_list = []
-    quota_resp = await _consume_quota_or_respond(db, user)
+    quota_resp = await _consume_quota_or_respond(db, user, scene="chat", model=model or None)
     if quota_resp:
         return quota_resp
     return _sse_response(db, model, msg_list)
@@ -173,7 +177,7 @@ async def sse_post(
     body = await request.json()
     model = body.get("model", "")
     messages = body.get("messages", [])
-    quota_resp = await _consume_quota_or_respond(db, user)
+    quota_resp = await _consume_quota_or_respond(db, user, scene="chat", model=model or None)
     if quota_resp:
         return quota_resp
     return _sse_response(db, model, messages)
@@ -188,7 +192,7 @@ async def thinking_sse(
     body = await request.json()
     model = body.get("model", "")
     messages = body.get("messages", [])
-    quota_resp = await _consume_quota_or_respond(db, user)
+    quota_resp = await _consume_quota_or_respond(db, user, scene="thinking", model=model or None)
     if quota_resp:
         return quota_resp
     return _sse_response(db, model, messages)
@@ -214,6 +218,8 @@ async def agent_sse(
     # 检查配额
     remaining = await ai_quota_service.get_remaining(db, user.id)
     if remaining == 0:
+        await ai_usage_service.record_consumption(db, user, scene="agent", model=model or None, consumed=False)
+
         async def quota_exhausted():
             yield f"data: {json.dumps({'error': '今日 AI 对话次数已用尽，明天再来吧～'}, ensure_ascii=False)}\n\n"
         return StreamingResponse(
@@ -224,6 +230,7 @@ async def agent_sse(
 
     # 消耗配额
     await ai_quota_service.try_consume(db, user.id)
+    await ai_usage_service.record_consumption(db, user, scene="agent", model=model or None, consumed=True)
 
     # 获取 LLM 实例
     llm = await ai_stream_service._resolve_model(db, model)
@@ -393,10 +400,12 @@ async def diverge(
     # Check quota
     remaining = await ai_quota_service.get_remaining(db, user.id)
     if remaining == 0:
+        await ai_usage_service.record_consumption(db, user, scene="diverge", model=model or None, consumed=False)
         return JSONResponse(status_code=429, content={"message": "今日 AI 创意发散次数已用尽，明天再来吧～"})
 
     # Consume quota
     await ai_quota_service.try_consume(db, user.id)
+    await ai_usage_service.record_consumption(db, user, scene="diverge", model=model or None, consumed=True)
 
     prompt = f"""请输入词为："{word}"。请围绕它向外联想 8 个关联词语。
 
