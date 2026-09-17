@@ -29,31 +29,42 @@ async def list_articles(
     category: str | None = None,
     search: str | None = None,
     tag: str | None = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = getattr(request.state, "user_id", None)
+    is_admin = user.role == "admin"
+    # 管理后台：admin 可见全部用户的文章（含草稿）；普通用户仅见自己的已发布文章
     return await article_service.get_all_articles(
-        db, user_id=user_id, page=page, limit=limit, category=category, search=search, tag=tag,
+        db,
+        user_id=None if is_admin else user.id,
+        page=page,
+        limit=limit,
+        category=category,
+        search=search,
+        tag=tag,
+        published_only=not is_admin,
     )
 
 
 @router.get("/stats/summary")
 async def blog_stats(
     request: Request,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = getattr(request.state, "user_id", None)
-    stats = await article_service.get_blog_stats(db, user_id)
+    is_admin = user.role == "admin"
+    stats = await article_service.get_blog_stats(db, user.id, is_admin=is_admin)
     return {"data": stats}
 
 
 @router.get("/stats/daily")
 async def daily_stats(
     request: Request,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = getattr(request.state, "user_id", None)
-    data = await article_service.get_daily_stats(db, user_id)
+    is_admin = user.role == "admin"
+    data = await article_service.get_daily_stats(db, user.id, is_admin=is_admin)
     return {"data": data}
 
 
@@ -61,10 +72,11 @@ async def daily_stats(
 async def get_article(
     article_id: int,
     request: Request,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user_id = getattr(request.state, "user_id", None)
-    detail = await article_service.get_article_by_id(db, user_id, article_id)
+    is_admin = user.role == "admin"
+    detail = await article_service.get_article_by_id(db, user.id, article_id, is_admin=is_admin)
     return {"data": detail}
 
 

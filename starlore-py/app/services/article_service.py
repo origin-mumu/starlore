@@ -208,9 +208,14 @@ async def get_public_stats(db: AsyncSession) -> dict:
     }
 
 
-async def get_article_by_id(db: AsyncSession, user_id: int, article_id: int) -> ArticleDetail:
-    """获取文章详情（同时增加浏览量）。"""
-    result = await db.execute(select(Article).where(Article.id == article_id, Article.user_id == user_id))
+async def get_article_by_id(
+    db: AsyncSession, user_id: int, article_id: int, is_admin: bool = False
+) -> ArticleDetail:
+    """获取文章详情（同时增加浏览量）。admin 可查看任意用户的文章。"""
+    filters = [Article.id == article_id]
+    if not is_admin:
+        filters.append(Article.user_id == user_id)
+    result = await db.execute(select(Article).where(*filters))
     article = result.scalar_one_or_none()
     if article is None:
         raise NotFoundException("文章不存在")

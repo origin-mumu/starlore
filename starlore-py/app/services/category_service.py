@@ -90,10 +90,13 @@ def _to_public_summary(article: Article) -> ArticleSummary:
     )
 
 
-async def get_category_by_id(db: AsyncSession, user_id: int, category_id: int) -> dict:
-    result = await db.execute(
-        select(Category).where(Category.id == category_id, Category.user_id == user_id)
-    )
+async def get_category_by_id(
+    db: AsyncSession, user_id: int, category_id: int, is_admin: bool = False
+) -> dict:
+    filters = [Category.id == category_id]
+    if not is_admin:
+        filters.append(Category.user_id == user_id)
+    result = await db.execute(select(Category).where(*filters))
     category = result.scalar_one_or_none()
     if category is None:
         raise NotFoundException("分类不存在")
