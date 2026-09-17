@@ -115,14 +115,17 @@ onMounted(loadData)
       <div class="stat-card">
         <div class="stat-label">星记总数</div>
         <div class="stat-value">{{ stats?.totalArticles ?? '-' }}</div>
+        <div class="stat-hint">全部用户 · 含草稿</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">星域分类</div>
         <div class="stat-value">{{ stats?.totalCategories ?? '-' }}</div>
+        <div class="stat-hint">全部用户</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">累计浏览</div>
         <div class="stat-value">{{ stats?.totalViews ?? '-' }}</div>
+        <div class="stat-hint">全站统计</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">今日 AI 调用</div>

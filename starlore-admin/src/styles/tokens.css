@@ -63,7 +63,7 @@
   /* 7. 圆角阶梯 (Radius Scale) */
   --radius-xl: 28px;
   --radius-lg: 24px;
-  --radius-md: 16px;
+  --radius-md: 20px;
   --radius-sm: 12px;
   --radius-pill: 9999px;
 
@@ -116,8 +116,8 @@
   --el-fill-color-lighter: #fafbfd;
   --el-fill-color-blank: var(--surface-solid);
   --el-mask-color: rgba(15, 23, 42, 0.35);
-  --el-border-radius-base: 10px;
-  --el-border-radius-small: 8px;
+  --el-border-radius-base: 12px;
+  --el-border-radius-small: 10px;
   --el-dialog-border-radius: var(--radius-md);
   --el-font-family: var(--font-family-base);
 }

@@ -46,10 +46,6 @@ body {
   backdrop-filter: blur(14px);
 }
 
-.bento-card + .bento-card {
-  margin-top: 16px;
-}
-
 .card-title {
   display: flex;
   align-items: center;
@@ -80,11 +76,18 @@ body {
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 16px;
   margin-bottom: 16px;
 }
 
 .stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 108px;
   padding: 18px 20px;
   background: var(--surface-glass);
   border: var(--border-glass);
