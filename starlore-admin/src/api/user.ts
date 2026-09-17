@@ -1,40 +1,25 @@
-import request from '@/utils/request'
+import { http } from '@/utils/request'
+import type { UserItem, UserPayload, ReindexResultVO } from '@/types'
 
-export interface UserItem {
-  id: number
-  username: string
-  nickname: string
-  email: string | null
-  avatar: string | null
-  bio: string | null
-  location: string | null
-  website: string | null
-  github: string | null
-  createdAt: string
-  updatedAt: string
+export async function getUserListService(): Promise<UserItem[]> {
+  const res = await http.get<any>('/admin/users')
+  return Array.isArray(res) ? res : (res?.data ?? [])
 }
 
-// 获取用户列表
-export function getUserListService() {
-  return request.get('/admin/users')
+export async function getUserByIdService(id: number): Promise<UserItem> {
+  const res = await http.get<any>(`/admin/users/${id}`)
+  return (res?.data?.username !== undefined ? res.data : res) as UserItem
 }
 
-// 获取单个用户
-export function getUserByIdService(id: number) {
-  return request.get(`/admin/users/${id}`)
+export function updateUserService(id: number, data: UserPayload): Promise<void> {
+  return http.put(`/admin/users/${id}`, data)
 }
 
-// 更新用户
-export function updateUserService(id: number, data: Partial<UserItem>) {
-  return request.put(`/admin/users/${id}`, data)
+export function deleteUserService(id: number): Promise<void> {
+  return http.delete(`/admin/users/${id}`)
 }
 
-// 删除用户
-export function deleteUserService(id: number) {
-  return request.delete(`/admin/users/${id}`)
-}
-
-// 重建语义搜索索引
-export function reindexService(userId: number) {
-  return request.post(`/ai/reindex?targetUserId=${userId}`)
+/** 重建指定用户的语义搜索索引 */
+export function reindexService(userId: number): Promise<ReindexResultVO> {
+  return http.post(`/ai/reindex?targetUserId=${userId}`)
 }

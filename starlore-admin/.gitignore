@@ -34,3 +34,12 @@ coverage
 
 # Vitest
 __screenshots__/
+
+# 环境变量与敏感凭据 (红线: 严禁入库)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+credentials.json

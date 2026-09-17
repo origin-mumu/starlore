@@ -1,0 +1,126 @@
+/* ════════════════════════════════════════════════════════
+   Starlore Admin — Design Tokens (Bento + Glassmorphism)
+   品牌延续暖色 sienna 基因，结构遵循 web-app-framework 规范
+   ════════════════════════════════════════════════════════ */
+
+:root {
+  /* 1. 字体系统 */
+  --font-family-base: 'LXGW WenKai', 'Source Serif 4', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', Georgia, serif;
+  --font-family-mono: 'Fira Code', 'JetBrains Mono', monospace;
+
+  /* 2. 品牌主色阶 (暖色 sienna) */
+  --brand-primary: #b85c38;
+  --brand-hover: #a04e2e;
+  --brand-active: #8b3a2a;
+  --brand-secondary: #c4893a;
+  --brand-secondary-soft: #f5e6c8;
+  --brand-subtle: rgba(184, 92, 56, 0.09);
+  --brand-glow: rgba(184, 92, 56, 0.24);
+
+  /* 3. 语义功能色 */
+  --color-success: #3d6b35;
+  --color-success-subtle: rgba(61, 107, 53, 0.12);
+  --color-warning: #8b6914;
+  --color-warning-subtle: rgba(139, 105, 20, 0.12);
+  --color-danger: #8b3a2a;
+  --color-danger-subtle: rgba(139, 58, 42, 0.12);
+  --color-info: #4a6b8a;
+  --color-info-subtle: rgba(74, 107, 138, 0.12);
+
+  /* 4. 文本与中性色 */
+  --text-primary: #2a2118;
+  --text-secondary: #6b5d4d;
+  --text-muted: #9e8e7a;
+  --text-disabled: #c4b8a5;
+
+  /* 5. 材质与表面色 (Light 模式) */
+  --bg-app: #faf6ee;
+  --surface-glass: rgba(255, 253, 248, 0.82);
+  --surface-solid: #fffdf8;
+  --surface-hover: rgba(242, 235, 217, 0.65);
+  --border-glass: 1px solid rgba(255, 255, 255, 0.75);
+  --border-subtle: 1px solid rgba(230, 220, 203, 0.85);
+  --border-strong: #d4c4ad;
+
+  /* 6. 多层弥散软阴影 (负 Spread，贴合圆角防硬角) */
+  --shadow-sm:
+    0 2px 8px -2px rgba(74, 54, 34, 0.06),
+    0 1px 3px -1px rgba(74, 54, 34, 0.04);
+  --shadow-md:
+    0 8px 24px -4px rgba(74, 54, 34, 0.08),
+    0 4px 12px -2px rgba(74, 54, 34, 0.04);
+  --shadow-lg:
+    0 12px 35px -6px rgba(74, 54, 34, 0.12),
+    0 6px 16px -4px rgba(74, 54, 34, 0.06);
+  --shadow-glow: 0 0 20px var(--brand-glow);
+  --shadow-button: 0 4px 12px var(--brand-glow);
+  --shadow-modal:
+    0 24px 50px -12px rgba(74, 54, 34, 0.22),
+    0 0 0 1px rgba(74, 54, 34, 0.04);
+
+  /* 7. 圆角阶梯 (Radius Scale) */
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 9999px;
+
+  /* 8. 动效时间与缓动 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* 9. 布局尺寸 */
+  --sidebar-width: 248px;
+  --shell-gap: 24px;
+  --stage-padding: 24px;
+
+  /* 10. 兼容别名 (历史语义色) */
+  --status-published-bg: var(--color-success-subtle);
+  --status-published-text: var(--color-success);
+  --status-draft-bg: var(--color-warning-subtle);
+  --status-draft-text: var(--color-warning);
+}
+
+/* ════════════════════════════════════════
+   Element Plus 主题映射
+   ════════════════════════════════════════ */
+
+:root {
+  --el-color-primary: var(--brand-primary);
+  --el-color-primary-light-3: #c97d5f;
+  --el-color-primary-light-5: #d9a08a;
+  --el-color-primary-light-7: #e8c4b0;
+  --el-color-primary-light-8: #f0ddd0;
+  --el-color-primary-light-9: #f5ede6;
+  --el-color-primary-dark-2: var(--brand-hover);
+  --el-bg-color: var(--surface-solid);
+  --el-bg-color-page: var(--bg-app);
+  --el-bg-color-overlay: var(--surface-solid);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-muted);
+  --el-text-color-placeholder: var(--text-muted);
+  --el-border-color: #e6dccb;
+  --el-border-color-light: #e6dccb;
+  --el-border-color-lighter: #e6dccb;
+  --el-border-color-extra-light: #f2ebd9;
+  --el-fill-color: #f2ebd9;
+  --el-fill-color-light: var(--bg-app);
+  --el-fill-color-lighter: var(--surface-solid);
+  --el-fill-color-blank: var(--surface-solid);
+  --el-mask-color: rgba(15, 23, 42, 0.35);
+  --el-dialog-border-radius: var(--radius-lg);
+  --el-font-family: var(--font-family-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
