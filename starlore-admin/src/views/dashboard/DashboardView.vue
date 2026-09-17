@@ -19,7 +19,7 @@ const trendRef = ref<HTMLElement>()
 const { render: renderPie } = useECharts(pieRef)
 const { render: renderTrend } = useECharts(trendRef)
 
-const BRAND = '#b85c38'
+const BRAND = '#4f6ef7'
 
 async function loadData(): Promise<void> {
   loading.value = true
@@ -64,14 +64,14 @@ function renderCharts(): void {
       xAxis: {
         type: 'category',
         data: trend.map((t) => t.date.slice(5)),
-        axisLine: { lineStyle: { color: '#d4c4ad' } },
+        axisLine: { lineStyle: { color: '#d5deeb' } },
         axisLabel: { fontSize: 11 },
       },
       yAxis: {
         type: 'value',
         minInterval: 1,
         axisLabel: { fontSize: 11 },
-        splitLine: { lineStyle: { color: 'rgba(212,196,173,0.25)' } },
+        splitLine: { lineStyle: { color: 'rgba(213,222,235,0.45)' } },
       },
       series: [
         {
@@ -89,8 +89,8 @@ function renderCharts(): void {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(184,92,56,0.22)' },
-                { offset: 1, color: 'rgba(184,92,56,0.01)' },
+                { offset: 0, color: 'rgba(79,110,247,0.22)' },
+                { offset: 1, color: 'rgba(79,110,247,0.01)' },
               ],
             },
           },

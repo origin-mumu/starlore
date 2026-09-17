@@ -1,69 +1,70 @@
 /* ════════════════════════════════════════════════════════
    Starlore Admin — Design Tokens (Bento + Glassmorphism)
-   品牌延续暖色 sienna 基因，结构遵循 web-app-framework 规范
+   色板对齐 xiaosu：冷白底 + 蓝色品牌主色 + 白色玻璃面板
    ════════════════════════════════════════════════════════ */
 
 :root {
   /* 1. 字体系统 */
-  --font-family-base: 'LXGW WenKai', 'Source Serif 4', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', Georgia, serif;
+  --font-family-base: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui,
+    -apple-system, 'Segoe UI', sans-serif;
   --font-family-mono: 'Fira Code', 'JetBrains Mono', monospace;
 
-  /* 2. 品牌主色阶 (暖色 sienna) */
-  --brand-primary: #b85c38;
-  --brand-hover: #a04e2e;
-  --brand-active: #8b3a2a;
-  --brand-secondary: #c4893a;
-  --brand-secondary-soft: #f5e6c8;
-  --brand-subtle: rgba(184, 92, 56, 0.09);
-  --brand-glow: rgba(184, 92, 56, 0.24);
+  /* 2. 品牌主色阶 (xiaosu 蓝) */
+  --brand-primary: #4f6ef7;
+  --brand-hover: #3856df;
+  --brand-active: #324cc4;
+  --brand-secondary: #6ee7b7;
+  --brand-secondary-soft: rgba(110, 231, 183, 0.14);
+  --brand-subtle: rgba(79, 110, 247, 0.09);
+  --brand-glow: rgba(79, 110, 247, 0.24);
 
   /* 3. 语义功能色 */
-  --color-success: #3d6b35;
-  --color-success-subtle: rgba(61, 107, 53, 0.12);
-  --color-warning: #8b6914;
-  --color-warning-subtle: rgba(139, 105, 20, 0.12);
-  --color-danger: #8b3a2a;
-  --color-danger-subtle: rgba(139, 58, 42, 0.12);
-  --color-info: #4a6b8a;
-  --color-info-subtle: rgba(74, 107, 138, 0.12);
+  --color-success: #16a34a;
+  --color-success-subtle: rgba(22, 163, 74, 0.1);
+  --color-warning: #d97706;
+  --color-warning-subtle: rgba(217, 119, 6, 0.1);
+  --color-danger: #dc2626;
+  --color-danger-subtle: rgba(220, 38, 38, 0.08);
+  --color-info: #64748b;
+  --color-info-subtle: rgba(100, 116, 139, 0.1);
 
   /* 4. 文本与中性色 */
-  --text-primary: #2a2118;
-  --text-secondary: #6b5d4d;
-  --text-muted: #9e8e7a;
-  --text-disabled: #c4b8a5;
+  --text-primary: #172033;
+  --text-secondary: #4a5a75;
+  --text-muted: #8490a5;
+  --text-disabled: #b6c0d2;
 
-  /* 5. 材质与表面色 (Light 模式) */
-  --bg-app: #faf6ee;
-  --surface-glass: rgba(255, 253, 248, 0.82);
-  --surface-solid: #fffdf8;
-  --surface-hover: rgba(242, 235, 217, 0.65);
+  /* 5. 材质与表面色 (Light 模式：白玻璃) */
+  --bg-app: #f1f5fb;
+  --surface-glass: rgba(255, 255, 255, 0.92);
+  --surface-solid: #ffffff;
+  --surface-hover: rgba(39, 55, 92, 0.05);
   --border-glass: 1px solid rgba(255, 255, 255, 0.75);
-  --border-subtle: 1px solid rgba(230, 220, 203, 0.85);
-  --border-strong: #d4c4ad;
+  --border-subtle: 1px solid #e6ecf5;
+  --border-soft: #e6ecf5;
+  --border-strong: #d5deeb;
 
   /* 6. 多层弥散软阴影 (负 Spread，贴合圆角防硬角) */
   --shadow-sm:
-    0 2px 8px -2px rgba(74, 54, 34, 0.06),
-    0 1px 3px -1px rgba(74, 54, 34, 0.04);
+    0 2px 8px -2px rgba(39, 55, 92, 0.06),
+    0 1px 3px -1px rgba(39, 55, 92, 0.04);
   --shadow-md:
-    0 8px 24px -4px rgba(74, 54, 34, 0.08),
-    0 4px 12px -2px rgba(74, 54, 34, 0.04);
+    0 8px 24px -4px rgba(39, 55, 92, 0.08),
+    0 4px 12px -2px rgba(39, 55, 92, 0.05);
   --shadow-lg:
-    0 12px 35px -6px rgba(74, 54, 34, 0.12),
-    0 6px 16px -4px rgba(74, 54, 34, 0.06);
+    0 12px 35px -6px rgba(39, 55, 92, 0.12),
+    0 6px 16px -4px rgba(39, 55, 92, 0.06);
   --shadow-glow: 0 0 20px var(--brand-glow);
-  --shadow-button: 0 4px 12px var(--brand-glow);
+  --shadow-button: 0 4px 12px rgba(79, 110, 247, 0.24);
   --shadow-modal:
-    0 24px 50px -12px rgba(74, 54, 34, 0.22),
-    0 0 0 1px rgba(74, 54, 34, 0.04);
+    0 24px 50px -12px rgba(39, 55, 92, 0.22),
+    0 0 0 1px rgba(39, 55, 92, 0.04);
 
   /* 7. 圆角阶梯 (Radius Scale) */
   --radius-xl: 28px;
-  --radius-lg: 20px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
   --radius-pill: 9999px;
 
   /* 8. 动效时间与缓动 */
@@ -72,20 +73,19 @@
   --transition-spring: 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
   /* 9. 布局尺寸 */
-  --sidebar-width: 248px;
-  --shell-gap: 24px;
-  --stage-padding: 24px;
+  --sidebar-width: 236px;
+  --shell-gap: 16px;
+  --stage-padding: 20px;
 
-  /* 10. 兼容别名 (历史语义色) */
+  /* 10. 外壳辅助 */
+  --brand-glow-soft: rgba(79, 110, 247, 0.12);
+  --accent-glow-soft: rgba(110, 231, 183, 0.1);
+
+  /* 11. 状态标签别名 */
   --status-published-bg: var(--color-success-subtle);
   --status-published-text: var(--color-success);
   --status-draft-bg: var(--color-warning-subtle);
   --status-draft-text: var(--color-warning);
-
-  /* 11. 外壳辅助 */
-  --brand-glow-soft: rgba(184, 92, 56, 0.1);
-  --accent-glow-soft: rgba(196, 137, 58, 0.08);
-  --border-soft: rgba(230, 220, 203, 0.9);
 }
 
 /* ════════════════════════════════════════
@@ -94,11 +94,11 @@
 
 :root {
   --el-color-primary: var(--brand-primary);
-  --el-color-primary-light-3: #c97d5f;
-  --el-color-primary-light-5: #d9a08a;
-  --el-color-primary-light-7: #e8c4b0;
-  --el-color-primary-light-8: #f0ddd0;
-  --el-color-primary-light-9: #f5ede6;
+  --el-color-primary-light-3: #7b90f9;
+  --el-color-primary-light-5: #a7b7fb;
+  --el-color-primary-light-7: #d3ddfd;
+  --el-color-primary-light-8: #e7ecfe;
+  --el-color-primary-light-9: #f3f6fe;
   --el-color-primary-dark-2: var(--brand-hover);
   --el-bg-color: var(--surface-solid);
   --el-bg-color-page: var(--bg-app);
@@ -107,16 +107,18 @@
   --el-text-color-regular: var(--text-secondary);
   --el-text-color-secondary: var(--text-muted);
   --el-text-color-placeholder: var(--text-muted);
-  --el-border-color: #e6dccb;
-  --el-border-color-light: #e6dccb;
-  --el-border-color-lighter: #e6dccb;
-  --el-border-color-extra-light: #f2ebd9;
-  --el-fill-color: #f2ebd9;
-  --el-fill-color-light: var(--bg-app);
-  --el-fill-color-lighter: var(--surface-solid);
+  --el-border-color: #e6ecf5;
+  --el-border-color-light: #e6ecf5;
+  --el-border-color-lighter: #eef2f8;
+  --el-border-color-extra-light: #f3f6fb;
+  --el-fill-color: #f1f5fb;
+  --el-fill-color-light: #f6f8fc;
+  --el-fill-color-lighter: #fafbfd;
   --el-fill-color-blank: var(--surface-solid);
   --el-mask-color: rgba(15, 23, 42, 0.35);
-  --el-dialog-border-radius: var(--radius-lg);
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 8px;
+  --el-dialog-border-radius: var(--radius-md);
   --el-font-family: var(--font-family-base);
 }
 
@@ -135,35 +137,35 @@
    ════════════════════════════════════════ */
 
 html.dark {
-  --brand-primary: #d2805c;
-  --brand-hover: #e0906c;
-  --brand-active: #e8a482;
-  --brand-secondary-soft: rgba(196, 137, 58, 0.2);
-  --brand-subtle: rgba(210, 128, 92, 0.14);
-  --brand-glow: rgba(210, 128, 92, 0.26);
+  --brand-primary: #7b90f9;
+  --brand-hover: #93a5fa;
+  --brand-active: #a9b8fb;
+  --brand-secondary-soft: rgba(110, 231, 183, 0.16);
+  --brand-subtle: rgba(123, 144, 249, 0.14);
+  --brand-glow: rgba(123, 144, 249, 0.26);
 
-  --color-success: #7dbd6e;
-  --color-success-subtle: rgba(125, 189, 110, 0.16);
-  --color-warning: #d4af4e;
-  --color-warning-subtle: rgba(212, 175, 78, 0.15);
-  --color-danger: #e07a68;
-  --color-danger-subtle: rgba(224, 122, 104, 0.15);
-  --color-info: #7da3c4;
-  --color-info-subtle: rgba(125, 163, 196, 0.15);
+  --color-success: #4ade80;
+  --color-success-subtle: rgba(74, 222, 128, 0.14);
+  --color-warning: #fbbf24;
+  --color-warning-subtle: rgba(251, 191, 36, 0.13);
+  --color-danger: #f87171;
+  --color-danger-subtle: rgba(248, 113, 113, 0.13);
+  --color-info: #94a3b8;
+  --color-info-subtle: rgba(148, 163, 184, 0.13);
 
-  --text-primary: #f0ece5;
-  --text-secondary: #b8ac9c;
-  --text-muted: #857a6b;
-  --text-disabled: #5f564b;
+  --text-primary: #eef1f7;
+  --text-secondary: #a3adc2;
+  --text-muted: #6b7690;
+  --text-disabled: #454f63;
 
-  --bg-app: #16130f;
-  --surface-glass: rgba(32, 28, 24, 0.82);
-  --surface-solid: #211d19;
+  --bg-app: #0f1420;
+  --surface-glass: rgba(23, 29, 42, 0.88);
+  --surface-solid: #171e2d;
   --surface-hover: rgba(255, 255, 255, 0.06);
   --border-glass: 1px solid rgba(255, 255, 255, 0.08);
   --border-subtle: 1px solid rgba(255, 255, 255, 0.08);
   --border-soft: rgba(255, 255, 255, 0.09);
-  --border-strong: #4a423a;
+  --border-strong: #3a4356;
 
   --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.35);
   --shadow-md:
@@ -176,6 +178,7 @@ html.dark {
     0 24px 50px -12px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.05);
 
-  --brand-glow-soft: rgba(210, 128, 92, 0.09);
-  --accent-glow-soft: rgba(196, 137, 58, 0.07);
+  --shadow-button: 0 4px 12px rgba(123, 144, 249, 0.22);
+  --brand-glow-soft: rgba(123, 144, 249, 0.09);
+  --accent-glow-soft: rgba(110, 231, 183, 0.06);
 }

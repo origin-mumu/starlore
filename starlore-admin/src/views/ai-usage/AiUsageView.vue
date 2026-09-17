@@ -95,7 +95,7 @@ function renderCharts(): void {
       xAxis: {
         type: 'category',
         data: data.trend.map((t) => t.date.slice(5)),
-        axisLine: { lineStyle: { color: '#d4c4ad' } },
+        axisLine: { lineStyle: { color: '#d5deeb' } },
         axisLabel: { fontSize: 11 },
       },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
@@ -104,7 +104,7 @@ function renderCharts(): void {
           name: '调用次数',
           type: 'bar',
           barMaxWidth: 22,
-          itemStyle: { color: '#b85c38', borderRadius: [6, 6, 0, 0] },
+          itemStyle: { color: '#4f6ef7', borderRadius: [6, 6, 0, 0] },
           data: data.trend.map((t) => t.count),
         },
       ],
