@@ -334,9 +334,18 @@ async def create_article(db: AsyncSession, user_id: int, req: CreateArticleReque
     return article
 
 
-async def update_article(db: AsyncSession, article_id: int, req: UpdateArticleRequest) -> Article:
-    """更新文章。"""
-    result = await db.execute(select(Article).where(Article.id == article_id))
+async def update_article(
+    db: AsyncSession,
+    article_id: int,
+    req: UpdateArticleRequest,
+    user_id: int,
+    is_admin: bool = False,
+) -> Article:
+    """更新文章。非 admin 仅能更新自己的文章。"""
+    filters = [Article.id == article_id]
+    if not is_admin:
+        filters.append(Article.user_id == user_id)
+    result = await db.execute(select(Article).where(*filters))
     article = result.scalar_one_or_none()
     if article is None:
         raise NotFoundException("文章不存在")
@@ -384,9 +393,14 @@ async def update_article(db: AsyncSession, article_id: int, req: UpdateArticleRe
     return article
 
 
-async def delete_article(db: AsyncSession, article_id: int) -> Article:
-    """删除文章。"""
-    result = await db.execute(select(Article).where(Article.id == article_id))
+async def delete_article(
+    db: AsyncSession, article_id: int, user_id: int, is_admin: bool = False
+) -> Article:
+    """删除文章。非 admin 仅能删除自己的文章。"""
+    filters = [Article.id == article_id]
+    if not is_admin:
+        filters.append(Article.user_id == user_id)
+    result = await db.execute(select(Article).where(*filters))
     article = result.scalar_one_or_none()
     if article is None:
         raise NotFoundException("文章不存在")

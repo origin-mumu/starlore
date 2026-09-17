@@ -63,7 +63,10 @@ async def update_category(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await category_service.update_category(db, category_id, req)
+    is_admin = user.role == "admin"
+    await category_service.update_category(
+        db, category_id, req, user_id=user.id, is_admin=is_admin
+    )
     return SimpleResponse.ok("分类更新成功")
 
 
@@ -73,5 +76,6 @@ async def delete_category(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await category_service.delete_category(db, category_id)
+    is_admin = user.role == "admin"
+    await category_service.delete_category(db, category_id, user_id=user.id, is_admin=is_admin)
     return SimpleResponse.ok("分类删除成功")

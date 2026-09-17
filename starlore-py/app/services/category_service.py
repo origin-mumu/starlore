@@ -159,8 +159,18 @@ async def create_category(db: AsyncSession, user_id: int, req: CreateCategoryReq
     return _to_item(category)
 
 
-async def update_category(db: AsyncSession, category_id: int, req: UpdateCategoryRequest) -> CategoryItem:
-    result = await db.execute(select(Category).where(Category.id == category_id))
+async def update_category(
+    db: AsyncSession,
+    category_id: int,
+    req: UpdateCategoryRequest,
+    user_id: int,
+    is_admin: bool = False,
+) -> CategoryItem:
+    """更新分类。非 admin 仅能更新自己的分类。"""
+    filters = [Category.id == category_id]
+    if not is_admin:
+        filters.append(Category.user_id == user_id)
+    result = await db.execute(select(Category).where(*filters))
     category = result.scalar_one_or_none()
     if category is None:
         raise NotFoundException("分类不存在")
@@ -194,8 +204,14 @@ async def update_category(db: AsyncSession, category_id: int, req: UpdateCategor
     return _to_item(category)
 
 
-async def delete_category(db: AsyncSession, category_id: int) -> None:
-    result = await db.execute(select(Category).where(Category.id == category_id))
+async def delete_category(
+    db: AsyncSession, category_id: int, user_id: int, is_admin: bool = False
+) -> None:
+    """删除分类。非 admin 仅能删除自己的分类。"""
+    filters = [Category.id == category_id]
+    if not is_admin:
+        filters.append(Category.user_id == user_id)
+    result = await db.execute(select(Category).where(*filters))
     category = result.scalar_one_or_none()
     if category is None:
         raise NotFoundException("分类不存在")

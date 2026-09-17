@@ -97,7 +97,8 @@ async def update_article(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await article_service.update_article(db, article_id, req)
+    is_admin = user.role == "admin"
+    await article_service.update_article(db, article_id, req, user_id=user.id, is_admin=is_admin)
     return SimpleResponse.ok("文章更新成功")
 
 
@@ -107,5 +108,6 @@ async def delete_article(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await article_service.delete_article(db, article_id)
+    is_admin = user.role == "admin"
+    await article_service.delete_article(db, article_id, user_id=user.id, is_admin=is_admin)
     return SimpleResponse.ok("文章删除成功")
