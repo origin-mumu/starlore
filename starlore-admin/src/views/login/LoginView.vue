@@ -91,13 +91,19 @@ async function handleLogin(): Promise<void> {
 }
 
 .login-card {
-  width: 400px;
+  width: min(400px, 100%);
   padding: 40px 38px 36px;
   background: var(--surface-glass);
   border: var(--border-glass);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(18px);
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px 24px;
+  }
 }
 
 .login-brand {

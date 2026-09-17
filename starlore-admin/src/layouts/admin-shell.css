@@ -211,3 +211,88 @@
   padding: 0 4px 8px;
   overflow-y: auto;
 }
+
+/* ── 移动端抽屉遮罩 ── */
+.drawer-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.mask-fade-enter-active,
+.mask-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.mask-fade-enter-from,
+.mask-fade-leave-to {
+  opacity: 0;
+}
+
+/* ── 移动端适配（<768px：侧边栏变抽屉） ── */
+@media (max-width: 767px) {
+  .admin-shell {
+    padding: 10px;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    z-index: 50;
+    left: 10px;
+    top: 10px;
+    width: 236px;
+    height: calc(100vh - 20px);
+    margin: 0;
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-110%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: grid;
+    margin-left: auto;
+  }
+
+  .main-stage {
+    padding-left: 0;
+  }
+
+  .top-bar {
+    padding: 6px 4px 12px;
+  }
+
+  .top-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .page-title {
+    font-size: 17px;
+  }
+
+  .page-viewport {
+    padding: 0;
+  }
+}
+
+/* 桌面端隐藏汉堡/抽屉关闭按钮 */
+.top-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .app-sidebar {
+    transform: none !important;
+  }
+}

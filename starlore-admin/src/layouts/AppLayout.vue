@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -13,6 +13,8 @@ import {
   SwitchButton,
   Moon,
   Sunny,
+  Menu,
+  Close,
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { Orbit } from 'lucide-vue-next'
@@ -33,11 +35,35 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/admin/login-logs', label: '登录日志', icon: Lock },
 ]
 
+const MOBILE_MQ = '(max-width: 767px)'
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const isDark = ref(document.documentElement.classList.contains('dark'))
+const isMobile = ref(window.matchMedia(MOBILE_MQ).matches)
+const sidebarOpen = ref(!isMobile.value)
+
+let mql: MediaQueryList | null = null
+const onMqChange = (e: MediaQueryListEvent) => {
+  isMobile.value = e.matches
+  sidebarOpen.value = !e.matches
+}
+
+onMounted(() => {
+  mql = window.matchMedia(MOBILE_MQ)
+  mql.addEventListener('change', onMqChange)
+})
+onUnmounted(() => mql?.removeEventListener('change', onMqChange))
+
+// 移动端切换路由后自动收起抽屉
+watch(
+  () => route.fullPath,
+  () => {
+    if (isMobile.value) sidebarOpen.value = false
+  },
+)
 
 function toggleTheme(): void {
   isDark.value = !isDark.value
@@ -59,7 +85,12 @@ async function handleLogout(): Promise<void> {
 
 <template>
   <div class="admin-shell">
-    <aside class="app-sidebar">
+    <!-- 移动端遮罩 -->
+    <Transition name="mask-fade">
+      <div v-if="isMobile && sidebarOpen" class="drawer-mask" @click="sidebarOpen = false" />
+    </Transition>
+
+    <aside class="app-sidebar" :class="{ 'is-open': sidebarOpen }">
       <div class="brand">
         <div class="brand-mark">
           <Orbit class="brand-icon" :size="22" :stroke-width="2.2" />
@@ -68,6 +99,14 @@ async function handleLogout(): Promise<void> {
           <span class="brand-name">Starlore</span>
           <span class="brand-sub">管理控制台</span>
         </div>
+        <button
+          v-if="isMobile"
+          class="ghost-btn sidebar-close"
+          title="收起菜单"
+          @click="sidebarOpen = false"
+        >
+          <el-icon><Close /></el-icon>
+        </button>
       </div>
 
       <nav class="nav-list">
@@ -93,7 +132,17 @@ async function handleLogout(): Promise<void> {
 
     <div class="main-stage">
       <header class="top-bar">
-        <h1 class="page-title">{{ (route.meta.title as string) ?? '总览' }}</h1>
+        <div class="top-left">
+          <button
+            v-if="isMobile"
+            class="ghost-btn"
+            title="打开菜单"
+            @click="sidebarOpen = true"
+          >
+            <el-icon><Menu /></el-icon>
+          </button>
+          <h1 class="page-title">{{ (route.meta.title as string) ?? '总览' }}</h1>
+        </div>
         <div class="top-actions">
           <button class="ghost-btn" :title="isDark ? '切换浅色' : '切换深色'" @click="toggleTheme">
             <el-icon><component :is="isDark ? Sunny : Moon" /></el-icon>
