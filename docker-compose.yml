@@ -46,7 +46,16 @@ services:
     image: ghcr.io/origin-mumu/starlore/starlore-front:latest
     restart: unless-stopped
     ports:
-      - "5173:80" 
+      - "5173:80"
+    depends_on:
+      - starlore-py
+
+  # 管理后台（仅管理员使用，建议外层 Nginx 做访问限制）
+  starlore-admin:
+    image: ghcr.io/origin-mumu/starlore/starlore-admin:latest
+    restart: unless-stopped
+    ports:
+      - "5174:80"
     depends_on:
       - starlore-py
 
