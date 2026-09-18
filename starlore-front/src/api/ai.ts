@@ -124,10 +124,6 @@ export async function appendChatPair(
   })) as { success: boolean }
 }
 
-export function buildMultiAgentSseUrl(model: string): string {
-  return `/api/ai/multi-agent-sse?model=${model}`
-}
-
 export async function getAgentMetrics() {
   return (await request.get('/ai/agent-metrics')) as {
     success: boolean

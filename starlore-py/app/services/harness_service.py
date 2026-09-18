@@ -255,3 +255,37 @@ async def resolve_model_credentials(
         return first.apiUrl, first.apiKey or "", model_id
 
     raise ValueError("未找到可用的 AI 厂商配置，请先在后台 AI 配置中启用厂商并填写密钥")
+
+
+# ---------- 任务清单（会话级整表快照，last-write-wins） ----------
+
+async def save_harness_todos(
+    db: AsyncSession, session_id: int, user_id: int, todos: list[dict]
+) -> None:
+    """保存会话任务清单快照（每会话一行，整体覆盖）。"""
+    from datetime import datetime
+
+    from app.models.harness_todo import HarnessTodo
+
+    result = await db.execute(select(HarnessTodo).where(HarnessTodo.session_id == session_id))
+    row = result.scalars().first()
+    if row:
+        row.todos = todos
+        row.user_id = user_id
+        row.updated_at = datetime.utcnow()
+    else:
+        db.add(HarnessTodo(session_id=session_id, user_id=user_id, todos=todos))
+    await db.flush()
+
+
+async def get_harness_todos(db: AsyncSession, session_id: int, user_id: int) -> list[dict]:
+    """读取会话当前任务清单快照。"""
+    from app.models.harness_todo import HarnessTodo
+
+    result = await db.execute(
+        select(HarnessTodo).where(
+            HarnessTodo.session_id == session_id, HarnessTodo.user_id == user_id
+        )
+    )
+    row = result.scalars().first()
+    return list(row.todos or []) if row and row.todos else []

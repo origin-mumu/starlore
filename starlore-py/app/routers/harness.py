@@ -125,6 +125,20 @@ async def list_messages(
     return results
 
 
+@router.get("/sessions/{session_id}/todo")
+async def get_session_todo(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """获取会话当前任务清单快照。"""
+    session = await harness_service.get_session(db, session_id, user.id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+    todos = await harness_service.get_harness_todos(db, session_id, user.id)
+    return {"success": True, "todos": todos}
+
+
 @router.post("/sessions/{session_id}/chat")
 async def chat_stream(
     session_id: int,

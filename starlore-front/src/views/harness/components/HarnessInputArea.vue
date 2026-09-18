@@ -305,7 +305,11 @@ defineExpose({
 
 <template>
   <div class="input-area-wrapper">
-    <div class="input-card">
+    <div class="input-dock-stack">
+      <!-- 上方 dock 插槽：任务清单等悬浮面板 -->
+      <slot name="dock" />
+
+      <div class="input-card">
       <!-- 隐藏的文件选择 input -->
       <input
         ref="fileInputRef"
@@ -488,6 +492,7 @@ defineExpose({
           </button>
         </div>
       </div>
+      </div>
     </div>
   </div>
 </template>
@@ -503,6 +508,15 @@ defineExpose({
   display: flex;
   justify-content: center;
   pointer-events: none;
+}
+
+/* 输入卡片与上方 dock 面板的纵向堆叠容器 */
+.input-dock-stack {
+  width: 100%;
+  max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .input-card {

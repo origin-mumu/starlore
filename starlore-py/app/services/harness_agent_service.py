@@ -14,7 +14,18 @@ from app.models.harness_message import HarnessMessage
 from app.models.harness_session import HarnessSession
 from app.services.ai_usage_service import finish_log
 from app.services.harness_content_tools import HARNESS_TOOL_MAP, HARNESS_TOOLS
-from app.services.harness_service import get_session, resolve_model_credentials
+from app.services.harness_service import (
+    get_session,
+    resolve_model_credentials,
+    save_harness_todos,
+)
+from app.services.harness_subagent import (
+    DELEGATE_TOOL_SCHEMA,
+    TODO_WRITE_SCHEMA,
+    run_final_review,
+    run_sub_agent_owned_session,
+    validate_todos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +71,15 @@ SYSTEM_PROMPT = """你是一个专业的云端全能内容生产与知识库智�
 
 6. **最终回复规范**：
    - 当生成了 PPT 或文档后，下载卡片由系统自动挂载，回复正文提供高可读性的 Markdown 概述与要点提炼，不要输出冗长的大段文件代码。
+
+7. **任务清单 (todo_write) —— 复杂任务的进度台账**：
+   - 当任务包含多个环节或阶段（如多路检索、批量治理、先调研再生成等），开始执行前先调用 `todo_write` 一次性列出全部事项（status=pending），随后随执行进度实时整表更新：正在做的标 in_progress，做完的立即标 completed；
+   - 简单问答、日常对话严禁使用任务清单。
+
+8. **任务委派 (delegate_task) —— 可并行工作的分身**：
+   - 当存在多项互不依赖、可独立完成的工作（如并行检索多个主题、批量补全多篇文档、独立生成配套文件），可在同一轮内多次调用 `delegate_task` 将它们委派给专项子代理并行处理；
+   - 委派描述（description）必须自包含：写清背景、目标与约束，让子代理无需追问即可完成；
+   - 有先后依赖的工作不要同时委派，应等前置结果返回后再委派后续任务。
 """
 
 
@@ -142,6 +162,8 @@ async def run_harness_turn(
             context_messages.append({"role": "assistant", "content": m.content})
 
     tools_declaration = [tool.to_openai_tool() for tool in HARNESS_TOOLS]
+    tools_declaration.append(DELEGATE_TOOL_SCHEMA)
+    tools_declaration.append(TODO_WRITE_SCHEMA)
 
     # 初始化本轮追踪数据
     step = 0
@@ -153,6 +175,11 @@ async def run_harness_turn(
     recorded_tool_calls: list[dict[str, Any]] = []
     recorded_artifacts: list[dict[str, Any]] = []
     recorded_steps: list[dict[str, Any]] = []
+    # 委派与自查状态：发生过委派的轮次在交卷前做一次质量自查
+    delegation_used = False
+    correction_used = 0
+    max_final_corrections = 1
+    work_digest_parts: list[str] = []
 
     try:
         async with httpx.AsyncClient(timeout=600.0) as client:
@@ -260,7 +287,7 @@ async def run_harness_turn(
                                             before, after = text_rem.split("<think>", 1)
                                             if before:
                                                 current_step_content += before
-                                                if not has_detected_tool_calls and (step > 1 or content_stream_active):
+                                                if not has_detected_tool_calls and not delegation_used and (step > 1 or content_stream_active):
                                                     collected_content.append(before)
                                                     yield _format_sse("content", {"delta": before, "step": step})
                                                 elif not has_detected_tool_calls:
@@ -269,7 +296,7 @@ async def run_harness_turn(
                                             text_rem = after
                                         else:
                                             current_step_content += text_rem
-                                            if not has_detected_tool_calls and (step > 1 or content_stream_active):
+                                            if not has_detected_tool_calls and not delegation_used and (step > 1 or content_stream_active):
                                                 collected_content.append(text_rem)
                                                 yield _format_sse("content", {"delta": text_rem, "step": step})
                                             elif not has_detected_tool_calls:
@@ -297,13 +324,14 @@ async def run_harness_turn(
                                 pass
                             else:
                                 # 若是后续总结步 (step > 1) 或已确认为非工具纯文本回答，逐 Token 实时推送正文
-                                if step > 1 or content_stream_active:
+                                # 委派轮全程缓冲：最终正文需等交卷自查通过后再流出
+                                if not delegation_used and (step > 1 or content_stream_active):
                                     collected_content.append(c_delta)
                                     yield _format_sse("content", {"delta": c_delta, "step": step})
                                 else:
                                     # step == 1 且有工具声明时，缓存文本，等待确认是否有 tool_calls 触发
                                     pending_content_buffer.append(c_delta)
-                                    if len("".join(pending_content_buffer)) >= 120:
+                                    if not delegation_used and len("".join(pending_content_buffer)) >= 120:
                                         content_stream_active = True
                                         for p_chunk in pending_content_buffer:
                                             collected_content.append(p_chunk)
@@ -318,14 +346,66 @@ async def run_harness_turn(
 
                 # 判断本步是否有工具调用
                 if not tool_calls_accumulator:
-                    # 没有发起工具调用，本步为最终回答！若有少量余留 buffer，立即推送
-                    if pending_content_buffer:
-                        for p_chunk in pending_content_buffer:
-                            collected_content.append(p_chunk)
-                            yield _format_sse("content", {"delta": p_chunk, "step": step})
-                        pending_content_buffer.clear()
+                    # 没有发起工具调用，本步为最终回答草稿
+                    draft_text = current_step_content + "".join(pending_content_buffer)
+                    pending_content_buffer.clear()
+                    final_content = draft_text
 
-                    final_content = current_step_content
+                    # 委派轮：交卷前质量自查（最多修正一轮）
+                    if delegation_used and correction_used < max_final_corrections:
+                        review = await run_final_review(
+                            db=db,
+                            user_id=user_id,
+                            api_url=api_url,
+                            api_key=api_key,
+                            model_id=model_id,
+                            user_request=user_input,
+                            work_digest="".join(work_digest_parts),
+                            draft=draft_text,
+                        )
+                        if review["decision"] == "FAIL":
+                            correction_used += 1
+                            review_text = f"质量自查未通过：{review['feedback']}"
+                            recorded_steps.append({
+                                "step": step,
+                                "title": f"步骤 {step}：草稿自查未通过",
+                                "reasoning": current_step_reasoning,
+                                "scratchpad": review_text,
+                                "tool_calls": [],
+                            })
+                            yield _format_sse("step_thought", {"step": step, "text": review_text})
+                            try:
+                                from app.services.bad_case_collector import collect
+                                await collect(
+                                    db, user_id, user_input, draft_text, review["feedback"],
+                                    "ReAct+delegate",
+                                    total_prompt_tokens + total_completion_tokens,
+                                    int((time.time() - start_time) * 1000),
+                                )
+                            except Exception:
+                                pass
+                            # 把草稿与审查意见回注上下文，进入修正轮
+                            context_messages.append({"role": "assistant", "content": draft_text})
+                            context_messages.append({"role": "user", "content": (
+                                f"质量自查未通过：{review['feedback']}\n"
+                                "请修正以上问题，重新给出完整、诚实的最终回答。"
+                            )})
+                            final_content = ""
+                            continue
+
+                    if delegation_used:
+                        # 委派轮草稿此前全程缓冲，自查通过（或修正轮直接采信）后一次性流出
+                        if draft_text:
+                            collected_content.append(draft_text)
+                            yield _format_sse("content", {"delta": draft_text, "step": step})
+                    else:
+                        # 普通轮：补发尚未流出的余量（如第一步缓冲未达阈值的尾部）
+                        streamed_len = len("".join(collected_content))
+                        tail = draft_text[streamed_len:]
+                        if tail:
+                            collected_content.append(tail)
+                            yield _format_sse("content", {"delta": tail, "step": step})
+
                     recorded_steps.append({
                         "step": step,
                         "title": f"步骤 {step}：总结回答",
@@ -376,6 +456,7 @@ async def run_harness_turn(
 
                 # 依次执行各工具并记录在当前步骤的 tool_calls 中
                 step_tool_calls = []
+                delegate_runs: list[tuple[str, str, str, Any]] = []  # (call_id, label, description, task)
                 for call_id, fn_name, args_raw in tool_executions:
                     # 解析工具参数
                     try:
@@ -383,6 +464,63 @@ async def run_harness_turn(
                     except Exception as e:
                         logger.warning("Failed to parse tool arguments: %s", e)
                         args = {}
+
+                    # 内部工具：任务清单整表快照（不产生动作行，由前端清单面板呈现）
+                    if fn_name == "todo_write":
+                        todos = validate_todos(args.get("todos"))
+                        if todos:
+                            try:
+                                await save_harness_todos(db, session_id, user_id, todos)
+                            except Exception as e:
+                                logger.warning("Persist harness todos failed: %s", e)
+                            yield _format_sse("todo", {"todos": todos})
+                            tool_content = f"任务清单已更新（共 {len(todos)} 项）"
+                        else:
+                            tool_content = (
+                                "todo_write 参数无效：todos 需为非空数组，"
+                                "每项包含 content 与 status(pending|in_progress|completed)"
+                            )
+                        context_messages.append({
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": tool_content,
+                        })
+                        continue
+
+                    # 内部工具：委派子代理（动作行 label 使用模型给出的委派描述）
+                    if fn_name == "delegate_task":
+                        description = str(args.get("description") or "").strip()
+                        if not description:
+                            context_messages.append({
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "content": "delegate_task 参数无效：description 不能为空",
+                            })
+                            continue
+                        delegation_used = True
+                        label_name = description[:40]
+                        yield _format_sse("tool_start", {
+                            "call_id": call_id,
+                            "tool": "delegate_task",
+                            "label": label_name,
+                            "step": step,
+                        })
+                        context_digest = f"用户总体请求：{user_input}"
+                        if work_digest_parts:
+                            context_digest += "\n已完成工作结果：\n" + "".join(work_digest_parts)[-4000:]
+                        expected_output = str(args.get("expected_output") or "").strip() or None
+                        task = asyncio.create_task(run_sub_agent_owned_session(
+                            db=db,
+                            user_id=user_id,
+                            api_url=api_url,
+                            api_key=api_key,
+                            model_id=model_id,
+                            description=description,
+                            expected_output=expected_output,
+                            context_digest=context_digest,
+                        ))
+                        delegate_runs.append((call_id, label_name, description, task))
+                        continue
 
                     tool_instance = HARNESS_TOOL_MAP.get(fn_name)
                     label_name = tool_instance.description.split("，")[0] if tool_instance else fn_name
@@ -476,6 +614,72 @@ async def run_harness_turn(
                             "content": f"工具执行提示: {err_summary}。请基于目前已有信息或通用知识继续回答，告知用户查询情况。",
                         })
 
+                # 汇收并行委派结果
+                if delegate_runs:
+                    results = await asyncio.gather(
+                        *[run[3] for run in delegate_runs], return_exceptions=True
+                    )
+                    for (call_id, label_name, description, _task), res in zip(delegate_runs, results):
+                        if isinstance(res, Exception):
+                            logger.exception("Delegate task failed: %s", res)
+                            tool_item = {
+                                "call_id": call_id,
+                                "tool": "delegate_task",
+                                "label": label_name,
+                                "summary": f"委派执行异常: {res}",
+                                "status": "error",
+                            }
+                            tool_content = f"委派任务执行异常: {res}"
+                        elif res.get("ok"):
+                            total_prompt_tokens += res.get("tokens_prompt", 0)
+                            total_completion_tokens += res.get("tokens_completion", 0)
+                            one_line = " ".join(str(res.get("content") or "").split())[:80]
+                            tool_item = {
+                                "call_id": call_id,
+                                "tool": "delegate_task",
+                                "label": label_name,
+                                "summary": one_line or "委派任务完成",
+                                "citations": [],
+                                "status": "success",
+                            }
+                            for art in res.get("artifacts") or []:
+                                recorded_artifacts.append(art)
+                                yield _format_sse("artifact", art)
+                            work_digest_parts.append(
+                                f"\n### 委派：{description}\n{str(res.get('content') or '')[:4000]}"
+                            )
+                            tool_content = res.get("content") or "子代理未返回内容"
+                        else:
+                            total_prompt_tokens += res.get("tokens_prompt", 0)
+                            total_completion_tokens += res.get("tokens_completion", 0)
+                            err = res.get("error") or "子代理执行失败"
+                            tool_item = {
+                                "call_id": call_id,
+                                "tool": "delegate_task",
+                                "label": label_name,
+                                "summary": err[:80],
+                                "status": "error",
+                            }
+                            work_digest_parts.append(f"\n### 委派（失败）：{description}\n{err}")
+                            tool_content = f"委派任务失败: {err}。请基于已有信息继续或调整方案。"
+                        step_tool_calls.append(tool_item)
+                        recorded_tool_calls.append(tool_item)
+                        yield _format_sse("tool_done", {
+                            "call_id": call_id,
+                            "tool": "delegate_task",
+                            "label": tool_item.get("label"),
+                            "summary": tool_item.get("summary"),
+                            "citations": tool_item.get("citations"),
+                            "status": tool_item.get("status"),
+                            "step": step,
+                        })
+                        context_messages.append({
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": tool_content,
+                        })
+                    delegate_runs.clear()
+
                 # 记录本步骤的思考与工具调用集合
                 recorded_steps.append({
                     "step": step,
@@ -516,6 +720,28 @@ async def run_harness_turn(
                 tokens_completion=total_completion_tokens,
             )
         await db.commit()
+
+        # 记录执行指标（可观测性）
+        try:
+            from app.services.agent_metrics import record_execution
+            tool_call_counts: dict[str, int] = {}
+            for tc in recorded_tool_calls:
+                tc_name = tc.get("tool") or "unknown"
+                tool_call_counts[tc_name] = tool_call_counts.get(tc_name, 0) + 1
+            if correction_used > 0:
+                turn_review_decision = "FAIL"
+            elif delegation_used:
+                turn_review_decision = "PASS"
+            else:
+                turn_review_decision = None
+            record_execution(
+                tokens_in=total_prompt_tokens,
+                tokens_out=total_completion_tokens,
+                tool_calls=tool_call_counts,
+                review_decision=turn_review_decision,
+            )
+        except Exception:
+            pass
 
         # 推送完成信号
         yield _format_sse("done", {

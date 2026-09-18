@@ -61,6 +61,11 @@ export interface HarnessModelItem {
   vendor: string
 }
 
+export interface HarnessTodoItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
 export interface StreamEventPayload {
   event:
     | 'step'
@@ -70,6 +75,7 @@ export interface StreamEventPayload {
     | 'tool_done'
     | 'artifact'
     | 'content'
+    | 'todo'
     | 'done'
     | 'error'
   data: any

@@ -6,6 +6,7 @@ import HarnessSidebar from './components/HarnessSidebar.vue'
 import HarnessMessageList from './components/HarnessMessageList.vue'
 import HarnessInputArea from './components/HarnessInputArea.vue'
 import HarnessMascotStage from './components/HarnessMascotStage.vue'
+import HarnessTodoPanel from './components/HarnessTodoPanel.vue'
 import AgentConfigDrawer from '@/components/AgentConfigDrawer.vue'
 import { getAiModels, getAgentConfig, updateAgentConfig } from '@/api/ai'
 import {
@@ -14,6 +15,7 @@ import {
   fetchHarnessMessages,
   fetchHarnessModels,
   fetchHarnessSessions,
+  fetchHarnessTodos,
   streamHarnessChat,
   updateHarnessSession,
 } from '@/api/harness'
@@ -21,6 +23,7 @@ import type {
   HarnessMessage,
   HarnessModelItem,
   HarnessSession,
+  HarnessTodoItem,
   StreamEventPayload,
 } from './types'
 
@@ -33,6 +36,8 @@ const currentModelId = ref<string>('')
 const modelsLoaded = ref(false)
 const isSidebarOpen = ref(true)
 const isRunning = ref(false)
+// 任务清单（todo_write 整表快照驱动）
+const todoList = ref<HarnessTodoItem[]>([])
 
 // 设置弹窗状态
 const configModalOpen = ref(false)
@@ -146,6 +151,12 @@ async function selectSession(sessionId: number) {
   } catch (err: any) {
     ElMessage.error(err.message || '加载消息失败')
   }
+  // 恢复该会话的任务清单快照
+  try {
+    todoList.value = await fetchHarnessTodos(sessionId)
+  } catch {
+    todoList.value = []
+  }
 }
 
 // 新建会话
@@ -163,6 +174,7 @@ async function handleNewSession() {
     sessions.value.unshift(newS)
     currentSessionId.value = newS.id
     messages.value = []
+    todoList.value = []
   } catch (err: any) {
     ElMessage.error(err.message || '创建会话失败')
   }
@@ -360,6 +372,11 @@ async function handleSend(userText: string, images?: string[]) {
           activeThinkingStep.value = null
           streamingMessage.value.artifacts = streamingMessage.value.artifacts || []
           streamingMessage.value.artifacts.push(ev.data)
+        } else if (ev.event === 'todo') {
+          // 任务清单整表快照
+          if (Array.isArray(ev.data?.todos)) {
+            todoList.value = ev.data.todos
+          }
         } else if (ev.event === 'done') {
           activeThinkingStep.value = null
           if (ev.data.duration_ms) {
@@ -510,7 +527,11 @@ function handleUpdateModel(modelId: string) {
         @send="handleSend"
         @stop="handleStop"
         @update-model="handleUpdateModel"
-      />
+      >
+        <template #dock>
+          <HarnessTodoPanel :todos="todoList" :is-running="isRunning" />
+        </template>
+      </HarnessInputArea>
     </main>
 
     <!-- 设置弹窗 (来自 echobot 的 AgentConfigDrawer) -->

@@ -8,6 +8,7 @@ import type {
   HarnessMessage,
   HarnessModelItem,
   HarnessSession,
+  HarnessTodoItem,
   StreamEventPayload,
 } from '@/views/harness/types'
 
@@ -46,6 +47,14 @@ export async function deleteHarnessSession(sessionId: number): Promise<boolean> 
 export async function fetchHarnessMessages(sessionId: number): Promise<HarnessMessage[]> {
   const res = (await request.get(`/harness/sessions/${sessionId}/messages`)) as HarnessMessage[]
   return Array.isArray(res) ? res : []
+}
+
+export async function fetchHarnessTodos(sessionId: number): Promise<HarnessTodoItem[]> {
+  const res = (await request.get(`/harness/sessions/${sessionId}/todo`)) as {
+    success: boolean
+    todos: HarnessTodoItem[]
+  }
+  return Array.isArray(res?.todos) ? res.todos : []
 }
 
 export async function streamHarnessChat(
