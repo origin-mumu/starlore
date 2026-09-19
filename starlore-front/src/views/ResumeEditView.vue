@@ -12,6 +12,8 @@ import RichEditor from '@/components/RichEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useUserStore } from '@/stores/user'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { Sparkles } from '@lucide/vue'
+import HarnessChatPanel from '@/views/harness/components/HarnessChatPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -344,6 +346,55 @@ const spacingStyle = computed(() => ({
   '--line-gap': `${content.spacing.lineHeight}px`,
   '--font-size': `${content.spacing.fontSize}px`,
 }))
+
+// ─── 视窗分屏滑轨状态 ───
+// 'ai-closed' (常规预览+编辑)
+// 'preview-focus' (主视角是预览+编辑，AI在右侧露边)
+// 'ai-focus' (主视角是编辑+AI，预览在左侧露边)
+const viewStage = ref<'preview-focus' | 'ai-focus' | 'ai-closed'>('ai-closed')
+
+const toggleAiStage = () => {
+  if (viewStage.value === 'ai-closed') {
+    viewStage.value = 'ai-focus'
+  } else {
+    viewStage.value = 'ai-closed'
+  }
+}
+
+// 组装注入 AI 卡片的简历上下文
+const resumeContext = computed(() => {
+  const parts: string[] = []
+  parts.push(`【基本信息】\n姓名：${form.name || '未填'} | 求职意向：${form.jobTitle || '未填'}\n联系方式：${form.phone || ''} | ${form.email || ''}`)
+  if (content.skills) {
+    parts.push(`【专业技能】\n${content.skills}`)
+  }
+  if (content.experience?.length) {
+    const expText = content.experience
+      .map((e, idx) => `${idx + 1}. 公司：${e.company} | 岗位：${e.position} | 时间：${e.period}\n工作详情：\n${e.detail}`)
+      .join('\n\n')
+    parts.push(`【实习/工作经历】\n${expText}`)
+  }
+  if (content.projects?.length) {
+    const prjText = content.projects
+      .map((p, idx) => `${idx + 1}. 项目名：${p.name} | 角色：${p.role} | 时间：${p.period}\n项目详情：\n${p.detail}`)
+      .join('\n\n')
+    parts.push(`【项目经历】\n${prjText}`)
+  }
+  if (content.education?.length) {
+    const eduText = content.education
+      .map((ed) => `学校：${ed.school} | 专业：${ed.major} | 学历：${ed.degree} | 时间：${ed.period}\n详情：${ed.detail}`)
+      .join('\n')
+    parts.push(`【教育背景】\n${eduText}`)
+  }
+  return parts.join('\n\n')
+})
+
+const resumeQuickPrompts = [
+  '请用 STAR 法则帮我重写项目亮点并量化成果',
+  '针对该求职意向诊断简历的 3 个薄弱点与改进建议',
+  '帮我提炼一份匹配该求职意向的硬核专业技能清单',
+  '帮我润色实习经历中的专业术语与业务深度',
+]
 </script>
 
 <template>
@@ -366,6 +417,16 @@ const spacingStyle = computed(() => ({
             <h1>{{ resumeId ? '编辑简历' : '新建简历' }}</h1>
           </div>
           <div class="header-right">
+            <!-- ✨ AI 智能润色按钮 -->
+            <button
+              type="button"
+              class="btn-outline btn-ai-toggle"
+              :class="{ 'is-active': viewStage !== 'ai-closed' }"
+              @click="toggleAiStage"
+            >
+              <Sparkles :size="15" />
+              <span>{{ viewStage === 'ai-closed' ? 'AI 润色助手' : '收起 AI' }}</span>
+            </button>
             <button class="btn-outline btn-export" :disabled="exporting" @click="handleExport">
               {{ exporting ? '导出中...' : '导出 PDF' }}
             </button>
@@ -379,15 +440,25 @@ const spacingStyle = computed(() => ({
       <div v-if="loading" class="loading-box">加载中...</div>
 
       <section v-else class="editor-section">
-        <div class="editor-layout">
-          <!-- LEFT: 分页预览 -->
-          <div class="preview-panel">
-            <div class="preview-header">
-              简历预览
-              <span v-if="pageCount > 1" class="page-label"
-                >{{ currentPage }} / {{ pageCount }}</span
-              >
-            </div>
+        <div class="resume-stage-viewport" :class="`stage--${viewStage}`">
+          <div class="resume-panels-track">
+            <!-- 1. LEFT: 分页预览卡片 -->
+            <div
+              class="track-panel preview-panel"
+              :class="{ 'is-peeking': viewStage === 'ai-focus' }"
+              @click="viewStage === 'ai-focus' && (viewStage = 'preview-focus')"
+            >
+              <!-- 留出边缘时的点击切回提示 -->
+              <div v-if="viewStage === 'ai-focus'" class="peek-tab-overlay" title="点击切回预览">
+                <span class="peek-tab-pill">📄 点击切换至预览</span>
+              </div>
+
+              <div class="preview-header">
+                简历预览
+                <span v-if="pageCount > 1" class="page-label"
+                  >{{ currentPage }} / {{ pageCount }}</span
+                >
+              </div>
 
             <!-- 分页滚动容器 -->
             <div class="pages-container" @scroll="onPageScroll">
@@ -524,8 +595,8 @@ const spacingStyle = computed(() => ({
             </div>
           </div>
 
-          <!-- RIGHT: 编辑面板 -->
-          <div class="edit-panel">
+          <!-- 2. CENTER: 编辑面板 -->
+          <div class="track-panel edit-panel">
             <div class="edit-menu">
               <button
                 v-for="m in MODULES"
@@ -761,8 +832,30 @@ const spacingStyle = computed(() => ({
               </div>
             </div>
           </div>
+
+          <!-- 3. RIGHT: AI 智能润色卡片 (复用通用 HarnessChatPanel) -->
+          <div
+            v-if="viewStage !== 'ai-closed'"
+            class="track-panel ai-panel"
+            :class="{ 'is-peeking': viewStage === 'preview-focus' }"
+            @click="viewStage === 'preview-focus' && (viewStage = 'ai-focus')"
+          >
+            <!-- 留出边缘时的点击展开提示 -->
+            <div v-if="viewStage === 'preview-focus'" class="peek-tab-overlay" title="点击切换至 AI 润色">
+              <span class="peek-tab-pill">✨ 点击切换至 AI 润色</span>
+            </div>
+
+            <HarnessChatPanel
+              :context="resumeContext"
+              :context-title="form.title || form.name || '我的简历'"
+              :quick-prompts="resumeQuickPrompts"
+              :show-close="true"
+              @close="viewStage = 'ai-closed'"
+            />
+          </div>
         </div>
-      </section>
+      </div>
+    </section>
 
       <!-- 隐藏的测量容器 -->
       <div ref="contentMeasurer" class="content-measurer" aria-hidden="true">

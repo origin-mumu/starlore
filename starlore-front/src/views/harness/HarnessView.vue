@@ -1,43 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { PanelLeftOpen, Settings } from '@lucide/vue'
 import HarnessSidebar from './components/HarnessSidebar.vue'
-import HarnessMessageList from './components/HarnessMessageList.vue'
-import HarnessInputArea from './components/HarnessInputArea.vue'
 import HarnessMascotStage from './components/HarnessMascotStage.vue'
-import HarnessTodoPanel from './components/HarnessTodoPanel.vue'
+import HarnessChatPanel from './components/HarnessChatPanel.vue'
 import AgentConfigDrawer from '@/components/AgentConfigDrawer.vue'
 import { getAiModels, getAgentConfig, updateAgentConfig } from '@/api/ai'
 import {
   createHarnessSession,
   deleteHarnessSession,
-  fetchHarnessMessages,
   fetchHarnessModels,
   fetchHarnessSessions,
-  fetchHarnessTodos,
-  streamHarnessChat,
   updateHarnessSession,
 } from '@/api/harness'
 import type {
-  HarnessMessage,
   HarnessModelItem,
   HarnessSession,
-  HarnessTodoItem,
-  StreamEventPayload,
 } from './types'
 
 // 状态管理
 const sessions = ref<HarnessSession[]>([])
 const currentSessionId = ref<number | null>(null)
-const messages = ref<HarnessMessage[]>([])
 const models = ref<HarnessModelItem[]>([])
 const currentModelId = ref<string>('')
-const modelsLoaded = ref(false)
 const isSidebarOpen = ref(true)
 const isRunning = ref(false)
-// 任务清单（todo_write 整表快照驱动）
-const todoList = ref<HarnessTodoItem[]>([])
 
 // 设置弹窗状态
 const configModalOpen = ref(false)
@@ -90,20 +77,6 @@ async function saveAgentConfig() {
   }
 }
 
-// 当前流式生成中的消息
-const streamingMessage = ref<HarnessMessage | null>(null)
-// 正在流式输出思考文字(reasoning)的步骤号：仅该步骤的小思考自动展开，
-// 一旦进入规划/工具/正文阶段或切换到新步骤即置空，对应小思考自动折叠
-const activeThinkingStep = ref<number | null>(null)
-let abortController: AbortController | null = null
-
-const inputAreaRef = ref<InstanceType<typeof HarnessInputArea> | null>(null)
-
-// 当前活跃会话
-const currentSession = computed(() => {
-  return sessions.value.find((s) => s.id === currentSessionId.value) || null
-})
-
 // 初始化拉取数据
 onMounted(async () => {
   try {
@@ -114,19 +87,14 @@ onMounted(async () => {
     models.value = fetchedModels
     if (fetchedModels.length > 0) {
       currentModelId.value = fetchedModels[0].id
-    } else {
-      ElMessage.warning('暂无可用模型，请在后台 AI 配置中启用模型')
     }
-    modelsLoaded.value = true
-
     sessions.value = fetchedSessions
     if (fetchedSessions.length > 0) {
-      await selectSession(fetchedSessions[0].id)
+      currentSessionId.value = fetchedSessions[0].id
     } else if (currentModelId.value) {
       await handleNewSession()
     }
   } catch (err: any) {
-    modelsLoaded.value = true
     ElMessage.error(err.message || '初始化 Harness 失败')
   }
 })
@@ -140,22 +108,9 @@ async function selectSession(sessionId: number) {
   currentSessionId.value = sessionId
   const s = sessions.value.find((item) => item.id === sessionId)
   if (s && s.model_id && models.value.some((m) => m.id === s.model_id)) {
-    // 会话记录的模型仍在可用列表中才启用
     currentModelId.value = s.model_id
   } else if (models.value.length > 0) {
-    // 会话记录的模型已下线，回退到真实可用列表的第一个
     currentModelId.value = models.value[0].id
-  }
-  try {
-    messages.value = await fetchHarnessMessages(sessionId)
-  } catch (err: any) {
-    ElMessage.error(err.message || '加载消息失败')
-  }
-  // 恢复该会话的任务清单快照
-  try {
-    todoList.value = await fetchHarnessTodos(sessionId)
-  } catch {
-    todoList.value = []
   }
 }
 
@@ -165,22 +120,19 @@ async function handleNewSession() {
     ElMessage.warning('当前任务正在生成中，请稍候')
     return
   }
-  if (!currentModelId.value) {
-    ElMessage.warning('暂无可用模型，无法创建会话')
-    return
+  if (!currentModelId.value && models.value.length > 0) {
+    currentModelId.value = models.value[0].id
   }
   try {
     const newS = await createHarnessSession('新会话', currentModelId.value)
     sessions.value.unshift(newS)
     currentSessionId.value = newS.id
-    messages.value = []
-    todoList.value = []
   } catch (err: any) {
     ElMessage.error(err.message || '创建会话失败')
   }
 }
 
-// 更新会话（重命名/置顶）
+// 更新会话
 async function handleUpdateSession(
   sessionId: number,
   payload: { title?: string; pinned?: boolean }
@@ -214,243 +166,11 @@ async function handleDeleteSession(sessionId: number) {
   }
 }
 
-// 点击快捷提示词直接填入并发送
-function handleSelectPrompt(prompt: string) {
-  handleSend(prompt)
-}
-
-// 发送消息核心逻辑
-async function handleSend(userText: string, images?: string[]) {
-  if (!currentSessionId.value || isRunning.value) return
-  if (!currentModelId.value) {
-    ElMessage.warning('暂无可用模型，请稍候重试')
-    return
-  }
-
-  // 1. 本地立即追加用户消息
-  const userMsg: HarnessMessage = {
-    role: 'user',
-    content: userText,
-    images: images && images.length > 0 ? [...images] : undefined,
-  }
-  messages.value.push(userMsg)
-
-  // 2. 初始化流式响应消息
-  streamingMessage.value = {
-    role: 'assistant',
-    content: '',
-    reasoning_content: '',
-    tool_calls: [],
-    artifacts: [],
-    step_details: [],
-    duration_ms: 0,
-  }
-  isRunning.value = true
-  abortController = new AbortController()
-  const startTime = Date.now()
-  let currentStepNum = 1
-  activeThinkingStep.value = null
-
-  let targetContent = ''
-  let typingTimer: number | null = null
-
-  const appendSmoothContent = (delta: string) => {
-    targetContent += delta
-    if (!typingTimer) {
-      typingTimer = window.setInterval(() => {
-        if (!streamingMessage.value) {
-          clearInterval(typingTimer!)
-          typingTimer = null
-          return
-        }
-        const current = streamingMessage.value.content || ''
-        if (current.length < targetContent.length) {
-          const diff = targetContent.length - current.length
-          const step = diff > 80 ? 4 : diff > 30 ? 2 : 1
-          streamingMessage.value.content = targetContent.slice(0, current.length + step)
-        } else {
-          clearInterval(typingTimer!)
-          typingTimer = null
-        }
-      }, 20)
-    }
-  }
-
-  const flushSmoothContent = () => {
-    if (typingTimer) {
-      clearInterval(typingTimer)
-      typingTimer = null
-    }
-    if (streamingMessage.value && targetContent) {
-      streamingMessage.value.content = targetContent
-    }
-  }
-
+// 会话创建或列表变更刷新
+async function refreshSessions() {
   try {
-    await streamHarnessChat(
-      currentSessionId.value,
-      { message: userText, model_id: currentModelId.value, images },
-      (ev: StreamEventPayload) => {
-        if (!streamingMessage.value) return
-
-        if (!streamingMessage.value.step_details) {
-          streamingMessage.value.step_details = []
-        }
-        const getOrCreateStep = (stepNum: number) => {
-          let st = streamingMessage.value!.step_details!.find((s) => s.step === stepNum)
-          if (!st) {
-            st = {
-              step: stepNum,
-              title: `步骤 ${stepNum}`,
-              reasoning: '',
-              scratchpad: '',
-              tool_calls: [],
-            }
-            streamingMessage.value!.step_details!.push(st)
-          }
-          return st
-        }
-
-        if (ev.event === 'step') {
-          currentStepNum = ev.data.step || currentStepNum
-          // 进入新步骤：上一段小思考已思考完毕，自动折叠
-          activeThinkingStep.value = null
-          getOrCreateStep(currentStepNum)
-        } else if (ev.event === 'reasoning') {
-          const delta = ev.data.delta || ''
-          streamingMessage.value.reasoning_content =
-            (streamingMessage.value.reasoning_content || '') + delta
-          const st = getOrCreateStep(currentStepNum)
-          st.reasoning = (st.reasoning || '') + delta
-          // 思考文字正在流出：当前步骤的小思考保持展开
-          activeThinkingStep.value = currentStepNum
-          streamingMessage.value.duration_ms = Date.now() - startTime
-        } else if (ev.event === 'step_thought') {
-          // 规划草稿到达：该步骤思考结束，小思考自动折叠
-          activeThinkingStep.value = null
-          const st = getOrCreateStep(ev.data.step || currentStepNum)
-          st.scratchpad = ev.data.text || ''
-        } else if (ev.event === 'content') {
-          // 正文开始输出：全部思考完成，小思考自动折叠
-          activeThinkingStep.value = null
-          const delta = ev.data.delta || ''
-          appendSmoothContent(delta)
-          streamingMessage.value.duration_ms = Date.now() - startTime
-        } else if (ev.event === 'tool_start') {
-          activeThinkingStep.value = null
-          const stepNum = ev.data.step || currentStepNum
-          const st = getOrCreateStep(stepNum)
-          const newTool = {
-            call_id: ev.data.call_id,
-            tool: ev.data.tool,
-            label: ev.data.label,
-            summary: '正在执行...',
-            status: 'running' as const,
-            step: stepNum,
-          }
-          streamingMessage.value.tool_calls = streamingMessage.value.tool_calls || []
-          streamingMessage.value.tool_calls.push(newTool)
-          st.tool_calls.push(newTool)
-        } else if (ev.event === 'tool_done') {
-          activeThinkingStep.value = null
-          const stepNum = ev.data.step || currentStepNum
-          const list = streamingMessage.value.tool_calls || []
-          const target = list.find((t) => t.call_id === ev.data.call_id)
-          if (target) {
-            target.status = ev.data.status
-            target.summary = ev.data.summary
-            target.citations = ev.data.citations
-          }
-          const st = getOrCreateStep(stepNum)
-          const stTarget = st.tool_calls.find((t) => t.call_id === ev.data.call_id)
-          if (stTarget) {
-            stTarget.status = ev.data.status
-            stTarget.summary = ev.data.summary
-            stTarget.citations = ev.data.citations
-          }
-        } else if (ev.event === 'artifact') {
-          activeThinkingStep.value = null
-          streamingMessage.value.artifacts = streamingMessage.value.artifacts || []
-          streamingMessage.value.artifacts.push(ev.data)
-        } else if (ev.event === 'todo') {
-          // 任务清单整表快照
-          if (Array.isArray(ev.data?.todos)) {
-            todoList.value = ev.data.todos
-          }
-        } else if (ev.event === 'done') {
-          activeThinkingStep.value = null
-          if (ev.data.duration_ms) {
-            streamingMessage.value.duration_ms = ev.data.duration_ms
-          }
-          if (ev.data.step_details && Array.isArray(ev.data.step_details)) {
-            streamingMessage.value.step_details = ev.data.step_details
-          }
-        } else if (ev.event === 'error') {
-          activeThinkingStep.value = null
-          const errMsg = ev.data?.message || '生成失败'
-          ElMessage.error(errMsg)
-          if (streamingMessage.value && !streamingMessage.value.content) {
-            streamingMessage.value.content = `服务响应提示: ${errMsg}`
-          }
-        }
-      },
-      abortController.signal
-    )
-  } catch (err: any) {
-    if (err.name !== 'AbortError') {
-      const errMsg = err.message || '流式连接异常中断'
-      ElMessage.error(errMsg)
-      if (streamingMessage.value && !streamingMessage.value.content) {
-        streamingMessage.value.content = `服务响应提示: ${errMsg}`
-      }
-    }
-  } finally {
-    // 等待打字机平滑流出剩余尾部字词，避免流关闭瞬间闪现
-    if (typingTimer) {
-      await new Promise<void>((resolve) => {
-        let maxWait = 40
-        const check = setInterval(() => {
-          maxWait--
-          if (!typingTimer || maxWait <= 0 || (streamingMessage.value?.content || '').length >= targetContent.length) {
-            clearInterval(check)
-            resolve()
-          }
-        }, 25)
-      })
-    }
-    flushSmoothContent()
-    // 归档当前流式消息
-    if (streamingMessage.value && (streamingMessage.value.content || streamingMessage.value.reasoning_content || (streamingMessage.value.tool_calls && streamingMessage.value.tool_calls.length > 0))) {
-      streamingMessage.value.duration_ms = Date.now() - startTime
-      messages.value.push({ ...streamingMessage.value })
-    }
-    streamingMessage.value = null
-    activeThinkingStep.value = null
-    isRunning.value = false
-    abortController = null
-
-    // 重新拉取会话列表以刷新标题与修改时间
-    try {
-      sessions.value = await fetchHarnessSessions()
-    } catch {}
-  }
-}
-
-// 终止生成
-function handleStop() {
-  if (abortController) {
-    abortController.abort()
-    abortController = null
-    isRunning.value = false
-  }
-}
-
-// 切换模型
-function handleUpdateModel(modelId: string) {
-  currentModelId.value = modelId
-  if (currentSessionId.value) {
-    updateHarnessSession(currentSessionId.value, { model_id: modelId })
-  }
+    sessions.value = await fetchHarnessSessions()
+  } catch {}
 }
 </script>
 
@@ -485,56 +205,17 @@ function handleUpdateModel(modelId: string) {
       </Transition>
     </div>
 
-    <!-- 右侧消息流与输入容器：撑满剩余空间，左边框随左侧容器伸缩而平滑左右移动 -->
-    <main class="harness-main">
-      <!-- 侧边栏折叠时呈现的左上角纯图标操作按钮组（不要文字：展开历史 + 设置） -->
-      <Transition name="actions-fade">
-        <div v-if="!isSidebarOpen" class="harness-top-actions">
-          <button
-            type="button"
-            class="top-action-btn"
-            title="展开会话历史"
-            @click="isSidebarOpen = true"
-          >
-            <PanelLeftOpen class="icon-sm" />
-          </button>
-          <button
-            type="button"
-            class="top-action-btn"
-            title="系统与 AI 助手设置"
-            @click="openAgentConfig"
-          >
-            <Settings class="icon-sm" />
-          </button>
-        </div>
-      </Transition>
+    <!-- 右侧消息流与输入容器：复用通用的 HarnessChatPanel 对话卡片 -->
+    <HarnessChatPanel
+      v-model:session-id="currentSessionId"
+      v-model:is-running="isRunning"
+      :show-top-actions="!isSidebarOpen"
+      @open-sidebar="isSidebarOpen = true"
+      @open-settings="openAgentConfig"
+      @session-created="refreshSessions"
+    />
 
-      <HarnessMessageList
-        :messages="messages"
-        :streaming-message="streamingMessage"
-        :is-running="isRunning"
-        :active-thinking-step="activeThinkingStep"
-        @select-prompt="handleSelectPrompt"
-      />
-
-      <!-- 悬浮底栏输入卡片 -->
-      <HarnessInputArea
-        ref="inputAreaRef"
-        :models="models"
-        :models-loaded="modelsLoaded"
-        :current-model-id="currentModelId"
-        :is-running="isRunning"
-        @send="handleSend"
-        @stop="handleStop"
-        @update-model="handleUpdateModel"
-      >
-        <template #dock>
-          <HarnessTodoPanel :todos="todoList" :is-running="isRunning" />
-        </template>
-      </HarnessInputArea>
-    </main>
-
-    <!-- 设置弹窗 (来自 echobot 的 AgentConfigDrawer) -->
+    <!-- 设置弹窗 -->
     <AgentConfigDrawer
       :open="configModalOpen"
       :agent-config-form="agentConfigForm"
@@ -627,93 +308,5 @@ function handleUpdateModel(modelId: string) {
 .mascot-slide-leave-to {
   opacity: 0;
   transform: translateX(-50px);
-}
-
-/* 右侧主聊天卡片：flex: 1 撑满其余宽度，左边框自然平滑跟随左侧容器移动 */
-.harness-main {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  background: var(--surface, rgba(255, 255, 255, 0.75));
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 24px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.04);
-  box-sizing: border-box;
-}
-
-[data-theme="dark"] .harness-main {
-  border-color: var(--border, rgba(255, 255, 255, 0.08));
-  background: var(--surface, rgba(20, 20, 24, 0.85));
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-}
-
-/* 顶部纯图标快捷操作组（展开 + 设置） */
-.harness-top-actions {
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  z-index: 35;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.top-action-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-full, 9999px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-soft, #5C4D3D);
-  background: var(--surface, rgba(255, 255, 255, 0.85));
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.top-action-btn:hover {
-  color: var(--ink, #1A1410);
-  border-color: rgba(222, 67, 49, 0.3);
-  background: var(--surface-hover, #ffffff);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
-}
-
-[data-theme="dark"] .top-action-btn {
-  color: #a1a1aa;
-  background: var(--surface, rgba(24, 24, 28, 0.88));
-  border-color: var(--border, rgba(255, 255, 255, 0.08));
-}
-
-[data-theme="dark"] .top-action-btn:hover {
-  color: #ffffff;
-  background: rgba(36, 36, 42, 0.95);
-  border-color: rgba(222, 67, 49, 0.4);
-}
-
-.icon-sm {
-  width: 16px;
-  height: 16px;
-}
-
-/* 顶部操作按钮淡入淡出 */
-.actions-fade-enter-active,
-.actions-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.actions-fade-enter-from,
-.actions-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
 }
 </style>

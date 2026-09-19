@@ -5,9 +5,9 @@ import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { List, Hash, Sparkles, Send, Trash2, Bot, User } from '@lucide/vue'
-import { getAuthToken } from '@/utils/authToken'
+import { List, Hash, Sparkles } from '@lucide/vue'
 import { renderArticleContent } from '@/utils/articleContent'
+import HarnessChatPanel from '@/views/harness/components/HarnessChatPanel.vue'
 
 const userStore = useUserStore()
 
@@ -32,13 +32,6 @@ interface TocItem {
   level: number // 1=h1, 2=h2, 3=h3
 }
 
-interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
-}
-
 const route = useRoute()
 const article = ref<Article>()
 const isLoading = ref(true)
@@ -52,25 +45,8 @@ let progressFrame = 0
 let enhancementTimer = 0
 let highlightIdleCallback = 0
 
-// ─── AI 伴读对话状态 ───
-const aiMessages = ref<ChatMessage[]>([
-  {
-    id: 'welcome',
-    role: 'assistant',
-    content: '你好！我是这篇星记的 AI 伴读助手。你可以随时向我提问关于文章内容的任何问题，或者点击下方快捷键让我为你总结要点。',
-    timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  },
-])
-const inputMessage = ref('')
-const isAiStreaming = ref(false)
-const aiChatScrollRef = ref<HTMLElement | null>(null)
-let aiAbortController: AbortController | null = null
-
-const quickPrompts = [
-  '总结这篇星记的核心要点',
-  '解释文中的关键概念',
-  '针对文章出 3 道复习思考题',
-]
+// ─── AI 伴读侧栏状态 ───
+const isAiActive = ref(false)
 
 const cleanArticleContent = computed(() => {
   let raw = article.value?.content || '星记内容为空'
@@ -85,6 +61,18 @@ const cleanArticleContent = computed(() => {
 const renderedArticleContent = computed(() =>
   renderArticleContent(cleanArticleContent.value),
 )
+
+// 注入给复用 AI 卡片的文章上下文
+const articleContext = computed(() => {
+  if (!article.value) return ''
+  return `【当前正在阅读的星记】\n标题：《${article.value.title}》\n分类：${article.value.category || '未分类'}\n摘要：${article.value.description || '无'}\n正文片段：\n${cleanArticleContent.value.slice(0, 3500)}`
+})
+
+const articleQuickPrompts = [
+  '总结这篇星记的核心要点与逻辑框架',
+  '提炼文中的核心技术概念并通俗解释',
+  '根据文章内容出 3 道复习思考题',
+]
 
 const updateReadingProgress = () => {
   progressFrame = 0
@@ -205,140 +193,6 @@ const scheduleArticleEnhancements = () => {
   })
 }
 
-// ─── AI 伴读交互逻辑 ───
-function handleQuickPrompt(promptText: string) {
-  inputMessage.value = promptText
-  sendAiMessage()
-}
-
-function scrollAiToBottom() {
-  nextTick(() => {
-    if (aiChatScrollRef.value) {
-      aiChatScrollRef.value.scrollTop = aiChatScrollRef.value.scrollHeight
-    }
-  })
-}
-
-async function sendAiMessage() {
-  const query = inputMessage.value.trim()
-  if (!query || isAiStreaming.value) return
-
-  const userMsgId = 'user-' + Date.now()
-  aiMessages.value.push({
-    id: userMsgId,
-    role: 'user',
-    content: query,
-    timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  })
-
-  inputMessage.value = ''
-  scrollAiToBottom()
-
-  const assistantMsgId = 'ai-' + Date.now()
-  aiMessages.value.push({
-    id: assistantMsgId,
-    role: 'assistant',
-    content: '',
-    timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  })
-
-  isAiStreaming.value = true
-
-  const articleContext = article.value
-    ? `当前阅读文章标题：《${article.value.title}》\n分类：${article.value.category || '未分类'}\n文章摘要及核心内容：\n${article.value.description || ''}\n${article.value.content.slice(0, 2000)}`
-    : ''
-
-  const apiMessages = [
-    {
-      role: 'system',
-      content: `你是一个智能伴读助手，用户正在阅读文章。请依据以下文章内容并结合通用知识，回答用户关于该文章的问题。保持专业、亲和、清晰条理，回答尽量精炼并使用 Markdown 格式。\n\n【文章上下文】\n${articleContext}`,
-    },
-    ...aiMessages.value
-      .filter(m => m.id !== 'welcome' && m.id !== assistantMsgId)
-      .map(m => ({ role: m.role, content: m.content })),
-  ]
-
-  try {
-    aiAbortController = new AbortController()
-    const token = getAuthToken()
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const response = await fetch('/api/ai/sse', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        messages: apiMessages,
-      }),
-      signal: aiAbortController.signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const reader = response.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    const assistantIdx = aiMessages.value.findIndex(m => m.id === assistantMsgId)
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data:')) continue
-        try {
-          const data = JSON.parse(trimmed.slice(5).trim())
-          if (data.content && assistantIdx !== -1) {
-            aiMessages.value[assistantIdx].content += data.content
-            scrollAiToBottom()
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-    }
-  } catch (err: any) {
-    if (err.name !== 'AbortError') {
-      const assistantIdx = aiMessages.value.findIndex(m => m.id === assistantMsgId)
-      if (assistantIdx !== -1 && !aiMessages.value[assistantIdx].content) {
-        aiMessages.value[assistantIdx].content = '抱歉，回答生成遇到了一点问题，请稍后重试。'
-      }
-    }
-  } finally {
-    isAiStreaming.value = false
-    aiAbortController = null
-    scrollAiToBottom()
-  }
-}
-
-function clearAiMessages() {
-  if (aiAbortController) {
-    aiAbortController.abort()
-    aiAbortController = null
-  }
-  isAiStreaming.value = false
-  aiMessages.value = [
-    {
-      id: 'welcome-' + Date.now(),
-      role: 'assistant',
-      content: `对话已重置。你可以随时向我提问关于《${article.value?.title || '本篇星记'}》的任何内容！`,
-      timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]
-}
-
 onMounted(async () => {
   window.addEventListener('scroll', scheduleReadingProgress, { passive: true })
   window.addEventListener('resize', scheduleReadingProgress, { passive: true })
@@ -374,9 +228,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  if (aiAbortController) {
-    aiAbortController.abort()
-  }
   tocObserver?.disconnect()
   window.removeEventListener('scroll', scheduleReadingProgress)
   window.removeEventListener('resize', scheduleReadingProgress)
@@ -424,7 +275,7 @@ const formatDate = (dateString: string) => {
     <div v-else class="article-detail-page">
       <section class="section-parchment">
         <div class="detail-container">
-          <div class="detail-3col-layout">
+          <div class="detail-3col-layout" :class="{ 'ai-active': isAiActive }">
             <!-- ─── 左侧：文章目录 (TOC) ─── -->
             <aside class="sidebar-toc" :class="{ 'is-collapsed': !tocOpen }">
               <nav class="toc-card ink-glass-card" :class="{ 'is-collapsed': !tocOpen }">
@@ -489,102 +340,35 @@ const formatDate = (dateString: string) => {
               </article>
             </main>
 
-            <!-- ─── 右侧：AI 伴读问答窗口 ─── -->
+            <!-- ─── 右侧：复用 HarnessChatPanel AI 伴读对话卡片 ─── -->
             <aside class="sidebar-ai">
-              <div class="ai-companion-card ink-glass-card">
-                <div class="ai-card-header">
-                  <div class="ai-header-left">
-                    <div class="ai-avatar-icon">
-                      <Sparkles :size="15" />
-                    </div>
-                    <div class="ai-header-meta">
-                      <div class="ai-header-title">AI 伴读助手</div>
-                      <div class="ai-header-status">
-                        <span class="status-indicator"></span>
-                        <span>随时为你解答</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    class="ai-clear-btn"
-                    type="button"
-                    title="清空对话"
-                    @click="clearAiMessages"
-                  >
-                    <Trash2 :size="14" />
-                  </button>
-                </div>
-
-                <!-- 消息滚动列表 -->
-                <div ref="aiChatScrollRef" class="ai-messages-scroll">
-                  <div
-                    v-for="msg in aiMessages"
-                    :key="msg.id"
-                    class="ai-msg-row"
-                    :class="`is-${msg.role}`"
-                  >
-                    <div class="ai-msg-avatar">
-                      <Bot v-if="msg.role === 'assistant'" :size="14" />
-                      <User v-else :size="14" />
-                    </div>
-                    <div class="ai-msg-bubble">
-                      <div
-                        v-if="msg.role === 'assistant'"
-                        class="ai-bubble-content markdown-body"
-                      >
-                        <div v-if="!msg.content && isAiStreaming" class="ai-thinking-state">
-                          <div class="ai-thinking-dots">
-                            <span class="ai-thinking-dot"></span>
-                            <span class="ai-thinking-dot"></span>
-                            <span class="ai-thinking-dot"></span>
-                          </div>
-                        </div>
-                        <div v-else v-html="renderArticleContent(msg.content)"></div>
-                      </div>
-                      <div v-else class="ai-bubble-content">{{ msg.content }}</div>
-                      <span class="ai-msg-time">{{ msg.timestamp }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 快捷提问预设词 -->
-                <div class="ai-quick-prompts">
-                  <button
-                    v-for="prompt in quickPrompts"
-                    :key="prompt"
-                    type="button"
-                    class="quick-prompt-pill"
-                    :disabled="isAiStreaming"
-                    @click="handleQuickPrompt(prompt)"
-                  >
-                    {{ prompt }}
-                  </button>
-                </div>
-
-                <!-- 输入区 -->
-                <div class="ai-input-box">
-                  <textarea
-                    v-model="inputMessage"
-                    placeholder="向 AI 提问文章内容... (Enter 发送)"
-                    rows="1"
-                    :disabled="isAiStreaming"
-                    @keydown.enter.exact.prevent="sendAiMessage"
-                  ></textarea>
-                  <button
-                    type="button"
-                    class="ai-send-btn"
-                    :disabled="!inputMessage.trim() || isAiStreaming"
-                    @click="sendAiMessage"
-                    aria-label="发送消息"
-                  >
-                    <Send :size="14" />
-                  </button>
-                </div>
-              </div>
+              <HarnessChatPanel
+                v-if="article"
+                :context="articleContext"
+                :context-title="article.title"
+                :quick-prompts="articleQuickPrompts"
+                :show-close="true"
+                @close="isAiActive = false"
+              />
             </aside>
           </div>
         </div>
       </section>
+
+      <!-- ─── 右下角悬浮呼出 AI 伴读按钮 ─── -->
+      <Transition name="fade-scale">
+        <button
+          v-if="!isAiActive && article"
+          type="button"
+          class="ai-trigger-fab"
+          title="呼出 AI 伴读助手"
+          @click="isAiActive = true"
+        >
+          <div class="fab-glow-ring"></div>
+          <Sparkles :size="16" class="fab-icon" />
+          <span class="fab-label">AI 伴读</span>
+        </button>
+      </Transition>
     </div>
   </div>
 </template>

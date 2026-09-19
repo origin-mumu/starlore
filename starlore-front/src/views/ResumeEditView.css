@@ -61,17 +61,72 @@
   color: var(--ink-muted);
 }
 
-.editor-layout {
-  display: grid;
-  grid-template-columns: 2.2fr 2fr;
-  gap: 16px;
-  min-height: calc(100vh - 180px);
-  /*background: var(--canvas);*/
-  padding: 16px;
+/* 顶部 AI 切换按钮 */
+.btn-ai-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border-interactive, rgba(222, 67, 49, 0.25));
+  color: var(--accent, #DE4331);
+  font-weight: 650;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ===== Preview Panel ===== */
+.btn-ai-toggle:hover {
+  border-color: var(--accent, #DE4331);
+  background: color-mix(in srgb, var(--accent, #DE4331) 8%, var(--surface, #ffffff));
+  transform: translateY(-1px);
+}
+
+.btn-ai-toggle.is-active {
+  background: var(--accent, #DE4331);
+  color: #ffffff;
+  border-color: var(--accent, #DE4331);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent, #DE4331) 35%, transparent);
+}
+
+/* ═════════════════════════════════════════════
+   视窗滑轨系统 (Sliding Stage Track)
+   ═════════════════════════════════════════════ */
+.editor-section {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  padding: 12px 20px 24px;
+  box-sizing: border-box;
+}
+
+.resume-stage-viewport {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  border-radius: 24px;
+  padding-bottom: 8px;
+}
+
+.resume-panels-track {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  width: max-content;
+  transition: transform 0.44s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* 轨道内的通用卡片基类 */
+.track-panel {
+  position: relative;
+  height: calc(100vh - 150px);
+  min-height: 600px;
+  box-sizing: border-box;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* 1. 预览卡片（固定尺寸，A4纸排版舒适） */
 .preview-panel {
+  width: 580px;
+  flex-shrink: 0;
   overflow: hidden;
   border-radius: 20px;
   display: flex;
@@ -81,8 +136,92 @@
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(16px) saturate(1.2);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  /* height: calc(100vh - 100px); */
-  height: 100vh;
+}
+
+/* 2. 编辑卡片（固定尺寸） */
+.edit-panel {
+  width: 560px;
+  flex-shrink: 0;
+  display: flex;
+  background: var(--glass-bg);
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+/* 3. AI 润色卡片（固定尺寸，复用通用卡片） */
+.ai-panel {
+  width: 440px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── 视窗位移状态切换 ─── */
+
+/* 状态 A: 默认常规关闭 AI（居中/正常并列展示） */
+.stage--ai-closed .resume-panels-track {
+  transform: translateX(0);
+}
+
+/* 状态 B: 主视角是【完整预览 + 完整编辑】，右侧 AI 卡片露出约 52px 窥视条 */
+.stage--preview-focus .resume-panels-track {
+  transform: translateX(0);
+}
+
+/* 状态 C: 主视角是【完整编辑 + 完整 AI】，左侧预览卡片保留 52px 边缘露出 */
+/* 预览卡片宽 580px - 露出 52px = 滑动 -528px */
+.stage--ai-focus .resume-panels-track {
+  transform: translateX(-528px);
+}
+
+/* ─── 边缘窥视遮罩层 (Peek Tab Overlay) ─── */
+.peek-tab-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.22s ease;
+  border-radius: 20px;
+}
+
+[data-theme="dark"] .peek-tab-overlay {
+  background: rgba(20, 20, 26, 0.78);
+}
+
+.track-panel.is-peeking:hover .peek-tab-overlay {
+  background: color-mix(in srgb, var(--accent, #DE4331) 14%, rgba(255, 255, 255, 0.85));
+}
+
+[data-theme="dark"] .track-panel.is-peeking:hover .peek-tab-overlay {
+  background: color-mix(in srgb, var(--accent, #DE4331) 20%, rgba(20, 20, 26, 0.9));
+}
+
+.peek-tab-pill {
+  writing-mode: vertical-lr;
+  letter-spacing: 4px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--accent, #DE4331);
+  padding: 16px 8px;
+  border-radius: 999px;
+  background: var(--surface, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--accent, #DE4331) 30%, transparent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .peek-tab-pill {
+  background: rgba(32, 32, 40, 0.95);
+  border-color: rgba(222, 67, 49, 0.4);
 }
 .preview-header {
   display: flex;
@@ -724,10 +863,18 @@
 }
 
 @media (max-width: 900px) {
-  .editor-layout {
-    grid-template-columns: 1fr;
-    padding: 12px;
-    gap: 12px;
+  .resume-panels-track {
+    flex-direction: column;
+    width: 100%;
+    transform: none !important;
+  }
+  .track-panel {
+    width: 100% !important;
+    height: auto;
+    min-height: auto;
+  }
+  .peek-tab-overlay {
+    display: none;
   }
   .page-frame {
     width: 100%;

@@ -4,12 +4,25 @@ import { ArrowDown, Sparkles } from '@lucide/vue'
 import HarnessMessageItem from './HarnessMessageItem.vue'
 import type { HarnessMessage } from '../types'
 
-const props = defineProps<{
-  messages: HarnessMessage[]
-  streamingMessage?: HarnessMessage | null
-  isRunning?: boolean
-  activeThinkingStep?: number | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    messages: HarnessMessage[]
+    streamingMessage?: HarnessMessage | null
+    isRunning?: boolean
+    activeThinkingStep?: number | null
+    customPrompts?: string[]
+    welcomeTitle?: string
+    welcomeDesc?: string
+  }>(),
+  {
+    streamingMessage: null,
+    isRunning: false,
+    activeThinkingStep: null,
+    customPrompts: () => [],
+    welcomeTitle: '',
+    welcomeDesc: '',
+  }
+)
 
 // 正文是否已开始流式输出（全部思考完成、开始输出正文的信号）
 const bodyStarted = computed(() => Boolean(props.isRunning) && Boolean(props.streamingMessage?.content))
@@ -71,6 +84,12 @@ const defaultPrompts = [
   '提炼星域知识库中的微服务架构方案，输出为一份规范 Word 报告',
   '检索知识库中关于容器化部署的内容并做深度总结',
 ]
+
+const displayPrompts = computed(() => {
+  return props.customPrompts && props.customPrompts.length > 0
+    ? props.customPrompts
+    : defaultPrompts
+})
 </script>
 
 <template>
@@ -79,7 +98,7 @@ const defaultPrompts = [
     class="harness-message-list"
     @scroll="checkScroll"
   >
-    <!-- 空状态：Codex 风格极简欢迎页面 -->
+    <!-- 空状态：极简欢迎页面 -->
     <div
       v-if="messages.length === 0 && !streamingMessage"
       class="welcome-container"
@@ -88,16 +107,16 @@ const defaultPrompts = [
         <Sparkles class="welcome-icon" />
       </div>
       <h2 class="welcome-title">
-        Starlore 云端智能体
+        {{ welcomeTitle || 'Starlore 云端智能体' }}
       </h2>
       <p class="welcome-desc">
-        深度联动知识库、演示文稿排版与 Word 报告生成，产物直接交付 MinIO 存储。
+        {{ welcomeDesc || '深度联动知识库、演示文稿排版与 Word 报告生成，产物直接交付 MinIO 存储。' }}
       </p>
 
       <!-- 引导建议快捷提示词 -->
       <div class="prompt-suggestions">
         <button
-          v-for="(p, idx) in defaultPrompts"
+          v-for="(p, idx) in displayPrompts"
           :key="idx"
           type="button"
           class="prompt-btn"
