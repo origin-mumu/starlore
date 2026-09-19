@@ -32,6 +32,7 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     EmptyState: typeof import('./components/common/EmptyState.vue')['default']
     LoadingState: typeof import('./components/common/LoadingState.vue')['default']
+    MarkdownEditor: typeof import('./components/MarkdownEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StatCard: typeof import('./components/common/StatCard.vue')['default']

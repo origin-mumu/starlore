@@ -75,6 +75,8 @@ starlore-py/.env
 tmp/
 .codex-remote-attachments/
 .impeccable/
+.zcode/
+demo/
 
 # Scratch scripts
 scratch/

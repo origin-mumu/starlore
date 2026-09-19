@@ -505,17 +505,25 @@ function handleSelectPrompt(prompt: string) {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
-/* 顶部操作条 */
+/* 顶部操作条：带渐变保护，确保滚动时文字不穿透 */
 .chat-panel-header {
   position: absolute;
-  top: 14px;
-  left: 16px;
-  right: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px 14px;
   z-index: 35;
   display: flex;
   align-items: center;
   justify-content: space-between;
   pointer-events: none;
+  background: linear-gradient(180deg, var(--surface, #ffffff) 60%, transparent 100%);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+
+[data-theme="dark"] .chat-panel-header {
+  background: linear-gradient(180deg, var(--surface, #141418) 60%, transparent 100%);
 }
 
 .header-left,
@@ -528,41 +536,40 @@ function handleSelectPrompt(prompt: string) {
 
 .top-action-btn,
 .panel-icon-btn {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-full, 9999px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--ink-soft, #5C4D3D);
-  background: var(--surface, rgba(255, 255, 255, 0.85));
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-theme="dark"] .top-action-btn,
 [data-theme="dark"] .panel-icon-btn {
-  background: var(--surface, rgba(30, 30, 36, 0.85));
-  border-color: rgba(255, 255, 255, 0.08);
+  background: #232328;
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--ink-soft, #b4a89b);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .top-action-btn:hover,
 .panel-icon-btn:hover {
   color: var(--ink, #1A1410);
-  border-color: rgba(222, 67, 49, 0.3);
+  border-color: rgba(222, 67, 49, 0.4);
   background: var(--surface-hover, #ffffff);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.09);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 
 .close-btn:hover {
   color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .icon-sm {

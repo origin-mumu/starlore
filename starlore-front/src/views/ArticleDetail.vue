@@ -341,7 +341,7 @@ const formatDate = (dateString: string) => {
             </main>
 
             <!-- ─── 右侧：复用 HarnessChatPanel AI 伴读对话卡片 ─── -->
-            <aside class="sidebar-ai">
+            <aside class="sidebar-ai" :class="{ 'is-active': isAiActive }">
               <HarnessChatPanel
                 v-if="article"
                 :context="articleContext"

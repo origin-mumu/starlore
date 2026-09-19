@@ -9,7 +9,7 @@ import {
   updateArticleService,
   articleCategoryListService,
 } from '@/api/article'
-import { useArticleEditor } from '@/composables/useArticleEditor'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import type { ArticleStatus } from '@/types'
 
 const route = useRoute()
@@ -39,8 +39,6 @@ const rules: FormRules = {
   content: [{ required: true, message: '请输入正文内容', trigger: 'blur' }],
 }
 
-const { editorRef, editorHtml, toolbarConfig, editorConfig, handleCreated } = useArticleEditor()
-
 async function loadArticle(): Promise<void> {
   if (!articleId.value) return
   try {
@@ -49,15 +47,13 @@ async function loadArticle(): Promise<void> {
     form.category = detail.category
     form.status = detail.status
     form.description = detail.description
-    form.content = detail.content
-    editorHtml.value = detail.content
+    form.content = detail.content || ''
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '文章加载失败')
   }
 }
 
 async function handleSave(): Promise<void> {
-  form.content = editorHtml.value
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   saving.value = true
@@ -118,16 +114,7 @@ onMounted(async () => {
         </el-form-item>
 
         <el-form-item label="正文" prop="content">
-          <div class="editor-wrap">
-            <Toolbar class="editor-toolbar" :editor="editorRef" :default-config="toolbarConfig" :mode="'default'" />
-            <Editor
-              class="editor-content"
-              v-model="editorHtml"
-              :default-config="editorConfig"
-              :mode="'default'"
-              @on-created="handleCreated"
-            />
-          </div>
+          <MarkdownEditor v-model="form.content" />
         </el-form-item>
       </el-form>
 
@@ -142,38 +129,17 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-@import '@wangeditor/editor/dist/css/style.css';
-
 .inline-fields {
   display: flex;
   gap: 28px;
   flex-wrap: wrap;
 }
 
-.editor-wrap {
-  width: 100%;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  z-index: 0;
-}
-
-.editor-toolbar {
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface-solid);
-}
-
-.editor-content {
-  height: 420px;
-  overflow-y: hidden;
-  background: var(--surface-solid);
-}
-
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding-top: 8px;
+  padding-top: 16px;
   border-top: 1px solid var(--border-soft);
 }
 </style>

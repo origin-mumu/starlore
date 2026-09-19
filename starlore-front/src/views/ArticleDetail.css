@@ -85,44 +85,54 @@
   padding-bottom: 24px;
 }
 
-.detail-container {
-  max-width: 1480px;
-  margin: 0 auto;
-  padding: 0 clamp(16px, 2vw, 28px);
+.article-detail-page .section-parchment {
+  padding: 0;
 }
 
-/* ─── 三栏式布局 (3-Column Layout) ─── */
+.detail-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  overflow: visible;
+}
+
+/* ─── 三栏式纯平移舞台轨道 (3-Column Smooth Translation Track) ─── */
 .detail-3col-layout {
   display: flex;
   align-items: flex-start;
-  gap: 24px;
+  gap: 18px; /* 间距紧凑精致 */
+  width: 1178px; /* 默认未开 AI 时的基准宽度 [目录 280px] + [间距 18px] + [正文 880px] */
   position: relative;
-  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
-  width: 100%;
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* 开启 AI 伴读时：整个 3 栏轨道以纯 GPU 硬件加速平移 408px，使得 [正文 880px] + [AI 500px] 严格居中于屏幕！ */
+.detail-3col-layout.ai-active {
+  transform: translateX(-408px);
 }
 
 /* ═════════════════════════════════════════════
    左侧：文章目录 (Left TOC Column)
    ═════════════════════════════════════════════ */
 .sidebar-toc {
-  width: 240px;
-  flex-shrink: 0;
+  width: 280px; /* 从 240px 扩宽至 280px，文字舒适展现 */
+  flex: 0 0 280px;
   position: sticky;
   top: 80px;
   height: calc(100vh - 100px);
   max-height: calc(100vh - 100px);
   display: flex;
   flex-direction: column;
-  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              margin-left 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.28s ease;
+  transition: opacity 0.3s ease;
+  z-index: 10;
 }
 
 .detail-3col-layout.ai-active .sidebar-toc {
-  transform: translateX(-100%);
-  margin-left: -264px;
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .sidebar-toc.is-collapsed {
@@ -324,16 +334,18 @@
    中间：文章正文区 (Center Article Content)
    ═════════════════════════════════════════════ */
 .main-content {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 960px;
-  margin: 0 auto;
-  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 880px; /* 严格固定宽度 880px，绝不挤压拉伸变形！ */
+  flex: 0 0 880px;
+  max-width: 880px;
+  margin: 0;
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
+/* 开启 AI 伴读时：正文卡片与 AI 卡片作为双卡片组合自然居中展现 */
 .detail-3col-layout.ai-active .main-content {
-  margin: 0;
-  max-width: none;
+  transform: none;
+  max-width: 880px;
 }
 
 .article-body-card {
@@ -433,34 +445,6 @@
   box-shadow: 0 4px 14px rgba(51, 123, 244, 0.38);
 }
 
-/* ═════════════════════════════════════════════
-   右侧：复用 Harness AI 伴读对话窗口 (Right AI Chat Column)
-   ═════════════════════════════════════════════ */
-.sidebar-ai {
-  width: 0;
-  flex-shrink: 0;
-  opacity: 0;
-  pointer-events: none;
-  overflow: hidden;
-  transform: translateX(40px);
-  position: sticky;
-  top: 80px;
-  height: calc(100vh - 100px);
-  max-height: calc(100vh - 100px);
-  transition: width 0.38s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.32s ease,
-              transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
-}
-
-/* 当 AI 激活时，右侧卡片平滑滑入展开 */
-.detail-3col-layout.ai-active .sidebar-ai {
-  width: 440px;
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-}
 
 /* ═════════════════════════════════════════════
    右下角悬浮呼出 AI 伴读胶囊按钮 (Floating AI Trigger FAB)
@@ -786,6 +770,28 @@
   color: #ffffff;
 }
 
+.sidebar-ai {
+  width: 500px;
+  flex: 0 0 500px;
+  position: sticky;
+  top: 80px;
+  height: calc(100vh - 100px);
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.detail-3col-layout.ai-active .sidebar-ai,
+.sidebar-ai.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
 /* ═════════════════════════════════════════════
    响应式断点 (Responsive Breakpoints)
    ═════════════════════════════════════════════ */
@@ -797,8 +803,15 @@
 
 @media (max-width: 860px) {
   .detail-3col-layout {
+    width: 100%;
+    max-width: 100%;
+    transform: none !important;
     flex-direction: column;
     gap: 16px;
+  }
+  .main-content {
+    width: 100%;
+    max-width: 100%;
   }
   .sidebar-toc {
     width: 100%;

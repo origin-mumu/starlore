@@ -120,8 +120,10 @@ function getIcon(toolName: string) {
   padding: 3px 6px;
   border-radius: 6px;
   transition: all 0.15s ease;
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.5;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .tool-label-row.clickable {
@@ -141,7 +143,9 @@ function getIcon(toolName: string) {
 .tool-name {
   font-weight: 500;
   color: var(--ink-soft, #3f3f46);
-  font-size: 14px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .tool-name {
@@ -150,7 +154,10 @@ function getIcon(toolName: string) {
 
 .tool-summary {
   color: var(--ink-muted, #8a7a6a);
-  font-size: 14px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chevron-wrap {

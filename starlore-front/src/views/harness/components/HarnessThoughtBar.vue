@@ -304,16 +304,18 @@ function renderMarkdown(content: string) {
 }
 
 .sub-thought-header {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   padding: 2px 4px;
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
-  width: fit-content;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: background 0.15s ease;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -326,13 +328,15 @@ function renderMarkdown(content: string) {
 }
 
 .sub-thought-label {
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--ink-muted, #71717a);
-  padding: 1px 7px;
+  padding: 1px 6px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.04);
   line-height: 1.4;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .sub-thought-label {
@@ -341,13 +345,19 @@ function renderMarkdown(content: string) {
 }
 
 .sub-thought-preview {
-  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
   line-height: 1.5;
   color: #8a7a6a;
-  max-width: 520px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sub-thought-header .chevron {
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 [data-theme="dark"] .sub-thought-preview {

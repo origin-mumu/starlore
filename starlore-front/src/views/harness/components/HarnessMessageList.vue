@@ -287,7 +287,7 @@ const displayPrompts = computed(() => {
 }
 
 .messages-flow {
-  padding: 20px 0 16px;
+  padding: 58px 0 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;

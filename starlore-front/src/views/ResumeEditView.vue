@@ -348,17 +348,10 @@ const spacingStyle = computed(() => ({
 }))
 
 // ─── 视窗分屏滑轨状态 ───
-// 'ai-closed' (常规预览+编辑)
-// 'preview-focus' (主视角是预览+编辑，AI在右侧露边)
-// 'ai-focus' (主视角是编辑+AI，预览在左侧露边)
-const viewStage = ref<'preview-focus' | 'ai-focus' | 'ai-closed'>('ai-closed')
+const isAiActive = ref(false)
 
-const toggleAiStage = () => {
-  if (viewStage.value === 'ai-closed') {
-    viewStage.value = 'ai-focus'
-  } else {
-    viewStage.value = 'ai-closed'
-  }
+const toggleAi = () => {
+  isAiActive.value = !isAiActive.value
 }
 
 // 组装注入 AI 卡片的简历上下文
@@ -421,11 +414,11 @@ const resumeQuickPrompts = [
             <button
               type="button"
               class="btn-outline btn-ai-toggle"
-              :class="{ 'is-active': viewStage !== 'ai-closed' }"
-              @click="toggleAiStage"
+              :class="{ 'is-active': isAiActive }"
+              @click="toggleAi"
             >
               <Sparkles :size="15" />
-              <span>{{ viewStage === 'ai-closed' ? 'AI 润色助手' : '收起 AI' }}</span>
+              <span>{{ !isAiActive ? 'AI 润色助手' : '收起 AI' }}</span>
             </button>
             <button class="btn-outline btn-export" :disabled="exporting" @click="handleExport">
               {{ exporting ? '导出中...' : '导出 PDF' }}
@@ -440,19 +433,10 @@ const resumeQuickPrompts = [
       <div v-if="loading" class="loading-box">加载中...</div>
 
       <section v-else class="editor-section">
-        <div class="resume-stage-viewport" :class="`stage--${viewStage}`">
-          <div class="resume-panels-track">
+        <div class="resume-stage-viewport">
+          <div class="resume-panels-track" :class="{ 'ai-active': isAiActive }">
             <!-- 1. LEFT: 分页预览卡片 -->
-            <div
-              class="track-panel preview-panel"
-              :class="{ 'is-peeking': viewStage === 'ai-focus' }"
-              @click="viewStage === 'ai-focus' && (viewStage = 'preview-focus')"
-            >
-              <!-- 留出边缘时的点击切回提示 -->
-              <div v-if="viewStage === 'ai-focus'" class="peek-tab-overlay" title="点击切回预览">
-                <span class="peek-tab-pill">📄 点击切换至预览</span>
-              </div>
-
+            <div class="track-panel preview-panel">
               <div class="preview-header">
                 简历预览
                 <span v-if="pageCount > 1" class="page-label"
@@ -833,29 +817,34 @@ const resumeQuickPrompts = [
             </div>
           </div>
 
-          <!-- 3. RIGHT: AI 智能润色卡片 (复用通用 HarnessChatPanel) -->
-          <div
-            v-if="viewStage !== 'ai-closed'"
-            class="track-panel ai-panel"
-            :class="{ 'is-peeking': viewStage === 'preview-focus' }"
-            @click="viewStage === 'preview-focus' && (viewStage = 'ai-focus')"
-          >
-            <!-- 留出边缘时的点击展开提示 -->
-            <div v-if="viewStage === 'preview-focus'" class="peek-tab-overlay" title="点击切换至 AI 润色">
-              <span class="peek-tab-pill">✨ 点击切换至 AI 润色</span>
-            </div>
-
+          <!-- 3. RIGHT: AI 智能润色卡片 (复用通用 HarnessChatPanel，常驻无 v-if 闪烁) -->
+          <div class="track-panel ai-panel" :class="{ 'is-active': isAiActive }">
             <HarnessChatPanel
               :context="resumeContext"
               :context-title="form.title || form.name || '我的简历'"
               :quick-prompts="resumeQuickPrompts"
               :show-close="true"
-              @close="viewStage = 'ai-closed'"
+              @close="isAiActive = false"
             />
           </div>
         </div>
       </div>
     </section>
+
+    <!-- ─── 右下角悬浮呼出 AI 润色按钮 (与文章详情页体验一致) ─── -->
+    <Transition name="fade-scale">
+      <button
+        v-if="!isAiActive"
+        type="button"
+        class="ai-trigger-fab"
+        title="呼出 AI 润色助手"
+        @click="isAiActive = true"
+      >
+        <div class="fab-glow-ring"></div>
+        <Sparkles :size="16" class="fab-icon" />
+        <span class="fab-label">AI 润色</span>
+      </button>
+    </Transition>
 
       <!-- 隐藏的测量容器 -->
       <div ref="contentMeasurer" class="content-measurer" aria-hidden="true">

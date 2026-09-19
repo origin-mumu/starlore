@@ -62,3 +62,13 @@ export async function getBlogStatsService(): Promise<BlogStatsVO> {
   const res = await http.get<any>('/articles/stats/summary')
   return (res?.data?.totalArticles !== undefined ? res.data : res) as BlogStatsVO
 }
+
+/* ── 图片上传 ──────────────────────────────── */
+
+export function uploadImage(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return http.post<{ url: string }>('/upload/image', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
