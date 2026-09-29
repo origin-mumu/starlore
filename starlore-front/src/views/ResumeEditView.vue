@@ -12,8 +12,8 @@ import RichEditor from '@/components/RichEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useUserStore } from '@/stores/user'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { Sparkles } from '@lucide/vue'
 import HarnessChatPanel from '@/views/harness/components/HarnessChatPanel.vue'
+import SpaceAiButton from '@/components/SpaceAiButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -410,16 +410,14 @@ const resumeQuickPrompts = [
             <h1>{{ resumeId ? '编辑简历' : '新建简历' }}</h1>
           </div>
           <div class="header-right">
-            <!-- ✨ AI 智能润色按钮 -->
-            <button
-              type="button"
-              class="btn-outline btn-ai-toggle"
-              :class="{ 'is-active': isAiActive }"
+            <!-- ✨ AI 智能润色按钮 (SPACE 星空流光样式) -->
+            <SpaceAiButton
+              size="sm"
+              class="btn-ai-toggle"
+              :label="!isAiActive ? 'AI 润色助手' : '收起 AI'"
+              :active="isAiActive"
               @click="toggleAi"
-            >
-              <Sparkles :size="15" />
-              <span>{{ !isAiActive ? 'AI 润色助手' : '收起 AI' }}</span>
-            </button>
+            />
             <button class="btn-outline btn-export" :disabled="exporting" @click="handleExport">
               {{ exporting ? '导出中...' : '导出 PDF' }}
             </button>
@@ -833,17 +831,13 @@ const resumeQuickPrompts = [
 
     <!-- ─── 右下角悬浮呼出 AI 润色按钮 (与文章详情页体验一致) ─── -->
     <Transition name="fade-scale">
-      <button
+      <SpaceAiButton
         v-if="!isAiActive"
-        type="button"
+        size="md"
+        label="AI 润色"
         class="ai-trigger-fab"
-        title="呼出 AI 润色助手"
         @click="isAiActive = true"
-      >
-        <div class="fab-glow-ring"></div>
-        <Sparkles :size="16" class="fab-icon" />
-        <span class="fab-label">AI 润色</span>
-      </button>
+      />
     </Transition>
 
       <!-- 隐藏的测量容器 -->

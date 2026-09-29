@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import EmotionBall from '@/components/EmotionBall.vue'
+import SpaceAiButton from '@/components/SpaceAiButton.vue'
 import { getBlogStatsService } from '@/api/article'
 import { Article } from '@/type/Article'
 import { useUserStore } from '@/stores/user'
@@ -133,15 +134,12 @@ onMounted(async () => {
               <button type="submit" class="btn-search-normal" title="在知识库中搜索">
                 <span>搜索星记</span>
               </button>
-              <button
-                type="button"
-                class="btn-search-ai"
-                @click="askAiHarness()"
+              <SpaceAiButton
+                size="sm"
+                label="AI 提问"
                 title="携当前内容前往 Harness 智能体解答"
-              >
-                <Sparkles :size="14" />
-                <span>AI 提问</span>
-              </button>
+                @click="askAiHarness()"
+              />
             </div>
           </form>
 

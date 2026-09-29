@@ -447,50 +447,14 @@
 
 
 /* ═════════════════════════════════════════════
-   右下角悬浮呼出 AI 伴读胶囊按钮 (Floating AI Trigger FAB)
+   右下角悬浮 AI 伴读按钮 (SpaceAiButton 组件悬浮定位)
+   按钮样式见 src/components/SpaceAiButton.vue
    ═════════════════════════════════════════════ */
 .ai-trigger-fab {
   position: fixed;
   right: 28px;
   bottom: 80px;
   z-index: 90;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--border-interactive, rgba(222, 67, 49, 0.25));
-  color: var(--accent, #DE4331);
-  font-family: inherit;
-  font-size: 0.88rem;
-  font-weight: 650;
-  cursor: pointer;
-  box-shadow: 0 6px 24px rgba(222, 67, 49, 0.16), 0 2px 8px rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-:global([data-theme="dark"]) .ai-trigger-fab {
-  background: rgba(30, 30, 36, 0.9);
-  border-color: rgba(222, 67, 49, 0.35);
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
-}
-
-.ai-trigger-fab:hover {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 10px 32px rgba(222, 67, 49, 0.25), 0 4px 14px rgba(0, 0, 0, 0.08);
-  border-color: var(--accent, #DE4331);
-}
-
-.fab-icon {
-  animation: fabSpin 6s linear infinite;
-}
-
-@keyframes fabSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* 按钮进退场渐变与缩放 */

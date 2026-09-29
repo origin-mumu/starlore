@@ -5,7 +5,8 @@ import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
-import { List, Hash, Sparkles } from '@lucide/vue'
+import { List, Hash } from '@lucide/vue'
+import SpaceAiButton from '@/components/SpaceAiButton.vue'
 import { renderArticleContent } from '@/utils/articleContent'
 import HarnessChatPanel from '@/views/harness/components/HarnessChatPanel.vue'
 
@@ -357,17 +358,13 @@ const formatDate = (dateString: string) => {
 
       <!-- ─── 右下角悬浮呼出 AI 伴读按钮 ─── -->
       <Transition name="fade-scale">
-        <button
+        <SpaceAiButton
           v-if="!isAiActive && article"
-          type="button"
+          size="md"
+          label="AI 伴读"
           class="ai-trigger-fab"
-          title="呼出 AI 伴读助手"
           @click="isAiActive = true"
-        >
-          <div class="fab-glow-ring"></div>
-          <Sparkles :size="16" class="fab-icon" />
-          <span class="fab-label">AI 伴读</span>
-        </button>
+        />
       </Transition>
     </div>
   </div>
