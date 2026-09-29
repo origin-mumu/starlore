@@ -829,17 +829,6 @@ const resumeQuickPrompts = [
       </div>
     </section>
 
-    <!-- ─── 右下角悬浮呼出 AI 润色按钮 (与文章详情页体验一致) ─── -->
-    <Transition name="fade-scale">
-      <SpaceAiButton
-        v-if="!isAiActive"
-        size="md"
-        label="AI 润色"
-        class="ai-trigger-fab"
-        @click="isAiActive = true"
-      />
-    </Transition>
-
       <!-- 隐藏的测量容器 -->
       <div ref="contentMeasurer" class="content-measurer" aria-hidden="true">
         <div class="resume-page measurer-inner" :style="spacingStyle">

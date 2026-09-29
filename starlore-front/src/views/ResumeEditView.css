@@ -848,17 +848,6 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
-/* ═════════════════════════════════════════════
-   右下角悬浮 AI 润色按钮 (SpaceAiButton 组件悬浮定位)
-   按钮样式见 src/components/SpaceAiButton.vue
-   ═════════════════════════════════════════════ */
-.ai-trigger-fab {
-  position: fixed;
-  right: 28px;
-  bottom: 80px;
-  z-index: 90;
-}
-
 /* 按钮进退场渐变与缩放 */
 .fade-scale-enter-active,
 .fade-scale-leave-active {

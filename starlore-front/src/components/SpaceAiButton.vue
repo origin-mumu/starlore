@@ -44,20 +44,22 @@ const sizeClass = computed(() => `size-${props.size}`)
     :title="title || label"
     @click="emit('click', $event)"
   >
-    <strong class="space-btn-label">{{ label }}</strong>
-    <span class="space-btn-stars-box" aria-hidden="true">
-      <span class="space-btn-stars"></span>
-    </span>
-    <span class="space-btn-glow" aria-hidden="true">
-      <span class="space-btn-circle"></span>
-      <span class="space-btn-circle"></span>
+    <!-- 内层包裹：星空/光斑图层的定位基准（根元素不设 position，避免覆盖页面级 fixed 悬浮定位） -->
+    <span class="space-btn-inner">
+      <strong class="space-btn-label">{{ label }}</strong>
+      <span class="space-btn-stars-box" aria-hidden="true">
+        <span class="space-btn-stars"></span>
+      </span>
+      <span class="space-btn-glow" aria-hidden="true">
+        <span class="space-btn-circle"></span>
+        <span class="space-btn-circle"></span>
+      </span>
     </span>
   </button>
 </template>
 
 <style scoped>
 .space-ai-btn {
-  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -77,6 +79,16 @@ const sizeClass = computed(() => `size-${props.size}`)
   background-origin: border-box;
   background-clip: content-box, border-box;
   font-family: inherit;
+}
+
+/* 内层定位基准：图层 absolute 相对它定位，根元素 position 交由页面样式决定 */
+.space-btn-inner {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── 尺寸变体 ── */
